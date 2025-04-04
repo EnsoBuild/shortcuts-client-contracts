@@ -9,17 +9,17 @@ struct DeployerResult {
     FeeSplitter feeSplitter;
 }
 
-// Deployer for the IPOR FeeSplitter
-contract DeployerFeeSplitter is Script {
+// Deployer for the Infrared FeeSplitter
+contract DeployerFeeSpliter is Script {
       function run() public returns (DeployerResult memory result) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        address enso = 0x2C0b46F1276A93B458346e53f6B7B57Aba20D7D1;
-        address ipor = 0xB7bE82790d40258Fd028BEeF2f2007DC044F3459;
+        address enso = 0xA67B61399B8b817e763f05dEF4694F22f1bDCC7d;
+        address infrared = 0x242D55c9404E0Ed1fD37dB1f00D60437820fe4f0;
 
         address[] memory recipients = new address[](2);
-        recipients[0] = ipor;
-        recipients[1] = enso;
+        recipients[0] = infrared;
+        recipients[1] = enso; 
 
         uint16[] memory shares = new uint16[](2);
         shares[0] = 1;
