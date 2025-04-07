@@ -9,8 +9,10 @@ import {WeirollPlanner} from "./utils/WeirollPlanner.sol";
 
 contract EOAEnsoShortcutsTest is Test {
     bytes3 private constant PREFIX = 0xef0100;
-    address private constant CALLER_ADDRESS = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
-    uint256 private constant CALLER_PK = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
+    address private constant CALLER_ADDRESS =
+        0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
+    uint256 private constant CALLER_PK =
+        0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
 
     address private s_alice;
     address private s_deployer;
@@ -37,7 +39,10 @@ contract EOAEnsoShortcutsTest is Test {
 
     function testEOAHasDelegateCode() public view {
         // Arrange
-        bytes memory expectedCode = abi.encodePacked(PREFIX, address(s_eoaDelegate));
+        bytes memory expectedCode = abi.encodePacked(
+            PREFIX,
+            address(s_eoaDelegate)
+        );
 
         // Assert
         assertEq(CALLER_ADDRESS.code, expectedCode);
@@ -45,7 +50,10 @@ contract EOAEnsoShortcutsTest is Test {
 
     function testEOACanClearDelegateCode() public {
         // Arrange
-        bytes memory expectedCode = abi.encodePacked(PREFIX, address(s_eoaDelegate));
+        bytes memory expectedCode = abi.encodePacked(
+            PREFIX,
+            address(s_eoaDelegate)
+        );
 
         // Act
         vm.signAndAttachDelegation(address(0), CALLER_PK);
@@ -64,7 +72,12 @@ contract EOAEnsoShortcutsTest is Test {
         // Act & Assert
         vm.prank(s_deployer);
         vm.expectRevert(EOAEnsoShortcuts.OnlySelfCall.selector);
-        EOAEnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(accountId, requestId, commands, state);
+        EOAEnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(
+            accountId,
+            requestId,
+            commands,
+            state
+        );
     }
 
     function testExecuteShortcutSucceeds() public {
@@ -91,8 +104,8 @@ contract EOAEnsoShortcutsTest is Test {
         vm.prank(CALLER_ADDRESS);
         vm.expectEmit(CALLER_ADDRESS);
         emit ShortcutExecuted(accountId, requestId);
-        bytes[] memory returnData =
-            EOAEnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(accountId, requestId, commands, state);
+        bytes[] memory returnData = EOAEnsoShortcuts(payable(CALLER_ADDRESS))
+            .executeShortcut(accountId, requestId, commands, state);
 
         assertTrue(returnData.length > 0);
         assertEq(s_weth.balanceOf(CALLER_ADDRESS), 0);
@@ -100,49 +113,27 @@ contract EOAEnsoShortcutsTest is Test {
         assertEq(s_weth.balanceOf(s_alice), 10 ether);
     }
 
-    function testExecuteReverts() public {
+    function testExecuteMultiSendsReverts() public {
         // Arrange
-        bytes32 accountId = bytes32(0);
-        bytes32 requestId = bytes32(0);
-        bytes32[] memory commands = new bytes32[](1);
-        bytes[] memory state = new bytes[](1);
+        bytes memory transactions = "";
 
         // Act & Assert
         vm.prank(s_deployer);
         vm.expectRevert(EOAEnsoShortcuts.OnlySelfCall.selector);
-        EOAEnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(accountId, requestId, commands, state);
+        EOAEnsoShortcuts(payable(CALLER_ADDRESS)).executeMultiSend(
+            transactions
+        );
     }
 
-    function testExecuteSucceeds() public {
+    function testExecuteMultiSendsSucceeds() public {
         // Arrange
-        bytes32 accountId = bytes32(0);
-        bytes32 requestId = keccak256(abi.encodePacked("requestId"));
-
-        bytes32[] memory commands = new bytes32[](1);
-        commands[0] = WeirollPlanner.buildCommand(
-            s_weth.transfer.selector,
-            0x01, // call
-            0x0001ffffffff, // 2 inputs
-            0xff, // no output
-            address(s_weth)
-        );
-
-        bytes[] memory state = new bytes[](2);
-        state[0] = abi.encode(s_alice);
-        state[1] = abi.encode(10 ether);
-
-        deal(address(s_weth), address(CALLER_ADDRESS), 10 ether);
+        bytes memory transactions = "";
 
         // Act & Assert
         vm.prank(CALLER_ADDRESS);
-        vm.expectEmit(CALLER_ADDRESS);
-        emit ShortcutExecuted(accountId, requestId);
-        bytes[] memory returnData =
-            EOAEnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(accountId, requestId, commands, state);
-
-        assertTrue(returnData.length > 0);
-        assertEq(s_weth.balanceOf(CALLER_ADDRESS), 0);
-        assertEq(s_weth.balanceOf(address(s_eoaDelegate)), 0);
-        assertEq(s_weth.balanceOf(s_alice), 10 ether);
+        vm.expectCall(CALLER_ADDRESS, 0, transactions, 1);
+        EOAEnsoShortcuts(payable(CALLER_ADDRESS)).executeMultiSend(
+            transactions
+        );
     }
 }
