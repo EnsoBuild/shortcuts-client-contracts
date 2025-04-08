@@ -11,7 +11,7 @@ struct DeployerResult {
 
 // Deployer for the IPOR FeeSplitter
 contract DeployerFeeSplitter is Script {
-      function run() public returns (DeployerResult memory result) {
+    function run() public returns (DeployerResult memory result) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         address enso = 0x2C0b46F1276A93B458346e53f6B7B57Aba20D7D1;

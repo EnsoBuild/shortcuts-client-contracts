@@ -1,13 +1,18 @@
 [profile.default]
-src = 'src'
-out = 'out'
-libs = ['lib']
-via_ir = true
-solc = '0.8.28'
-optimizer-runs = 200
+auto_detect_solc = false
 # NOTE: by excluding the metadata hash we make sure future contracts can be partially modified without altering their bytecode.
-bytecode_hash = "none"
-cbor_metadata = false
+bytecode_hash = "none" # Disables the metadata
+cbor_metadata = false # Diasbles the metadata
+evm_version = "prague"
+libs = ["lib"]
+optimizer = true
+optimizer-runs = 200
+out = "out"
+script = "script"
+solc = "0.8.28"
+src = "src"
+test = "test"
+via_ir = true
 
 [fmt]
 bracket_spacing = true
@@ -39,35 +44,38 @@ ignore = [
     "src/EnsoShortcuts.sol",
 ]
 int_types = "long"
-line_length = 132
+line_length = 120
 multiline_func_header = "all"
 number_underscore = "thousands"
 quote_style = "double"
 sort_imports = true
-tab_width = 2
+tab_width = 4
 wrap_comments = true
 
 [rpc_endpoints]
-mainnet = "${ETHEREUM_RPC_URL}"
 arbitrum = "${ARBITRUM_RPC_URL}"
+aurora = "${AURORA_RPC_URL}"
+avalanche = "${AVALANCHE_RPC_URL}"
+base = "${BASE_RPC_URL}"
+bsc = "${BSC_RPC_URL}"
+fantom = "${FANTOM_RPC_URL}"
+gnosis = "${GNOSIS_RPC_URL}"
+linea = "${LINEA_RPC_URL}"
+mainnet = "${ETHEREUM_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 polygon = "${POLYGON_RPC_URL}"
-bsc = "${BSC_RPC_URL}"
-gnosis = "${GNOSIS_RPC_URL}"
-avalanche = "${AVALANCHE_RPC_URL}"
-fantom = "${FANTOM_RPC_URL}"
-aurora = "${AURORA_RPC_URL}"
-goerli = "${GOERLI_RPC_URL}"
-base = "${BASE_RPC_URL}"
-linea = "${LINEA_RPC_URL}"
 
 [etherscan]
-mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
 arbitrum = { key = "${ARBITRUM_BLOCKSCAN_KEY}" }
+aurora = { key = "${AURORA_BLOCKSCAN_KEY}" }
+avalanche = { key = "${AVALANCHE_BLOCKSCAN_KEY}" }
+base = { key = "${BASE_BLOCKSCAN_KEY}" }
+bsc = { key = "${BSC_BLOCKSCAN_KEY}" }
+fantom = { key = "${FANTOM_BLOCKSCAN_KEY}" }
+gnosis = { key = "${GNOSIS_BLOCKSCAN_KEY}" }
+mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
+linea = { key = "${LINEA_BLOCKSCAN_KEY}" }
 optimism = { key = "${OPTIMISM_BLOCKSCAN_KEY}" }
 polygon = { key = "${POLYGON_BLOCKSCAN_KEY}" }
-bsc = { key = "${BSC_BLOCKSCAN_KEY}" }
-gnosis = { key = "${GNOSIS_BLOCKSCAN_KEY}" }
-avalanche = { key = "${AVALANCHE_BLOCKSCAN_KEY}" }
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

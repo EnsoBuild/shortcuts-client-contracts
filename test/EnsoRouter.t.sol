@@ -2,18 +2,22 @@
 pragma solidity ^0.8.28;
 
 import "../lib/forge-std/src/Test.sol";
-import "../src/router/EnsoRouter.sol";
+
 import "../src/EnsoShortcuts.sol";
+import "../src/router/EnsoRouter.sol";
+
+import "./mocks/MockERC1155.sol";
 import "./mocks/MockERC20.sol";
 import "./mocks/MockERC721.sol";
-import "./mocks/MockERC1155.sol";
-import "./mocks/MockVault.sol";
-import "./mocks/MockNFTVault.sol";
+
 import "./mocks/MockMultiVault.sol";
+import "./mocks/MockNFTVault.sol";
+import "./mocks/MockVault.sol";
+
 import "./utils/WeirollPlanner.sol";
 
-import { ERC721Holder } from "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";
 import { ERC1155Holder } from "openzeppelin-contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import { ERC721Holder } from "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";
 
 contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
     EnsoRouter public router;
@@ -30,8 +34,6 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
 
     uint256 public constant AMOUNT = 10 ** 18;
     uint256 public constant TOKENID = 1;
-
-    
 
     function setUp() public {
         _ethereumFork = vm.createFork(_rpcURL);
@@ -64,7 +66,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -85,7 +87,8 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         state[1] = abi.encode(AMOUNT);
         state[2] = abi.encode(address(this));
 
-        bytes memory data = abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
+        bytes memory data =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
 
         Token memory tokenIn = Token(TokenType.ERC20, abi.encode(address(token), AMOUNT));
         Token memory tokenOut = Token(TokenType.ERC20, abi.encode(address(vault), AMOUNT));
@@ -107,7 +110,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -128,8 +131,9 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         state[1] = abi.encode(AMOUNT);
         state[2] = abi.encode(address(this));
 
-        bytes memory data = abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
-        
+        bytes memory data =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
+
         Token memory tokenIn = Token(TokenType.ERC20, abi.encode(address(token), AMOUNT));
         Token memory tokenOut = Token(TokenType.ERC20, abi.encode(address(vault), AMOUNT));
 
@@ -145,7 +149,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         // Shortcut does not transfer funds after deposit
         bytes32[] memory commands = new bytes32[](2);
         bytes[] memory state = new bytes[](2);
-        
+
         commands[0] = WeirollPlanner.buildCommand(
             token.approve.selector,
             0x01, // call
@@ -153,7 +157,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -165,7 +169,8 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         state[0] = abi.encode(address(vault));
         state[1] = abi.encode(AMOUNT);
 
-        bytes memory data = abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
+        bytes memory data =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
 
         Token memory tokenIn = Token(TokenType.ERC20, abi.encode(address(token), AMOUNT));
         Token memory tokenOut = Token(TokenType.ERC20, abi.encode(address(vault), AMOUNT));
@@ -182,7 +187,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         // Shortcut does not transfer funds after deposit
         bytes32[] memory commands = new bytes32[](2);
         bytes[] memory state = new bytes[](2);
-        
+
         commands[0] = WeirollPlanner.buildCommand(
             token.approve.selector,
             0x01, // call
@@ -190,7 +195,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -202,7 +207,8 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         state[0] = abi.encode(address(vault));
         state[1] = abi.encode(AMOUNT);
 
-        bytes memory data = abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
+        bytes memory data =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
 
         Token memory tokenIn = Token(TokenType.ERC20, abi.encode(address(token), AMOUNT));
 
@@ -210,7 +216,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         // Funds left in router's wallet!
         assertEq(AMOUNT, vault.balanceOf(address(shortcuts)));
     }
-    
+
     function testRouteMulti() public {
         vm.selectFork(_ethereumFork);
 
@@ -226,7 +232,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -247,7 +253,8 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         state[1] = abi.encode(AMOUNT);
         state[2] = abi.encode(address(this));
 
-        bytes memory data = abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
+        bytes memory data =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
 
         Token[] memory tokensIn = new Token[](2);
         tokensIn[0] = Token(TokenType.ERC20, abi.encode(address(token), AMOUNT));
@@ -272,7 +279,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -293,7 +300,8 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         state[1] = abi.encode(AMOUNT);
         state[2] = abi.encode(address(this));
 
-        bytes memory data = abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
+        bytes memory data =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
 
         Token[] memory tokensIn = new Token[](2);
         tokensIn[0] = Token(TokenType.ERC20, abi.encode(address(token), AMOUNT));
@@ -321,7 +329,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
             0xff, // no output
             address(nft)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             nftVault.deposit.selector,
             0x01, // call
@@ -343,10 +351,13 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         state[2] = abi.encode(address(this));
         state[3] = abi.encode(address(shortcuts));
 
-        bytes memory data = abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
+        bytes memory data =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
 
         Token memory tokenIn = Token(TokenType.ERC721, abi.encode(address(nft), TOKENID));
-        Token memory tokenOut = Token(TokenType.ERC721, abi.encode(address(nftVault), 1)); // token out is checking for balance, which should increase by 1
+        Token memory tokenOut = Token(TokenType.ERC721, abi.encode(address(nftVault), 1)); // token out is checking for
+            // balance, which
+            // should increase by 1
 
         router.safeRouteSingle(tokenIn, tokenOut, address(this), data);
         assertEq(1, nftVault.balanceOf(address(this)));
@@ -367,7 +378,7 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
             0xff, // no output
             address(multiToken)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             multiVault.deposit.selector,
             0x01, // call
@@ -392,7 +403,8 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
         state[5] = abi.encode(address(shortcuts));
         state[6] = abi.encode(bytes("0x"));
 
-        bytes memory data = abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
+        bytes memory data =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
 
         Token memory tokenIn = Token(TokenType.ERC1155, abi.encode(address(multiToken), TOKENID, AMOUNT));
         Token memory tokenOut = Token(TokenType.ERC1155, abi.encode(address(multiVault), TOKENID, AMOUNT));

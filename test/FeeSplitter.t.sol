@@ -3,11 +3,11 @@ pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
 
-import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-import {FeeSplitter} from "../src/helpers/FeeSplitter.sol";
+import { FeeSplitter } from "../src/helpers/FeeSplitter.sol";
 
-import {DeployerTest, DeployerResult} from "../script/FeeSplitterDeployerTest.s.sol";
+import { DeployerResult, DeployerTest } from "../script/FeeSplitterDeployerTest.s.sol";
 
 contract FeeSplitterTest is Test {
     IERC20 constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -157,7 +157,7 @@ contract FeeSplitterTest is Test {
         assertEq(usdc.balanceOf(address(feeSplitter)), 1000e6);
         assertEq(ipor.balanceOf(address(feeSplitter)), 1 ether);
 
-         uint256 recipient0USDCBalanceBefore = usdc.balanceOf(feeSplitter.recipients(0));
+        uint256 recipient0USDCBalanceBefore = usdc.balanceOf(feeSplitter.recipients(0));
         uint256 recipient1USDCBalanceBefore = usdc.balanceOf(feeSplitter.recipients(1));
         uint256 recipient0IPORBalanceBefore = ipor.balanceOf(feeSplitter.recipients(0));
         uint256 recipient1IPORBalanceBefore = ipor.balanceOf(feeSplitter.recipients(1));

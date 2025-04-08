@@ -3,7 +3,13 @@
 pragma solidity ^0.8.28;
 
 library WeirollPlanner {
-    function buildCommand(bytes4 _selector, bytes1 _flags, bytes6 _input, bytes1 _output, address _target)
+    function buildCommand(
+        bytes4 _selector,
+        bytes1 _flags,
+        bytes6 _input,
+        bytes1 _output,
+        address _target
+    )
         internal
         pure
         returns (bytes32)

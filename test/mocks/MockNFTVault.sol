@@ -4,8 +4,7 @@ pragma solidity ^0.8.28;
 import { ERC721 } from "openzeppelin-contracts/token/ERC721/ERC721.sol";
 import { ERC721Holder } from "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";
 
-contract MockNFTVault is ERC721, ERC721Holder{
-
+contract MockNFTVault is ERC721, ERC721Holder {
     ERC721 public immutable nft;
 
     constructor(string memory name, string memory symbol, address nft_) ERC721(name, symbol) {
