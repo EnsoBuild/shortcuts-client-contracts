@@ -5,14 +5,13 @@ import "forge-std/Script.sol";
 import "../src/bridge/StargateV2Receiver.sol";
 
 contract StargateDeployer is Script {
-    function run() public returns (address stargateHelper) {
+    function run() public returns (address stargateHelper, address endpoint) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployerPrivateKey);
 
         uint256 chainId = block.chainid;
 
-        address endpoint;
         if (chainId == 324) {
             endpoint = 0xd07C30aF3Ff30D96BDc9c6044958230Eb797DDBF; // zksync
         } else if (chainId == 130 || chainId == 480) {
