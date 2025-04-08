@@ -4,17 +4,22 @@ pragma solidity ^0.8.28;
 import "../src/delegate/EIP7702EnsoShortcuts.sol";
 import "forge-std/Script.sol";
 
-struct EOADeployerResult {
+struct EIP7702EnsoShortcutsDeployerResult {
     EIP7702EnsoShortcuts shortcuts;
 }
 
-contract EOADeployer is Script {
-    function run() public returns (EOADeployerResult memory result) {
+contract EIP7702EnsoShortcutsDeployer is Script {
+    function run()
+        public
+        returns (EIP7702EnsoShortcutsDeployerResult memory result)
+    {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployerPrivateKey);
 
-        result.shortcuts = new EIP7702EnsoShortcuts{ salt: "EIP7702EnsoShortcuts" }();
+        result.shortcuts = new EIP7702EnsoShortcuts{
+            salt: "EIP7702EnsoShortcuts"
+        }();
 
         vm.stopBroadcast();
     }
