@@ -34,21 +34,18 @@ contract UniswapV4Helpers {
         return uint160(input);
     }
 
-    function getPoolKey(
-        address currency0,
-        address currency1,
-        uint24 fee,
-        int24 tickSpacing,
-        address hooks
-    ) public pure returns (PoolKey memory) {
-        return
-            PoolKey({
-                currency0: Currency.wrap(currency0),
-                currency1: Currency.wrap(currency1),
-                fee: fee,
-                tickSpacing: tickSpacing,
-                hooks: IHooks(hooks)
-            });
+    function getPoolKey(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)
+        public
+        pure
+        returns (PoolKey memory)
+    {
+        return PoolKey({
+            currency0: Currency.wrap(currency0),
+            currency1: Currency.wrap(currency1),
+            fee: fee,
+            tickSpacing: tickSpacing,
+            hooks: IHooks(hooks)
+        });
     }
 
     function getLiquidityForAmounts(
@@ -58,16 +55,15 @@ contract UniswapV4Helpers {
         uint256 amount0,
         uint256 amount1
     ) public view returns (uint128) {
-        (uint160 sqrtPriceX96, , , ) = poolManager.getSlot0(poolKey.toId());
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
 
-        return
-            LiquidityAmounts.getLiquidityForAmounts(
-                sqrtPriceX96,
-                TickMath.getSqrtPriceAtTick(tickLower),
-                TickMath.getSqrtPriceAtTick(tickUpper),
-                amount0,
-                amount1
-            );
+        return LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
+            amount0,
+            amount1
+        );
     }
 
     function encodeMintWithHooks(
@@ -116,20 +112,19 @@ contract UniswapV4Helpers {
         uint256 amount1Max,
         address recipient
     ) external pure returns (bytes memory) {
-        return
-            encodeMintWithHooks(
-                currency0,
-                currency1,
-                fee,
-                tickSpacing,
-                tickLower,
-                tickUpper,
-                liquidity,
-                amount0Max,
-                amount1Max,
-                recipient,
-                address(0)
-            );
+        return encodeMintWithHooks(
+            currency0,
+            currency1,
+            fee,
+            tickSpacing,
+            tickLower,
+            tickUpper,
+            liquidity,
+            amount0Max,
+            amount1Max,
+            recipient,
+            address(0)
+        );
     }
 
     function encodeMintFromDeltasWithHooks(
@@ -145,27 +140,22 @@ contract UniswapV4Helpers {
         address hooks
     ) public view returns (bytes memory) {
         uint128 liquidity = getLiquidityForAmounts(
-            getPoolKey(currency0, currency1, fee, tickSpacing, hooks),
-            tickLower,
-            tickUpper,
-            amount0Max,
-            amount1Max
+            getPoolKey(currency0, currency1, fee, tickSpacing, hooks), tickLower, tickUpper, amount0Max, amount1Max
         );
 
-        return
-            encodeMintWithHooks(
-                currency0,
-                currency1,
-                fee,
-                tickSpacing,
-                tickLower,
-                tickUpper,
-                liquidity,
-                amount0Max,
-                amount1Max,
-                recipient,
-                hooks
-            );
+        return encodeMintWithHooks(
+            currency0,
+            currency1,
+            fee,
+            tickSpacing,
+            tickLower,
+            tickUpper,
+            liquidity,
+            amount0Max,
+            amount1Max,
+            recipient,
+            hooks
+        );
     }
 
     function encodeMintFromDeltas(
@@ -179,18 +169,8 @@ contract UniswapV4Helpers {
         uint256 amount1Max,
         address recipient
     ) external view returns (bytes memory) {
-        return
-            encodeMintFromDeltasWithHooks(
-                currency0,
-                currency1,
-                fee,
-                tickSpacing,
-                tickLower,
-                tickUpper,
-                amount0Max,
-                amount1Max,
-                recipient,
-                address(0)
-            );
+        return encodeMintFromDeltasWithHooks(
+            currency0, currency1, fee, tickSpacing, tickLower, tickUpper, amount0Max, amount1Max, recipient, address(0)
+        );
     }
 }
