@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/delegate/EOAEnsoShortcuts.sol";
+import "../src/delegate/EIP7702EnsoShortcuts.sol";
 import "forge-std/Script.sol";
 
 struct EOADeployerResult {
-    EOAEnsoShortcuts shortcuts;
+    EIP7702EnsoShortcuts shortcuts;
 }
 
 contract EOADeployer is Script {
@@ -14,7 +14,9 @@ contract EOADeployer is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        result.shortcuts = new EOAEnsoShortcuts{ salt: "EOAEnsoShortcuts" }();
+        result.shortcuts = new EIP7702EnsoShortcuts{
+            salt: "EIP7702EnsoShortcuts"
+        }();
 
         vm.stopBroadcast();
     }

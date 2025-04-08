@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { AbstractEnsoShortcuts } from "../AbstractEnsoShortcuts.sol";
+import {AbstractEnsoShortcuts} from "../AbstractEnsoShortcuts.sol";
 
-contract EOAEnsoShortcuts is AbstractEnsoShortcuts {
+contract EIP7702EnsoShortcuts is AbstractEnsoShortcuts {
     error OnlySelfCall();
 
     /// @dev Sends multiple transactions and reverts all if one fails.
@@ -16,7 +16,11 @@ contract EOAEnsoShortcuts is AbstractEnsoShortcuts {
     ///                     see abi.encodePacked for more information on packed encoding
     /// @notice The code is for most part the same as the normal MultiSend (to keep compatibility),
     ///         but reverts if a transaction tries to use a delegatecall.
-    function executeMultiSend(bytes memory transactions) public {
+    function executeMultiSend(
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes memory transactions
+    ) public {
         _checkMsgSender();
         // solhint-disable-next-line no-inline-assembly
         assembly {
@@ -45,14 +49,21 @@ contract EOAEnsoShortcuts is AbstractEnsoShortcuts {
                 let data := add(transactions, add(i, 0x55))
                 let success := 0
                 switch operation
-                case 0 { success := call(gas(), to, value, data, dataLength, 0, 0) }
+                case 0 {
+                    success := call(gas(), to, value, data, dataLength, 0, 0)
+                }
                 // This version does not allow delegatecalls
-                case 1 { revert(0, 0) }
-                if eq(success, 0) { revert(0, 0) }
+                case 1 {
+                    revert(0, 0)
+                }
+                if eq(success, 0) {
+                    revert(0, 0)
+                }
                 // Next entry starts at 85 byte + data length
                 i := add(i, add(0x55, dataLength))
             }
         }
+        emit ShortcutExecuted(accountId, requestId);
     }
 
     function _checkMsgSender() internal view override {
