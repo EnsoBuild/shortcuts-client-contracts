@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console2} from "forge-std/Script.sol";
+import { Script, console2 } from "forge-std/Script.sol";
 
-import {FeeSplitter} from "../src/helpers/FeeSplitter.sol";
+import { FeeSplitter } from "../src/helpers/FeeSplitter.sol";
 
 struct DeployerResult {
     FeeSplitter feeSplitter;

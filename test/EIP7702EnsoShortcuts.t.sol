@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import {EOADeployer, EOADeployerResult} from "../script/EOADeployer.s.sol";
-import {EIP7702EnsoShortcuts} from "../src/delegate/EIP7702EnsoShortcuts.sol";
-import {WeirollPlanner} from "./utils/WeirollPlanner.sol";
-import {Test} from "forge-std/Test.sol";
-import {WETH} from "solady/tokens/WETH.sol";
+import { EOADeployer, EOADeployerResult } from "../script/EOADeployer.s.sol";
+import { EIP7702EnsoShortcuts } from "../src/delegate/EIP7702EnsoShortcuts.sol";
+import { WeirollPlanner } from "./utils/WeirollPlanner.sol";
+import { Test } from "forge-std/Test.sol";
+import { WETH } from "solady/tokens/WETH.sol";
 
 contract EIP7702EnsoShortcutsTest is Test {
     bytes3 private constant PREFIX = 0xef0100;
-    address private constant CALLER_ADDRESS =
-        0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
-    uint256 private constant CALLER_PK =
-        0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
+    address private constant CALLER_ADDRESS = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
+    uint256 private constant CALLER_PK = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
 
     address private s_alice;
     address private s_deployer;
@@ -39,10 +37,7 @@ contract EIP7702EnsoShortcutsTest is Test {
 
     function testEOAHasDelegateCode() public view {
         // Arrange
-        bytes memory expectedCode = abi.encodePacked(
-            PREFIX,
-            address(s_eoaDelegate)
-        );
+        bytes memory expectedCode = abi.encodePacked(PREFIX, address(s_eoaDelegate));
 
         // Assert
         assertEq(CALLER_ADDRESS.code, expectedCode);
@@ -50,10 +45,7 @@ contract EIP7702EnsoShortcutsTest is Test {
 
     function testEOACanClearDelegateCode() public {
         // Arrange
-        bytes memory expectedCode = abi.encodePacked(
-            PREFIX,
-            address(s_eoaDelegate)
-        );
+        bytes memory expectedCode = abi.encodePacked(PREFIX, address(s_eoaDelegate));
 
         // Act
         vm.signAndAttachDelegation(address(0), CALLER_PK);
@@ -72,12 +64,7 @@ contract EIP7702EnsoShortcutsTest is Test {
         // Act & Assert
         vm.prank(s_deployer);
         vm.expectRevert(EIP7702EnsoShortcuts.OnlySelfCall.selector);
-        EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(
-            accountId,
-            requestId,
-            commands,
-            state
-        );
+        EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(accountId, requestId, commands, state);
     }
 
     function testExecuteShortcutSucceeds() public {
@@ -104,9 +91,8 @@ contract EIP7702EnsoShortcutsTest is Test {
         vm.prank(CALLER_ADDRESS);
         vm.expectEmit(CALLER_ADDRESS);
         emit ShortcutExecuted(accountId, requestId);
-        bytes[] memory returnData = EIP7702EnsoShortcuts(
-            payable(CALLER_ADDRESS)
-        ).executeShortcut(accountId, requestId, commands, state);
+        bytes[] memory returnData =
+            EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(accountId, requestId, commands, state);
 
         assertTrue(returnData.length > 0);
         assertEq(s_weth.balanceOf(CALLER_ADDRESS), 0);
@@ -123,11 +109,7 @@ contract EIP7702EnsoShortcutsTest is Test {
         // Act & Assert
         vm.prank(s_deployer);
         vm.expectRevert(EIP7702EnsoShortcuts.OnlySelfCall.selector);
-        EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeMultiSend(
-            accountId,
-            requestId,
-            transactions
-        );
+        EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeMultiSend(accountId, requestId, transactions);
     }
 
     function testExecuteMultiSendsSucceeds() public {
@@ -139,10 +121,6 @@ contract EIP7702EnsoShortcutsTest is Test {
         // Act & Assert
         vm.prank(CALLER_ADDRESS);
         vm.expectCall(CALLER_ADDRESS, 0, transactions, 1);
-        EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeMultiSend(
-            accountId,
-            requestId,
-            transactions
-        );
+        EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeMultiSend(accountId, requestId, transactions);
     }
 }

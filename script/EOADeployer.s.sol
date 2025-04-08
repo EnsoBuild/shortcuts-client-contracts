@@ -14,9 +14,7 @@ contract EOADeployer is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        result.shortcuts = new EIP7702EnsoShortcuts{
-            salt: "EIP7702EnsoShortcuts"
-        }();
+        result.shortcuts = new EIP7702EnsoShortcuts{ salt: "EIP7702EnsoShortcuts" }();
 
         vm.stopBroadcast();
     }
