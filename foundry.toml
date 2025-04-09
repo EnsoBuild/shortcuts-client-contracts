@@ -54,28 +54,32 @@ wrap_comments = true
 
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"
-aurora = "${AURORA_RPC_URL}"
 avalanche = "${AVALANCHE_RPC_URL}"
 base = "${BASE_RPC_URL}"
+berachain = "${BERACHAIN_RPC_URL}"
 bsc = "${BSC_RPC_URL}"
-fantom = "${FANTOM_RPC_URL}"
 gnosis = "${GNOSIS_RPC_URL}"
+hyper = "${HYPER_RPC_URL}"
 linea = "${LINEA_RPC_URL}"
 mainnet = "${ETHEREUM_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 polygon = "${POLYGON_RPC_URL}"
+sonic = "${SONIC_RPC_URL}"
+zksync = "${ZKSYNC_RPC_URL}"
 
 [etherscan]
 arbitrum = { key = "${ARBITRUM_BLOCKSCAN_KEY}" }
-aurora = { key = "${AURORA_BLOCKSCAN_KEY}" }
 avalanche = { key = "${AVALANCHE_BLOCKSCAN_KEY}" }
 base = { key = "${BASE_BLOCKSCAN_KEY}" }
+berachain = { key = "${BERACHAIN_BLOCKSCAN_KEY}" }
 bsc = { key = "${BSC_BLOCKSCAN_KEY}" }
-fantom = { key = "${FANTOM_BLOCKSCAN_KEY}" }
 gnosis = { key = "${GNOSIS_BLOCKSCAN_KEY}" }
-mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
+hyper = { key = "${HYPER_BLOCKSCAN_KEY}" }
 linea = { key = "${LINEA_BLOCKSCAN_KEY}" }
+mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
 optimism = { key = "${OPTIMISM_BLOCKSCAN_KEY}" }
 polygon = { key = "${POLYGON_BLOCKSCAN_KEY}" }
+sonic = { key = "${SONIC_BLOCKSCAN_KEY}" }
+zksync = { key = "${ZKSYNC_BLOCKSCAN_KEY}" }
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
