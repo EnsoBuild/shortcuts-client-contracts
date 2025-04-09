@@ -21,6 +21,7 @@ contract EIP7702EnsoShortcutsTest is Test {
     WETH private s_weth;
 
     event ShortcutExecuted(bytes32 accountId, bytes32 requestId);
+    event MultiSendExecuted(bytes32 accountId, bytes32 requestId);
 
     function setUp() public {
         s_deployer = address(0);
@@ -124,7 +125,7 @@ contract EIP7702EnsoShortcutsTest is Test {
         // Act & Assert
         vm.prank(CALLER_ADDRESS);
         vm.expectEmit(CALLER_ADDRESS);
-        emit ShortcutExecuted(accountId, requestId);
+        emit MultiSendExecuted(accountId, requestId);
         vm.expectCall(CALLER_ADDRESS, 0, transactions, 1);
         EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeMultiSend(accountId, requestId, transactions);
     }
