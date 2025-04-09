@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { EnsoShortcuts } from "../EnsoShortcuts.sol";
-import { SafeERC20, IERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 struct Token {
     IERC20 token;
@@ -38,14 +38,18 @@ contract EnsoShortcutRouter {
         uint256 amountIn,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) public payable returns (bytes[] memory response) {
+    )
+        public
+        payable
+        returns (bytes[] memory response)
+    {
         if (tokenIn == _ETH) {
             if (msg.value != amountIn) revert WrongValue(msg.value, amountIn);
         } else {
             if (msg.value != 0) revert WrongValue(msg.value, 0);
             tokenIn.safeTransferFrom(msg.sender, address(enso), amountIn);
         }
-        response = enso.executeShortcut{value: msg.value}(accountId, requestId, commands, state);
+        response = enso.executeShortcut{ value: msg.value }(accountId, requestId, commands, state);
     }
 
     // @notice Route multiple tokens via an Enso Shortcut
@@ -60,7 +64,11 @@ contract EnsoShortcutRouter {
         Token[] calldata tokensIn,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) public payable returns (bytes[] memory response) {
+    )
+        public
+        payable
+        returns (bytes[] memory response)
+    {
         bool ethFlag;
         IERC20 tokenIn;
         uint256 amountIn;
@@ -76,8 +84,8 @@ contract EnsoShortcutRouter {
             }
         }
         if (!ethFlag && msg.value != 0) revert WrongValue(msg.value, 0);
-        
-        response = enso.executeShortcut{value: msg.value}(accountId, requestId, commands, state);
+
+        response = enso.executeShortcut{ value: msg.value }(accountId, requestId, commands, state);
     }
 
     // @notice Route a single token via an Enso Shortcut and revert if there is insufficient token received
@@ -100,7 +108,11 @@ contract EnsoShortcutRouter {
         address receiver,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) external payable returns (bytes[] memory response) {
+    )
+        external
+        payable
+        returns (bytes[] memory response)
+    {
         uint256 balance = tokenOut == _ETH ? receiver.balance : tokenOut.balanceOf(receiver);
         response = routeSingle(accountId, requestId, tokenIn, amountIn, commands, state);
         uint256 amountOut;
@@ -128,7 +140,11 @@ contract EnsoShortcutRouter {
         address receiver,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) external payable returns (bytes[] memory response) {
+    )
+        external
+        payable
+        returns (bytes[] memory response)
+    {
         uint256 length = tokensOut.length;
         uint256[] memory balances = new uint256[](length);
 

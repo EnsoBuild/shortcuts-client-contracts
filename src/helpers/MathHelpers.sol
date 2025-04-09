@@ -5,8 +5,10 @@ pragma solidity ^0.8.28;
  * @dev MathHelpers contract is recommended to use only in Shortcuts passed to EnsoWallet
  *
  * Based on OpenZepplin Contracts v4.7.3:
- * - utils/math/Math.sol (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/Math.sol)
- * - utils/math/SafeMath.sol (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol)
+ * - utils/math/Math.sol
+ * (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/Math.sol)
+ * - utils/math/SafeMath.sol
+ * (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol)
  */
 contract MathHelpers {
     uint256 public constant VERSION = 2;
@@ -91,7 +93,7 @@ contract MathHelpers {
 
     /**
      * @dev Returns the sum of an array of unsigned integers.
-     * 
+     *
      * Requirements:
      *
      * - Addition cannot overflow.
@@ -120,7 +122,8 @@ contract MathHelpers {
     }
 
     /**
-     * @dev Returns the results a math operation if a condition is met. Otherwise returns the 'a' value without any modification.
+     * @dev Returns the results a math operation if a condition is met. Otherwise returns the 'a' value without any
+     * modification.
      */
     function conditional(bool condition, bytes4 method, uint256 a, uint256 b) external view returns (uint256) {
         if (condition) {

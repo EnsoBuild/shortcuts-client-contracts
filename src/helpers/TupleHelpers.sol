@@ -29,9 +29,7 @@ contract TupleHelpers {
         assembly {
             let offset := add(mload(add(tuple, mul(add(index, 1), 32))), 32)
             let length := mload(add(tuple, offset))
-            if gt(mod(length, 32), 0) {
-                length := mul(add(div(length, 32), 1), 32)
-            }
+            if gt(mod(length, 32), 0) { length := mul(add(div(length, 32), 1), 32) }
             return(add(tuple, add(offset, 32)), length)
         }
     }
@@ -41,13 +39,18 @@ contract TupleHelpers {
      * @dev Use with .rawValue() in the weiroll planner
      * @param tuple The bytes encoded parent tuple
      * @param index The index of the tuple to be extracted
-     * @param isDynamicTypeFormat Boolean to define whether the child tuple is dynamically sized. If the child tuple contains bytes or string variables, set to "true"
+     * @param isDynamicTypeFormat Boolean to define whether the child tuple is dynamically sized. If the child tuple
+     * contains bytes or string variables, set to "true"
      */
     function extractTuple(
         bytes memory tuple,
         uint256 index,
         bool[] memory isDynamicTypeFormat
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         uint256 offset;
         uint256 length;
         assembly {
@@ -59,9 +62,7 @@ contract TupleHelpers {
                 assembly {
                     let paramOffset := add(offset, mload(add(tuple, add(offset, mul(i, 32)))))
                     let paramLength := add(mload(add(tuple, paramOffset)), 32)
-                    if gt(mod(paramLength, 32), 0) {
-                        paramLength := mul(add(div(paramLength, 32), 1), 32)
-                    }
+                    if gt(mod(paramLength, 32), 0) { paramLength := mul(add(div(paramLength, 32), 1), 32) }
                     length := add(length, paramLength)
                 }
             }
@@ -109,11 +110,10 @@ contract TupleHelpers {
             assembly {
                 let paramOffset := add(offset, mul(add(i, 1), 32))
                 let paramLength := mload(add(tuple, paramOffset))
-                if gt(mod(paramLength, 32), 0) {
-                    paramLength := mul(add(div(paramLength, 32), 1), 32)
-                }
+                if gt(mod(paramLength, 32), 0) { paramLength := mul(add(div(paramLength, 32), 1), 32) }
                 length := add(length, paramLength)
-                //length := add(length, mload(add(tuple, add(add(mload(add(tuple, mul(add(index, 1), 32))), 32), mul(add(i, 1), 32)))))
+                //length := add(length, mload(add(tuple, add(add(mload(add(tuple, mul(add(index, 1), 32))), 32),
+                // mul(add(i, 1), 32)))))
             }
         }
         assembly {
@@ -127,13 +127,18 @@ contract TupleHelpers {
      * @dev Use with .rawValue() in the weiroll planner
      * @param tuple The bytes encoded tuple
      * @param index The index of the tuple array to be extracted
-     * @param isDynamicTypeFormat Boolean to define whether the tuples in the array are dynamically sized. If the array tuple contains bytes or string variables, set to "true"
+     * @param isDynamicTypeFormat Boolean to define whether the tuples in the array are dynamically sized. If the array
+     * tuple contains bytes or string variables, set to "true"
      */
     function extractTupleArray(
         bytes memory tuple,
         uint256 index,
         bool[] memory isDynamicTypeFormat
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         uint256 numberOfElements;
         assembly {
             // let offset := add(mload(add(tuple, mul(add(index, 1), 32))), 32)
@@ -150,54 +155,55 @@ contract TupleHelpers {
                         // let paramOffset := add(tupleOffset, mload(add(tuple, add(tupleOffset, mul(add(j,1), 32)))))
                         // let paramLength := add(mload(add(tuple, paramOffset)),32)
                         // length := add(length, paramLength)
-                        length := add(
-                            length,
+                        length :=
                             add(
-                                mload(
-                                    add(
-                                        tuple,
+                                length,
+                                add(
+                                    mload(
                                         add(
+                                            tuple,
                                             add(
-                                                add(mload(add(tuple, mul(add(index, 1), 32))), 32),
+                                                add(
+                                                    add(mload(add(tuple, mul(add(index, 1), 32))), 32),
+                                                    mload(
+                                                        add(
+                                                            tuple,
+                                                            add(
+                                                                add(mload(add(tuple, mul(add(index, 1), 32))), 32),
+                                                                mul(i, 32)
+                                                            )
+                                                        )
+                                                    )
+                                                ),
                                                 mload(
                                                     add(
                                                         tuple,
                                                         add(
-                                                            add(mload(add(tuple, mul(add(index, 1), 32))), 32),
-                                                            mul(i, 32)
-                                                        )
-                                                    )
-                                                )
-                                            ),
-                                            mload(
-                                                add(
-                                                    tuple,
-                                                    add(
-                                                        add(
-                                                            add(mload(add(tuple, mul(add(index, 1), 32))), 32),
-                                                            mload(
-                                                                add(
-                                                                    tuple,
+                                                            add(
+                                                                add(mload(add(tuple, mul(add(index, 1), 32))), 32),
+                                                                mload(
                                                                     add(
+                                                                        tuple,
                                                                         add(
-                                                                            mload(add(tuple, mul(add(index, 1), 32))),
-                                                                            32
-                                                                        ),
-                                                                        mul(i, 32)
+                                                                            add(
+                                                                                mload(add(tuple, mul(add(index, 1), 32))),
+                                                                                32
+                                                                            ),
+                                                                            mul(i, 32)
+                                                                        )
                                                                     )
                                                                 )
-                                                            )
-                                                        ),
-                                                        mul(add(j, 1), 32)
+                                                            ),
+                                                            mul(add(j, 1), 32)
+                                                        )
                                                     )
                                                 )
                                             )
                                         )
-                                    )
-                                ),
-                                32
+                                    ),
+                                    32
+                                )
                             )
-                        )
                     }
                 }
             }

@@ -17,32 +17,6 @@ via_ir = true
 [fmt]
 bracket_spacing = true
 contract_new_lines = false
-# NOTE: The contracts below have been deployed across chains using `CREATE2`.
-# Their bytecode must remain unchanged, as any modification would alter the deployment address.
-# For this reason, we exclude them from formatting.
-ignore = [
-    "src/bridge/StargateV2Receiver.sol",
-    "src/delegate/DelegateEnsoShortcuts.sol",
-    "src/helpers/BalancerHelpers.sol",
-    "src/helpers/DecimalHelpers.sol",
-    "src/helpers/EnsoShortcutsHelpers.sol",
-    "src/helpers/ERC20Helpers.sol",
-    "src/helpers/FeeSplitter.sol",
-    "src/helpers/MathHelpers.sol",
-    "src/helpers/PercentageMathHelpers.sol",
-    "src/helpers/SignedMathHelpers.sol",
-    "src/helpers/SommelierHelpers.sol",
-    "src/helpers/SwapHelpers.sol",
-    "src/helpers/TupleHelpers.sol",
-    "src/helpers/UniswapV4Helpers.sol",
-    "src/router/EnsoRouter.sol",
-    "src/router/EnsoShortcutRouter.sol",
-    "src/solvers/BaseSolver.sol",
-    "src/solvers/BebopSolver.sol",
-    "src/solvers/MinimalWallet.sol",
-    "src/AbstractEnsoShortcuts.sol",
-    "src/EnsoShortcuts.sol",
-]
 int_types = "long"
 line_length = 120
 multiline_func_header = "all"

@@ -10,6 +10,6 @@ contract ERC20Helpers {
 
     // This dumb function is for those ERC20s that return bytes with incorrect length for their balanceOf function
     function balanceOf(IERC20 token, address owner) external view returns (uint256 balance) {
-       balance = token.balanceOf(owner);
+        balance = token.balanceOf(owner);
     }
 }

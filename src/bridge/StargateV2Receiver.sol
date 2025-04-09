@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import {ILayerZeroComposer} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroComposer.sol";
-import {OFTComposeMsgCodec} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
-import {SafeERC20, IERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import {VM} from "enso-weiroll/VM.sol";
+import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
+import { ILayerZeroComposer } from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroComposer.sol";
+
+import { VM } from "enso-weiroll/VM.sol";
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract StargateV2Receiver is VM, ILayerZeroComposer {
     using OFTComposeMsgCodec for bytes;
@@ -16,7 +17,7 @@ contract StargateV2Receiver is VM, ILayerZeroComposer {
 
     event ShortcutExecutionSuccessful(bytes32 guid, bytes32 requestId);
     event ShortcutExecutionFailed(bytes32 guid, bytes32 requestId);
-    
+
     error NotEndpoint(address sender);
     error NotSelf();
     error TransferFailed(bytes32 guid, address receiver);
@@ -25,17 +26,11 @@ contract StargateV2Receiver is VM, ILayerZeroComposer {
         endpoint = _endpoint;
     }
 
-    function lzCompose(
-        address,
-        bytes32 _guid,
-        bytes calldata _message,
-        address,
-        bytes calldata
-    ) external payable {
+    function lzCompose(address, bytes32 _guid, bytes calldata _message, address, bytes calldata) external payable {
         if (msg.sender != endpoint) revert NotEndpoint(msg.sender);
 
         bytes memory composeMsg = _message.composeMsg();
-        (address token, address receiver, bytes32 requestId, bytes32[] memory commands, bytes[] memory state) = 
+        (address token, address receiver, bytes32 requestId, bytes32[] memory commands, bytes[] memory state) =
             abi.decode(composeMsg, (address, address, bytes32, bytes32[], bytes[]));
 
         // try to execute shortcut
@@ -46,7 +41,7 @@ contract StargateV2Receiver is VM, ILayerZeroComposer {
             emit ShortcutExecutionFailed(_guid, requestId);
             uint256 amount = _message.amountLD();
             if (token == _NATIVE_ASSET) {
-                (bool success, ) = receiver.call{value: amount}("");
+                (bool success,) = receiver.call{ value: amount }("");
                 if (!success) revert TransferFailed(_guid, receiver);
             } else {
                 IERC20(token).safeTransfer(receiver, amount);
@@ -59,5 +54,5 @@ contract StargateV2Receiver is VM, ILayerZeroComposer {
         _execute(commands, state);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

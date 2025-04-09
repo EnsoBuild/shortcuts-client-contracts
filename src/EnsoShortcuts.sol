@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import { AbstractEnsoShortcuts } from "./AbstractEnsoShortcuts.sol";
 
 contract EnsoShortcuts is AbstractEnsoShortcuts {
-    address immutable public executor;
+    address public immutable executor;
 
     error NotPermitted();
 
@@ -12,7 +12,7 @@ contract EnsoShortcuts is AbstractEnsoShortcuts {
         executor = executor_;
     }
 
-    function _checkMsgSender() internal override view {
+    function _checkMsgSender() internal view override {
         if (msg.sender != executor) revert NotPermitted();
     }
 }
