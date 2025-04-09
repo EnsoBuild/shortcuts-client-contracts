@@ -15,8 +15,10 @@ contract FeeSplitterTest is Test {
 
     FeeSplitter internal feeSplitter;
 
-    address internal owner;
     address internal attacker;
+    address internal owner;
+    address[] internal recipients;
+    uint16[] internal shares;
 
     error OwnableUnauthorizedAccount(address account);
 
@@ -26,29 +28,30 @@ contract FeeSplitterTest is Test {
         (, uint256 deployerKey) = makeAddrAndKey("deployer");
         vm.setEnv("PRIVATE_KEY", vm.toString(deployerKey));
 
-        owner = makeAddr("owner");
-        vm.setEnv("OWNER", vm.toString(owner));
-
         attacker = makeAddr("attacker");
 
         DeployerResult memory result = new DeployerTest().run();
 
         feeSplitter = result.feeSplitter;
+        owner = result.owner;
+        vm.setEnv("OWNER", vm.toString(owner));
+        recipients = result.recipients;
+        shares = result.shares;
     }
 
     function testOnlyOwnerCanChangeRecipients() public {
-        address[] memory recipients = new address[](1);
-        recipients[0] = attacker;
+        address[] memory newRecipients = new address[](1);
+        newRecipients[0] = attacker;
 
-        uint16[] memory shares = new uint16[](1);
-        shares[0] = 1;
+        uint16[] memory newShares = new uint16[](1);
+        newShares[0] = 1;
 
         vm.prank(attacker);
         vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, attacker));
-        feeSplitter.setRecipients(recipients, shares);
+        feeSplitter.setRecipients(newRecipients, newShares);
 
         vm.prank(owner);
-        feeSplitter.setRecipients(recipients, shares);
+        feeSplitter.setRecipients(newRecipients, newShares);
 
         assertEq(feeSplitter.recipients(0), attacker);
         assertEq(feeSplitter.shares(0), 1);
@@ -134,16 +137,16 @@ contract FeeSplitterTest is Test {
     }
 
     function testUnequalShares() public {
-        address[] memory recipients = new address[](2);
-        recipients[0] = 0xB7bE82790d40258Fd028BEeF2f2007DC044F3459; // ipor multisig
-        recipients[1] = 0x2C0b46F1276A93B458346e53f6B7B57Aba20D7D1; // enso multisig
+        address[] memory newRecipients = new address[](2);
+        newRecipients[0] = 0xB7bE82790d40258Fd028BEeF2f2007DC044F3459; // ipor multisig
+        newRecipients[1] = 0x2C0b46F1276A93B458346e53f6B7B57Aba20D7D1; // enso multisig
 
-        uint16[] memory shares = new uint16[](2);
-        shares[0] = 9;
-        shares[1] = 1;
+        uint16[] memory newShares = new uint16[](2);
+        newShares[0] = 9;
+        newShares[1] = 1;
 
         vm.prank(owner);
-        feeSplitter.setRecipients(recipients, shares);
+        feeSplitter.setRecipients(newRecipients, newShares);
 
         IERC20[] memory tokens = new IERC20[](2);
         tokens[0] = usdc;

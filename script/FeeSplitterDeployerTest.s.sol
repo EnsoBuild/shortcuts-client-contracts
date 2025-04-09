@@ -6,6 +6,9 @@ import { Script, console2 } from "forge-std/Script.sol";
 import { FeeSplitter } from "../src/helpers/FeeSplitter.sol";
 
 struct DeployerResult {
+    address owner;
+    address[] recipients;
+    uint16[] shares;
     FeeSplitter feeSplitter;
 }
 
@@ -26,5 +29,8 @@ contract DeployerTest is Script {
 
         vm.broadcast(deployerPrivateKey);
         result.feeSplitter = new FeeSplitter(enso, recipients, shares);
+        result.owner = enso;
+        result.recipients = recipients;
+        result.shares = shares;
     }
 }
