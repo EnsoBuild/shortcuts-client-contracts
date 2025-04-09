@@ -4,7 +4,7 @@
 	branch = v1.9.6
 [submodule "lib/enso-weiroll"]
 	path = lib/enso-weiroll
-	url = ../enso-weiroll.git
+	url = https://github.com/EnsoBuild/enso-weiroll.git
 [submodule "lib/safe-tools"]
 	path = lib/safe-tools
 	url = https://github.com/colinnielsen/safe-tools
