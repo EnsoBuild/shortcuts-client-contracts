@@ -5,7 +5,6 @@ import { ERC1155, IERC1155, IERC1155MetadataURI } from "openzeppelin-contracts/t
 import { ERC1155Holder, IERC1155Receiver } from "openzeppelin-contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 contract MockMultiVault is ERC1155, ERC1155Holder {
-
     ERC1155 public immutable token;
 
     constructor(string memory uri, address token_) ERC1155(uri) {
@@ -23,11 +22,14 @@ contract MockMultiVault is ERC1155, ERC1155Holder {
         token.safeTransferFrom(address(this), msg.sender, tokenId, amount, "0x");
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155, ERC1155Holder) returns (bool) {
-        return
-            interfaceId == type(IERC1155Receiver).interfaceId ||
-            interfaceId == type(IERC1155).interfaceId ||
-            interfaceId == type(IERC1155MetadataURI).interfaceId ||
-            super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC1155, ERC1155Holder)
+        returns (bool)
+    {
+        return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC1155).interfaceId
+            || interfaceId == type(IERC1155MetadataURI).interfaceId || super.supportsInterface(interfaceId);
     }
 }

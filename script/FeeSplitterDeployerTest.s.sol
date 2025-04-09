@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console2} from "forge-std/Script.sol";
+import { Script, console2 } from "forge-std/Script.sol";
 
-import {FeeSplitter} from "../src/helpers/FeeSplitter.sol";
+import { FeeSplitter } from "../src/helpers/FeeSplitter.sol";
 
 struct DeployerResult {
+    address owner;
+    address[] recipients;
+    uint16[] shares;
     FeeSplitter feeSplitter;
 }
 
 contract DeployerTest is Script {
-      function run() public returns (DeployerResult memory result) {
+    function run() public returns (DeployerResult memory result) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         address enso = 0x2C0b46F1276A93B458346e53f6B7B57Aba20D7D1;
@@ -26,5 +29,8 @@ contract DeployerTest is Script {
 
         vm.broadcast(deployerPrivateKey);
         result.feeSplitter = new FeeSplitter(enso, recipients, shares);
+        result.owner = enso;
+        result.recipients = recipients;
+        result.shares = shares;
     }
 }

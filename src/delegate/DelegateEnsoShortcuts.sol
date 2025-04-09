@@ -7,8 +7,8 @@ contract DelegateEnsoShortcuts is AbstractEnsoShortcuts {
     address private immutable __self = address(this);
 
     error OnlyDelegateCall();
-    
-    function _checkMsgSender() internal override view {
+
+    function _checkMsgSender() internal view override {
         if (msg.sender == __self) revert OnlyDelegateCall();
     }
 }

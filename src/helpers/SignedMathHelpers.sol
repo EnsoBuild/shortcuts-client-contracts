@@ -5,8 +5,10 @@ pragma solidity ^0.8.28;
  * @dev SignedMathHelpers contract is recommended to use only in Shortcuts passed to EnsoWallet
  *
  * Based on OpenZepplin Contracts 4.7.3:
- * - utils/math/SignedMath.sol (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SignedMath.sol)
- * - utils/math/SignedSafeMath.sol (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SignedSafeMath.sol)
+ * - utils/math/SignedMath.sol
+ * (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SignedMath.sol)
+ * - utils/math/SignedSafeMath.sol
+ * (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SignedSafeMath.sol)
  */
 contract SignedMathHelpers {
     uint256 public constant VERSION = 1;
@@ -100,7 +102,8 @@ contract SignedMathHelpers {
     }
 
     /**
-     * @dev Returns the results a math operation if a condition is met. Otherwise returns the 'a' value without any modification.
+     * @dev Returns the results a math operation if a condition is met. Otherwise returns the 'a' value without any
+     * modification.
      */
     function conditional(bool condition, bytes4 method, int256 a, int256 b) external view returns (int256) {
         if (condition) {

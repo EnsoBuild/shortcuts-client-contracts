@@ -2,9 +2,10 @@
 pragma solidity ^0.8.28;
 
 import { EnsoShortcuts } from "../EnsoShortcuts.sol";
-import { SafeERC20, IERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
+
 import { IERC1155 } from "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
 
 enum TokenType {
     Native,
@@ -35,10 +36,7 @@ contract EnsoRouter {
     /// @notice Route a single token via a call to the shortcuts contract
     /// @param tokenIn The encoded data for the token to send
     /// @param data The call data to be sent to the shortcuts contract
-    function routeSingle(
-        Token calldata tokenIn,
-        bytes calldata data
-    ) public payable returns (bytes memory response) {
+    function routeSingle(Token calldata tokenIn, bytes calldata data) public payable returns (bytes memory response) {
         bool isNativeAsset = _transfer(tokenIn);
         if (!isNativeAsset && msg.value != 0) revert WrongMsgValue(msg.value, 0);
         response = _execute(data);
@@ -50,7 +48,11 @@ contract EnsoRouter {
     function routeMulti(
         Token[] calldata tokensIn,
         bytes calldata data
-    ) public payable returns (bytes memory response) {
+    )
+        public
+        payable
+        returns (bytes memory response)
+    {
         bool isNativeAsset;
         for (uint256 i; i < tokensIn.length; ++i) {
             if (_transfer(tokensIn[i])) {
@@ -59,11 +61,12 @@ contract EnsoRouter {
             }
         }
         if (!isNativeAsset && msg.value != 0) revert WrongMsgValue(msg.value, 0);
-        
+
         response = _execute(data);
     }
 
-    /// @notice Route a single token via a call to the shortcuts contract and revert if there is insufficient token received
+    /// @notice Route a single token via a call to the shortcuts contract and revert if there is insufficient token
+    /// received
     /// @param tokenIn The encoded data for the token to send
     /// @param tokenOut The encoded data for the token to receive
     /// @param receiver The address of the wallet that will receive the tokens
@@ -73,13 +76,18 @@ contract EnsoRouter {
         Token calldata tokenOut,
         address receiver,
         bytes calldata data
-    ) external payable returns (bytes memory response) {
+    )
+        external
+        payable
+        returns (bytes memory response)
+    {
         uint256 balance = _balance(tokenOut, receiver);
         response = routeSingle(tokenIn, data);
         _checkMinAmountOut(tokenOut, receiver, balance);
     }
 
-    /// @notice Route multiple tokens via a call to the shortcuts contract and revert if there is insufficient tokens received
+    /// @notice Route multiple tokens via a call to the shortcuts contract and revert if there is insufficient tokens
+    /// received
     /// @param tokensIn The encoded data for the tokens to send
     /// @param tokensOut The encoded data for the tokens to receive
     /// @param receiver The address of the wallet that will receive the tokens
@@ -89,7 +97,11 @@ contract EnsoRouter {
         Token[] calldata tokensOut,
         address receiver,
         bytes calldata data
-    ) external payable returns (bytes memory response) {
+    )
+        external
+        payable
+        returns (bytes memory response)
+    {
         uint256[] memory balances = new uint256[](tokensOut.length);
         for (uint256 i; i < tokensOut.length; ++i) {
             balances[i] = _balance(tokensOut[i], receiver);
@@ -104,13 +116,11 @@ contract EnsoRouter {
 
     /// @notice A function to execute a call on the shortcuts contract
     /// @param data The call data to be sent to the shortcuts contract
-    function _execute(
-        bytes calldata data
-    ) internal returns (bytes memory response) {
+    function _execute(bytes calldata data) internal returns (bytes memory response) {
         bool success;
-        (success, response) = shortcuts.call{value: msg.value}(data);
+        (success, response) = shortcuts.call{ value: msg.value }(data);
         if (!success) {
-            assembly{
+            assembly {
                 revert(add(response, 32), mload(response))
             }
         }
@@ -141,15 +151,15 @@ contract EnsoRouter {
         TokenType tokenType = token.tokenType;
 
         if (tokenType == TokenType.ERC20) {
-            (IERC20 erc20, ) = abi.decode(token.data, (IERC20, uint256));
+            (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
             balance = erc20.balanceOf(receiver);
         } else if (tokenType == TokenType.Native) {
             balance = receiver.balance;
         } else if (tokenType == TokenType.ERC721) {
-            (IERC721 erc721, ) = abi.decode(token.data, (IERC721, uint256));
+            (IERC721 erc721,) = abi.decode(token.data, (IERC721, uint256));
             balance = erc721.balanceOf(receiver);
         } else if (tokenType == TokenType.ERC1155) {
-            (IERC1155 erc1155, uint256 tokenId, ) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
             balance = erc1155.balanceOf(receiver, tokenId);
         } else {
             revert UnsupportedTokenType(tokenType);

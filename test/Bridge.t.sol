@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {OFTComposeMsgCodec} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
-import {StargateV2Receiver} from "../src/bridge/StargateV2Receiver.sol";
-import {WeirollPlanner} from "./utils/WeirollPlanner.sol";
-import {console} from "forge-std/console.sol";
+import { StargateV2Receiver } from "../src/bridge/StargateV2Receiver.sol";
+import { WeirollPlanner } from "./utils/WeirollPlanner.sol";
+import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
+import { Test } from "forge-std/Test.sol";
 
+import { console } from "forge-std/console.sol";
 
 interface IWETH {
     function deposit() external payable;
@@ -35,32 +35,32 @@ contract BridgeTest is Test {
 
     function testEthBridge() public {
         vm.selectFork(_ethereumFork);
-        
+
         uint256 balanceBefore = weth.balanceOf(address(this));
-        
+
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(AMOUNT);
         bytes memory message = _buildLzComposeMessage(eth, AMOUNT, commands, state);
 
         // transfer funds
-        (bool success, ) = address(stargateReceiver).call{ value: AMOUNT }("");
+        (bool success,) = address(stargateReceiver).call{ value: AMOUNT }("");
         if (!success) revert TransferFailed();
         // trigger compose
         stargateReceiver.lzCompose(address(0), bytes32(0), message, address(0), "");
         uint256 balanceAfter = weth.balanceOf(address(this));
         assertEq(AMOUNT, balanceAfter - balanceBefore);
     }
-    
+
     function testEthBridgeWithFailingShortcut() public {
         vm.selectFork(_ethereumFork);
-        
+
         uint256 balanceBefore = address(this).balance;
-        
+
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
-        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(AMOUNT*100);
+        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(AMOUNT * 100);
         bytes memory message = _buildLzComposeMessage(eth, AMOUNT, commands, state);
 
         // transfer funds
-        (bool success, ) = address(stargateReceiver).call{ value: AMOUNT }("");
+        (bool success,) = address(stargateReceiver).call{ value: AMOUNT }("");
         if (!success) revert TransferFailed();
         // confirm funds have left this address
         assertGt(balanceBefore, address(this).balance);
@@ -75,7 +75,7 @@ contract BridgeTest is Test {
 
         weth.deposit{ value: AMOUNT }();
         uint256 balanceBefore = address(this).balance;
-        
+
         (bytes32[] memory commands, bytes[] memory state) = _buildWethWithdraw(AMOUNT);
         bytes memory message = _buildLzComposeMessage(address(weth), AMOUNT, commands, state);
 
@@ -89,12 +89,12 @@ contract BridgeTest is Test {
 
     function testWethBridgeWithFailingShortcut() public {
         vm.selectFork(_ethereumFork);
-        
+
         weth.deposit{ value: AMOUNT }();
         uint256 balanceBefore = weth.balanceOf(address(this));
-        
+
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
-        (bytes32[] memory commands, bytes[] memory state) = _buildWethWithdraw(AMOUNT*100);
+        (bytes32[] memory commands, bytes[] memory state) = _buildWethWithdraw(AMOUNT * 100);
         bytes memory message = _buildLzComposeMessage(address(weth), AMOUNT, commands, state);
 
         // transfer funds
@@ -107,21 +107,34 @@ contract BridgeTest is Test {
         assertEq(balanceBefore, weth.balanceOf(address(this)));
     }
 
-    receive() external payable {}
+    receive() external payable { }
 
     function _buildLzComposeMessage(
         address token,
         uint256 amount,
         bytes32[] memory commands,
         bytes[] memory state
-    ) internal view returns (bytes memory message) {
+    )
+        internal
+        view
+        returns (bytes memory message)
+    {
         // encode callback data
         bytes memory callbackData = abi.encode(token, address(this), bytes32(0), commands, state);
         // encode message
-        message = OFTComposeMsgCodec.encode(uint64(0), uint32(0), amount, abi.encodePacked(OFTComposeMsgCodec.addressToBytes32(address(this)), callbackData));
+        message = OFTComposeMsgCodec.encode(
+            uint64(0),
+            uint32(0),
+            amount,
+            abi.encodePacked(OFTComposeMsgCodec.addressToBytes32(address(this)), callbackData)
+        );
     }
 
-    function _buildWethDeposit(uint256 amount) internal view returns (bytes32[] memory commands, bytes[] memory state) {
+    function _buildWethDeposit(uint256 amount)
+        internal
+        view
+        returns (bytes32[] memory commands, bytes[] memory state)
+    {
         // Setup script to deposit and transfer weth
         commands = new bytes32[](2);
         state = new bytes[](2);
@@ -141,12 +154,16 @@ contract BridgeTest is Test {
             0xff, // no output
             address(weth)
         );
-    
+
         state[0] = abi.encode(amount);
         state[1] = abi.encode(address(this));
     }
 
-    function _buildWethWithdraw(uint256 amount) internal view returns (bytes32[] memory commands, bytes[] memory state) {
+    function _buildWethWithdraw(uint256 amount)
+        internal
+        view
+        returns (bytes32[] memory commands, bytes[] memory state)
+    {
         // Setup script to withdraw weth and transfer eth
         commands = new bytes32[](2);
         state = new bytes[](2);
@@ -166,7 +183,7 @@ contract BridgeTest is Test {
             0xff, // no output
             address(this)
         );
-    
+
         state[0] = abi.encode(amount);
         state[1] = ""; // Empty state for transfer of eth
     }

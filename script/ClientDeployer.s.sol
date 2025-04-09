@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "forge-std/Script.sol";
 import "../src/EnsoShortcuts.sol";
-import "../src/router/EnsoRouter.sol";
+
 import "../src/delegate/DelegateEnsoShortcuts.sol";
+import "../src/router/EnsoRouter.sol";
+import "forge-std/Script.sol";
 
 struct DeployerResult {
     EnsoRouter router;
@@ -18,9 +19,9 @@ contract Deployer is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        result.router = new EnsoRouter{salt: "EnsoRouter"}();
+        result.router = new EnsoRouter{ salt: "EnsoRouter" }();
         result.shortcuts = EnsoShortcuts(payable(result.router.shortcuts()));
-        result.delegate = new DelegateEnsoShortcuts{salt: "DelegateEnsoShortcuts"}();
+        result.delegate = new DelegateEnsoShortcuts{ salt: "DelegateEnsoShortcuts" }();
 
         vm.stopBroadcast();
     }

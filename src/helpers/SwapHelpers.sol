@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { SafeERC20, IERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @notice Helper contract to update swap data on-chain
@@ -22,9 +22,13 @@ contract SwapHelpers {
         IERC20 tokenOut,
         uint256 amountIn,
         address receiver,
-        bytes memory data,        
+        bytes memory data,
         uint256[] memory pointers
-    ) public payable returns (bytes memory) {
+    )
+        public
+        payable
+        returns (bytes memory)
+    {
         if (pointers.length != 0) insertAmount(data, pointers, amountIn);
         if (tokenIn == _ETH) {
             if (msg.value != amountIn) revert IncorrectValue(amountIn, msg.value);
@@ -40,7 +44,7 @@ contract SwapHelpers {
             }
         }
         if (tokenOut == _ETH) {
-            (success, ) = receiver.call{ value: address(this).balance }("");
+            (success,) = receiver.call{ value: address(this).balance }("");
             if (!success) revert TransferFailed(receiver);
         } else {
             tokenOut.safeTransfer(receiver, tokenOut.balanceOf(address(this)));
@@ -54,9 +58,13 @@ contract SwapHelpers {
         IERC20 tokenOut,
         uint256 amountIn,
         address receiver,
-        bytes memory data,        
+        bytes memory data,
         uint256[] memory pointers
-    ) external payable returns (bytes memory) {
+    )
+        external
+        payable
+        returns (bytes memory)
+    {
         return swap(primary, primary, tokenIn, tokenOut, amountIn, receiver, data, pointers);
     }
 
@@ -64,16 +72,20 @@ contract SwapHelpers {
         bytes memory data,
         uint256[] memory pointers,
         uint256 amount
-    ) public pure returns (bytes memory) {
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         uint256 length = pointers.length;
         assembly {
-            for { let i := 0 } lt( i, length ) { i := add(i, 1) } {
-               let pointer := mload(add(pointers, mul(32, add(i, 1))))
-               mstore(add(data, add(36, pointer)), amount)
+            for { let i := 0 } lt(i, length) { i := add(i, 1) } {
+                let pointer := mload(add(pointers, mul(32, add(i, 1))))
+                mstore(add(data, add(36, pointer)), amount)
             }
         }
         return data;
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

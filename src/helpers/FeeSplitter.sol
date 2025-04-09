@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
-import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "openzeppelin-contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
+import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "openzeppelin-contracts/utils/ReentrancyGuard.sol";
 
 contract FeeSplitter is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -28,7 +28,7 @@ contract FeeSplitter is Ownable, ReentrancyGuard {
         bool success = false;
 
         for (uint256 i = 0; i < length;) {
-            (success,) = recipients[i].call{value: (totalBalance * shares[i]) / totalShares}("");
+            (success,) = recipients[i].call{ value: (totalBalance * shares[i]) / totalShares }("");
             if (!success) {
                 revert CallFailed(recipients[i]);
             }
@@ -85,5 +85,5 @@ contract FeeSplitter is Ownable, ReentrancyGuard {
         }
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

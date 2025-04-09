@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-
 contract DecimalHelpers {
     uint256 public constant VERSION = 1;
 
-    function decimalString(uint256 number, uint8 decimals, bool isPercent) public pure returns(string memory){
-        if(number == 0){
+    function decimalString(uint256 number, uint8 decimals, bool isPercent) public pure returns (string memory) {
+        if (number == 0) {
             return isPercent ? "0%" : "0";
         }
-        
+
         uint8 percentBufferOffset = isPercent ? 1 : 0;
         uint256 tenPowDecimals = 10 ** decimals;
 
@@ -29,7 +28,7 @@ contract DecimalHelpers {
 
         DecimalStringParams memory params;
         params.isPercent = isPercent;
-        if((digits - numSigfigs) >= decimals) {
+        if ((digits - numSigfigs) >= decimals) {
             // no decimals, ensure we preserve all trailing zeros
             params.sigfigs = number / tenPowDecimals;
             params.sigfigIndex = digits - decimals;
@@ -37,9 +36,9 @@ contract DecimalHelpers {
         } else {
             // chop all trailing zeros for numbers with decimals
             params.sigfigs = number / (10 ** (digits - numSigfigs));
-            if(tenPowDecimals > number){
+            if (tenPowDecimals > number) {
                 // number is less than one
-                // in this case, there may be leading zeros after the decimal place 
+                // in this case, there may be leading zeros after the decimal place
                 // that need to be added
 
                 // offset leading zeros by two to account for leading '0.'
@@ -59,7 +58,8 @@ contract DecimalHelpers {
         return generateDecimalString(params);
     }
 
-    // With modifications, From https://github.com/Uniswap/uniswap-v3-periphery/blob/main/contracts/libraries/NFTDescriptor.sol#L189-L231
+    // With modifications, From
+    // https://github.com/Uniswap/uniswap-v3-periphery/blob/main/contracts/libraries/NFTDescriptor.sol#L189-L231
 
     struct DecimalStringParams {
         // significant figures of decimal
@@ -83,11 +83,11 @@ contract DecimalHelpers {
     function generateDecimalString(DecimalStringParams memory params) private pure returns (string memory) {
         bytes memory buffer = new bytes(params.bufferLength);
         if (params.isPercent) {
-            buffer[buffer.length - 1] = '%';
+            buffer[buffer.length - 1] = "%";
         }
         if (params.isLessThanOne) {
-            buffer[0] = '0';
-            buffer[1] = '.';
+            buffer[0] = "0";
+            buffer[1] = ".";
         }
 
         // add leading/trailing 0's
@@ -97,7 +97,7 @@ contract DecimalHelpers {
         // add sigfigs
         while (params.sigfigs > 0) {
             if (params.decimalIndex > 0 && params.sigfigIndex == params.decimalIndex) {
-                buffer[--params.sigfigIndex] = '.';
+                buffer[--params.sigfigIndex] = ".";
             }
             buffer[--params.sigfigIndex] = bytes1(uint8(uint256(48) + (params.sigfigs % 10)));
             params.sigfigs /= 10;

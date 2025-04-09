@@ -17,8 +17,6 @@ contract EnsoShortcutRouterTest is Test {
 
     uint256 public constant AMOUNT = 10 ** 18;
 
-    
-
     function setUp() public {
         _ethereumFork = vm.createFork(_rpcURL);
         vm.selectFork(_ethereumFork);
@@ -43,7 +41,7 @@ contract EnsoShortcutRouterTest is Test {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -81,7 +79,7 @@ contract EnsoShortcutRouterTest is Test {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -101,7 +99,7 @@ contract EnsoShortcutRouterTest is Test {
         state[0] = abi.encode(address(vault));
         state[1] = abi.encode(AMOUNT);
         state[2] = abi.encode(address(this));
-        
+
         vm.expectRevert();
         router.safeRouteSingle(bytes32(0), bytes32(0), token, vault, AMOUNT, AMOUNT, address(this), commands, state);
     }
@@ -114,7 +112,7 @@ contract EnsoShortcutRouterTest is Test {
         // Shortcut does not transfer funds after deposit
         bytes32[] memory commands = new bytes32[](2);
         bytes[] memory state = new bytes[](2);
-        
+
         commands[0] = WeirollPlanner.buildCommand(
             token.approve.selector,
             0x01, // call
@@ -122,7 +120,7 @@ contract EnsoShortcutRouterTest is Test {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -146,7 +144,7 @@ contract EnsoShortcutRouterTest is Test {
         // Shortcut does not transfer funds after deposit
         bytes32[] memory commands = new bytes32[](2);
         bytes[] memory state = new bytes[](2);
-        
+
         commands[0] = WeirollPlanner.buildCommand(
             token.approve.selector,
             0x01, // call
@@ -154,7 +152,7 @@ contract EnsoShortcutRouterTest is Test {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -170,7 +168,7 @@ contract EnsoShortcutRouterTest is Test {
         // Funds left in router's wallet!
         assertEq(AMOUNT, vault.balanceOf(address(router.enso())));
     }
-    
+
     function testRouteMulti() public {
         vm.selectFork(_ethereumFork);
 
@@ -186,7 +184,7 @@ contract EnsoShortcutRouterTest is Test {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call
@@ -230,7 +228,7 @@ contract EnsoShortcutRouterTest is Test {
             0xff, // no output
             address(token)
         );
-    
+
         commands[1] = WeirollPlanner.buildCommand(
             vault.deposit.selector,
             0x01, // call

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
+
+import "openzeppelin-contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import "openzeppelin-contracts/token/ERC721/IERC721.sol";
-import "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
 import "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";
-import "openzeppelin-contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 contract MinimalWallet is ERC721Holder, ERC1155Holder {
     using SafeERC20 for IERC20;
@@ -62,7 +63,7 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
         uint256[] memory amounts;
 
         uint256 length = notes.length;
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             note = notes[i];
             protocol = note.protocol;
             if (protocol == Protocol.ETH) {
@@ -96,13 +97,10 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
     // @notice Withdraw ERC20s
     // @param erc20s An array of erc20 addresses
     // @param amounts An array of amounts for each erc20
-    function withdrawERC20s(
-        IERC20[] calldata erc20s,
-        uint256[] calldata amounts
-    ) external isPermitted {
+    function withdrawERC20s(IERC20[] calldata erc20s, uint256[] calldata amounts) external isPermitted {
         uint256 length = erc20s.length;
         if (amounts.length != length) revert InvalidArrayLength();
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             _withdrawERC20(erc20s[i], amounts[i]);
             unchecked {
                 ++i;
@@ -113,10 +111,7 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
     // @notice Withdraw multiple ERC721 ids for a single ERC721 contract
     // @param erc721 The address of the ERC721 contract
     // @param ids An array of ids that are to be withdrawn
-    function withdrawERC721s(
-        IERC721 erc721,
-        uint256[] calldata ids
-    ) external isPermitted {
+    function withdrawERC721s(IERC721 erc721, uint256[] calldata ids) external isPermitted {
         _withdrawERC721s(erc721, ids);
     }
 
@@ -128,7 +123,10 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
         IERC1155 erc1155,
         uint256[] calldata ids,
         uint256[] calldata amounts
-    ) external isPermitted {
+    )
+        external
+        isPermitted
+    {
         _withdrawERC1155s(erc1155, ids, amounts);
     }
 
@@ -140,7 +138,7 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
         Protocol protocol;
 
         uint256 length = notes.length;
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             note = notes[i];
             protocol = note.protocol;
             if (protocol == Protocol.ERC20) {
@@ -159,30 +157,21 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
     // @notice Revoke approval of an ERC20 for an array of operators
     // @param erc20 The address of the ERC20 token
     // @param operators The array of operators to have approval revoked
-    function revokeERC20Approvals(
-        IERC20 erc20,
-        address[] calldata operators
-    ) external isPermitted {
+    function revokeERC20Approvals(IERC20 erc20, address[] calldata operators) external isPermitted {
         _revokeERC20Approvals(erc20, operators);
     }
 
     // @notice Revoke approval of an ERC721 for an array of operators
     // @param erc721 The address of the ERC721 token
     // @param operators The array of operators to have approval revoked
-    function revokeERC721Approvals(
-        IERC721 erc721,
-        address[] calldata operators
-    ) external isPermitted {
+    function revokeERC721Approvals(IERC721 erc721, address[] calldata operators) external isPermitted {
         _revokeERC721Approvals(erc721, operators);
     }
 
     // @notice Revoke approval of an ERC1155 for an array of operators
     // @param erc1155 The address of the ERC1155 token
     // @param operators The array of operators to have approval revoked
-    function revokeERC1155Approvals(
-        IERC1155 erc1155,
-        address[] calldata operators
-    ) external isPermitted {
+    function revokeERC1155Approvals(IERC1155 erc1155, address[] calldata operators) external isPermitted {
         _revokeERC1155Approvals(erc1155, operators);
     }
 
@@ -191,7 +180,7 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
     ////////////////////////////////////////////////////
 
     function _withdrawETH(uint256 amount) internal {
-        (bool success, ) = msg.sender.call{value: amount}("");
+        (bool success,) = msg.sender.call{ value: amount }("");
         if (!success) revert WithdrawFailed();
     }
 
@@ -201,7 +190,7 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
 
     function _withdrawERC721s(IERC721 erc721, uint256[] memory ids) internal {
         uint256 length = ids.length;
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             erc721.safeTransferFrom(address(this), msg.sender, ids[i]);
             unchecked {
                 ++i;
@@ -216,7 +205,7 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
 
     function _revokeERC20Approvals(IERC20 erc20, address[] memory operators) internal {
         uint256 length = operators.length;
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             erc20.approve(operators[i], 0);
             unchecked {
                 ++i;
@@ -226,7 +215,7 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
 
     function _revokeERC721Approvals(IERC721 erc721, address[] memory operators) internal {
         uint256 length = operators.length;
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             erc721.setApprovalForAll(operators[i], false);
             unchecked {
                 ++i;
@@ -236,7 +225,7 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
 
     function _revokeERC1155Approvals(IERC1155 erc1155, address[] memory operators) internal {
         uint256 length = operators.length;
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             erc1155.setApprovalForAll(operators[i], false);
             unchecked {
                 ++i;
@@ -248,5 +237,5 @@ contract MinimalWallet is ERC721Holder, ERC1155Holder {
     // Fallback functions //////////////////////////////
     ////////////////////////////////////////////////////
 
-    receive() external virtual payable {}
+    receive() external payable virtual { }
 }
