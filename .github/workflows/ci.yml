@@ -15,7 +15,19 @@ on:
 
 env:
   FOUNDRY_PROFILE: ci
-  PRIVATE_KEY: 123
+  ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+  PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+  ETHEREUM_RPC_URL: ${{ secrets.ETHEREUM_RPC_URL }}
+  ARBITRUM_RPC_URL: ${{ secrets.ARBITRUM_RPC_URL }}
+  AURORA_RPC_URL: ${{ secrets.AURORA_RPC_URL }}
+  AVALANCHE_RPC_URL: ${{ secrets.AVALANCHE_RPC_URL }}
+  BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
+  BSC_RPC_URL: ${{ secrets.BSC_RPC_URL }}
+  FANTOM_RPC_URL: ${{ secrets.FANTOM_RPC_URL }}
+  GNOSIS_RPC_URL: ${{ secrets.GNOSIS_RPC_URL }}
+  LINEA_RPC_URL: ${{ secrets.LINEA_RPC_URL }}
+  OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
+  POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
 
 jobs:
   check:
