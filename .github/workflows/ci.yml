@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "*" # Trigger on any push to any branch
+
+  pull_request:
+    branches:
+      - main # Trigger on any PR to the main branch
+    types:
+      - opened
+      - synchronize
+      - reopened # Trigger only on non-draft PRs (draft PRs are not included)
+
+env:
+  FOUNDRY_PROFILE: ci
+  PRIVATE_KEY: 123
+
+jobs:
+  check:
+    name: Foundry project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Show Forge version
+        run: forge --version
+
+      - name: Build contracts
+        run: forge build --sizes
+
+      - name: Run tests
+        run: forge test -vvv
