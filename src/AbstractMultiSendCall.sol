@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { AbstractEnsoShortcuts } from "../AbstractEnsoShortcuts.sol";
+import { AbstractEnsoShortcuts } from "./AbstractEnsoShortcuts.sol";
 
-abstract contract AbstractEIP7702EnsoShortcuts is AbstractEnsoShortcuts {
-    error OnlySelfCall();
-
+abstract contract AbstractMultiSendCall {
     /// @dev Sends multiple transactions and reverts all if one fails.
     /// @param transactions Encoded transactions. Each transaction is encoded as a packed bytes of
     ///                     operation has to be uint8(0) in this version (=> 1 byte),
@@ -18,7 +16,7 @@ abstract contract AbstractEIP7702EnsoShortcuts is AbstractEnsoShortcuts {
     ///         but reverts if a transaction tries to use a delegatecall.
     function executeMultiSend(bytes32 accountId, bytes32 requestId, bytes memory transactions) public virtual {
         _checkMsgSender();
-        emit ShortcutExecuted(accountId, requestId);
+        emit AbstractEnsoShortcuts.ShortcutExecuted(accountId, requestId);
         // solhint-disable-next-line no-inline-assembly
         assembly {
             let length := mload(transactions)
@@ -56,7 +54,6 @@ abstract contract AbstractEIP7702EnsoShortcuts is AbstractEnsoShortcuts {
         }
     }
 
-    function _checkMsgSender() internal view override {
-        if (msg.sender != address(this)) revert OnlySelfCall();
-    }
+    /// @notice Abstract function to validate msg.sender.
+    function _checkMsgSender() internal view virtual;
 }

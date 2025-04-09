@@ -5,7 +5,6 @@ import {
     EIP7702EnsoShortcutsDeployer,
     EIP7702EnsoShortcutsDeployerResult
 } from "../script/EIP7702EnsoShortcutsDeployer.s.sol";
-import { AbstractEIP7702EnsoShortcuts } from "../src/delegate/AbstractEIP7702EnsoShortcuts.sol";
 import { EIP7702EnsoShortcuts } from "../src/delegate/EIP7702EnsoShortcuts.sol";
 import { WeirollPlanner } from "./utils/WeirollPlanner.sol";
 import { Test } from "forge-std/Test.sol";
@@ -67,7 +66,7 @@ contract EIP7702EnsoShortcutsTest is Test {
 
         // Act & Assert
         vm.prank(s_deployer);
-        vm.expectRevert(AbstractEIP7702EnsoShortcuts.OnlySelfCall.selector);
+        vm.expectRevert(EIP7702EnsoShortcuts.OnlySelfCall.selector);
         EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeShortcut(accountId, requestId, commands, state);
     }
 
@@ -112,7 +111,7 @@ contract EIP7702EnsoShortcutsTest is Test {
 
         // Act & Assert
         vm.prank(s_deployer);
-        vm.expectRevert(AbstractEIP7702EnsoShortcuts.OnlySelfCall.selector);
+        vm.expectRevert(EIP7702EnsoShortcuts.OnlySelfCall.selector);
         EIP7702EnsoShortcuts(payable(CALLER_ADDRESS)).executeMultiSend(accountId, requestId, transactions);
     }
 
