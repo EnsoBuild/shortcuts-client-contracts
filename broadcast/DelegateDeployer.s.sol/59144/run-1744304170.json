@@ -1,7 +1,7 @@
 {
   "transactions": [
     {
-      "hash": "0x8ba6b75deb265d9967674df3cca13e9e80fa8cba8b57a1d71eba9451b7a8dfb6",
+      "hash": "0x2811aa900284d81c1222160d1dfbe22792b09fe4d8b91ddbb2f32597fcd11d68",
       "transactionType": "CREATE2",
       "contractName": "DelegateEnsoShortcuts",
       "contractAddress": "0xee41ab55411a957c43c469f74867fa4671f9f017",
@@ -20,33 +20,18 @@
       "isFixedGasLimit": false
     }
   ],
-  "receipts": [
-    {
-      "status": "0x1",
-      "cumulativeGasUsed": "0x1221df",
-      "logs": [],
-      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "type": "0x2",
-      "transactionHash": "0x8ba6b75deb265d9967674df3cca13e9e80fa8cba8b57a1d71eba9451b7a8dfb6",
-      "transactionIndex": "0x0",
-      "blockHash": "0x4106b2c1760a30b98f2e9ad2be1f39d8611d9512f7be10e5a1387590a524d3b8",
-      "blockNumber": "0x11148ab",
-      "gasUsed": "0x1221df",
-      "effectiveGasPrice": "0xa4dccab",
-      "from": "0x826e0bb2276271efdf2a500597f37b94f6c153ba",
-      "to": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-      "contractAddress": "0xee41ab55411a957c43c469f74867fa4671f9f017"
-    }
-  ],
+  "receipts": [],
   "libraries": [],
-  "pending": [],
+  "pending": [
+    "0x2811aa900284d81c1222160d1dfbe22792b09fe4d8b91ddbb2f32597fcd11d68"
+  ],
   "returns": {
     "result": {
       "internal_type": "struct DelegateDeployerResult",
       "value": "(0xEe41aB55411a957c43C469F74867fa4671F9f017)"
     }
   },
-  "timestamp": 1744304397,
+  "timestamp": 1744304170,
   "chain": 59144,
   "commit": "d57d603"
 }
