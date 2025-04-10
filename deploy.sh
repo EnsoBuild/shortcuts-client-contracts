@@ -12,9 +12,8 @@ rpc="${network_upper}_RPC_URL"
 blockscan_key="${network_upper}_BLOCKSCAN_KEY"
 
 source .env
-
 params=()
-if [[ $network_upper == "ZKSNYC" ]]; then
+if [ $network_upper == "ZKSYNC" ]; then
     params+=(--zksync)
     params+=(--slow)
 fi

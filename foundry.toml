@@ -3,7 +3,7 @@ auto_detect_solc = false
 # NOTE: by excluding the metadata hash we make sure future contracts can be partially modified without altering their bytecode.
 bytecode_hash = "none" # Disables the metadata
 cbor_metadata = false # Diasbles the metadata
-evm_version = "prague"
+evm_version = "cancun"
 libs = ["lib"]
 optimizer = true
 optimizer-runs = 200
@@ -45,10 +45,9 @@ zksync = "${ZKSYNC_RPC_URL}"
 arbitrum = { key = "${ARBITRUM_BLOCKSCAN_KEY}" }
 avalanche = { key = "${AVALANCHE_BLOCKSCAN_KEY}" }
 base = { key = "${BASE_BLOCKSCAN_KEY}" }
-berachain = { key = "${BERACHAIN_BLOCKSCAN_KEY}" }
+berachain = { key = "verifyContract" }
 bsc = { key = "${BSC_BLOCKSCAN_KEY}" }
 gnosis = { key = "${GNOSIS_BLOCKSCAN_KEY}" }
-hyper = { key = "${HYPER_BLOCKSCAN_KEY}" }
 linea = { key = "${LINEA_BLOCKSCAN_KEY}" }
 mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
 optimism = { key = "${OPTIMISM_BLOCKSCAN_KEY}" }
