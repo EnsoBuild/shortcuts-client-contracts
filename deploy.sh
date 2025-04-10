@@ -17,6 +17,9 @@ if [ $network_upper == "ZKSYNC" ]; then
     params+=(--zksync)
     params+=(--slow)
 fi
+if [[ $network_upper == "LINEA" ]]; then
+    params+=(--evm-version "london")
+fi
 if [ $broadcast == "broadcast" ]; then
     params+=(--broadcast)
     if [ -n "$verifier" ]; then
