@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.16;
 
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -95,9 +95,14 @@ contract UniswapV4Helpers {
         pure
         returns (bytes memory)
     {
-        bytes memory actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+        // native token is always token0
+        bool isNativeToken = currency0 == address(0);
 
-        bytes[] memory params = new bytes[](2);
+        bytes memory actions = isNativeToken
+            ? abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR), uint8(Actions.SWEEP))
+            : abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+
+        bytes[] memory params = new bytes[](isNativeToken ? 3 : 2);
 
         {
             params[0] = abi.encode(
@@ -112,6 +117,9 @@ contract UniswapV4Helpers {
             );
         }
         params[1] = abi.encode(currency0, currency1);
+        if (isNativeToken) {
+            params[2] = abi.encode(currency0, recipient);
+        }
 
         return abi.encode(actions, params);
     }
