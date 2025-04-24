@@ -89,6 +89,7 @@ contract UniswapV4Helpers {
         uint256 amount0Max,
         uint256 amount1Max,
         address recipient,
+        address refund,
         address hooks
     )
         public
@@ -118,7 +119,7 @@ contract UniswapV4Helpers {
         }
         params[1] = abi.encode(currency0, currency1);
         if (isNativeToken) {
-            params[2] = abi.encode(currency0, recipient);
+            params[2] = abi.encode(currency0, refund);
         }
 
         return abi.encode(actions, params);
@@ -134,7 +135,8 @@ contract UniswapV4Helpers {
         uint256 liquidity,
         uint256 amount0Max,
         uint256 amount1Max,
-        address recipient
+        address recipient,
+        address refund
     )
         external
         pure
@@ -151,6 +153,7 @@ contract UniswapV4Helpers {
             amount0Max,
             amount1Max,
             recipient,
+            refund,
             address(0)
         );
     }
@@ -165,6 +168,7 @@ contract UniswapV4Helpers {
         uint256 amount0Max,
         uint256 amount1Max,
         address recipient,
+        address refund,
         address hooks
     )
         public
@@ -186,6 +190,7 @@ contract UniswapV4Helpers {
             amount0Max,
             amount1Max,
             recipient,
+            refund,
             hooks
         );
     }
@@ -199,14 +204,15 @@ contract UniswapV4Helpers {
         int24 tickUpper,
         uint256 amount0Max,
         uint256 amount1Max,
-        address recipient
+        address recipient,
+        address refund
     )
         external
         view
         returns (bytes memory)
     {
         return encodeMintFromDeltasWithHooks(
-            currency0, currency1, fee, tickSpacing, tickLower, tickUpper, amount0Max, amount1Max, recipient, address(0)
+            currency0, currency1, fee, tickSpacing, tickLower, tickUpper, amount0Max, amount1Max, recipient, refund, address(0)
         );
     }
 }
