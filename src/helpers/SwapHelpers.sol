@@ -15,6 +15,33 @@ contract SwapHelpers {
     error IncorrectValue(uint256 expected, uint256 actual);
     error TransferFailed(address receiver);
 
+    function swapWithLimit(
+        address primary,
+        address operator,
+        IERC20 tokenIn,
+        IERC20 tokenOut,
+        uint256 amountIn,
+        uint256 maxAmountOut,
+        address receiver,
+        address feeReceiver,
+        bytes memory data,
+        uint256[] memory pointers
+    )
+        public
+        payable
+        returns (uint256 amountOut)
+    {  
+        _swap(primary, operator, tokenIn, amountIn, data, pointers);
+        amountOut = _balance(tokenOut, address(this));
+        if (amountOut > maxAmountOut) {
+            uint256 fee = amountOut - maxAmountOut;
+            _transfer(tokenOut, feeReceiver, fee);
+            amountOut = maxAmountOut;
+        }
+        _transfer(tokenOut, receiver, amountOut);
+        return amountOut;
+    }
+
     function swap(
         address primary,
         address operator,
@@ -27,29 +54,11 @@ contract SwapHelpers {
     )
         public
         payable
-        returns (bytes memory)
+        returns (uint256 amountOut)
     {
-        if (pointers.length != 0) insertAmount(data, pointers, amountIn);
-        if (tokenIn == _ETH) {
-            if (msg.value != amountIn) revert IncorrectValue(amountIn, msg.value);
-        } else {
-            if (msg.value != 0) revert IncorrectValue(0, msg.value);
-            tokenIn.safeTransferFrom(msg.sender, address(this), amountIn);
-            tokenIn.forceApprove(operator, amountIn);
-        }
-        (bool success, bytes memory response) = primary.call{ value: msg.value }(data);
-        if (!success) {
-            assembly {
-                revert(add(response, 0x20), mload(response))
-            }
-        }
-        if (tokenOut == _ETH) {
-            (success,) = receiver.call{ value: address(this).balance }("");
-            if (!success) revert TransferFailed(receiver);
-        } else {
-            tokenOut.safeTransfer(receiver, tokenOut.balanceOf(address(this)));
-        }
-        return response;
+        _swap(primary, operator, tokenIn, amountIn, data, pointers);
+        amountOut = _balance(tokenOut, address(this));
+        _transfer(tokenOut, receiver, amountOut);
     }
 
     function swap(
@@ -63,7 +72,7 @@ contract SwapHelpers {
     )
         external
         payable
-        returns (bytes memory)
+        returns (uint256)
     {
         return swap(primary, primary, tokenIn, tokenOut, amountIn, receiver, data, pointers);
     }
@@ -85,6 +94,61 @@ contract SwapHelpers {
             }
         }
         return data;
+    }
+
+    function _swap(
+        address primary,
+        address operator,
+        IERC20 tokenIn,
+        uint256 amountIn,
+        bytes memory data,
+        uint256[] memory pointers
+    )
+        public
+        payable
+    {
+        if (pointers.length != 0) insertAmount(data, pointers, amountIn);
+        if (tokenIn == _ETH) {
+            if (msg.value != amountIn) revert IncorrectValue(amountIn, msg.value);
+        } else {
+            if (msg.value != 0) revert IncorrectValue(0, msg.value);
+            tokenIn.safeTransferFrom(msg.sender, address(this), amountIn);
+            tokenIn.forceApprove(operator, amountIn);
+        }
+        (bool success, bytes memory response) = primary.call{ value: msg.value }(data);
+        if (!success) {
+            assembly {
+                revert(add(response, 0x20), mload(response))
+            }
+        }
+    }
+    
+    function _transfer(
+        IERC20 token,
+        address receiver,
+        uint256 amount
+    )
+        internal
+    {
+        if (token == _ETH) {
+            (bool success,) = receiver.call{ value: amount }("");
+            if (!success) revert TransferFailed(receiver);
+        } else {
+            token.safeTransfer(receiver, amount);
+        }
+    }
+
+    function _balance(
+        IERC20 token,
+        address account
+    )
+        internal
+        view
+        returns (uint256 balance)
+    {
+        balance = token == _ETH
+            ? account.balance
+            : token.balanceOf(account);
     }
 
     receive() external payable { }
