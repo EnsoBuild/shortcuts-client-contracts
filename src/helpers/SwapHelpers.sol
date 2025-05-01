@@ -33,7 +33,7 @@ contract SwapHelpers {
     {  
         _swap(primary, operator, tokenIn, amountIn, data, pointers);
         amountOut = _balance(tokenOut, address(this));
-        if (amountOut > maxAmountOut) {
+        if (maxAmountOut > 0 && amountOut > maxAmountOut) {
             uint256 fee = amountOut - maxAmountOut;
             _transfer(tokenOut, feeReceiver, fee);
             amountOut = maxAmountOut;
