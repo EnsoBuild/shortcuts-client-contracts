@@ -2,6 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { StargateV2Receiver } from "../src/bridge/StargateV2Receiver.sol";
+import { EnsoShortcuts } from "../src/EnsoShortcuts.sol";
+import { EnsoRouter } from "../src/router/EnsoRouter.sol";
 import { WeirollPlanner } from "./utils/WeirollPlanner.sol";
 import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
 import { Test } from "forge-std/Test.sol";
@@ -17,6 +19,8 @@ interface IWETH {
 
 contract BridgeTest is Test {
     StargateV2Receiver public stargateReceiver;
+    EnsoRouter public router;
+    EnsoShortcuts public shortcuts;
     IWETH public weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address public eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
@@ -30,7 +34,9 @@ contract BridgeTest is Test {
     function setUp() public {
         _ethereumFork = vm.createFork(_rpcURL);
         vm.selectFork(_ethereumFork);
-        stargateReceiver = new StargateV2Receiver(address(this));
+        router = new EnsoRouter();
+        shortcuts = EnsoShortcuts(payable(router.shortcuts()));
+        stargateReceiver = new StargateV2Receiver(address(this), address(router));
     }
 
     function testEthBridge() public {
@@ -119,8 +125,11 @@ contract BridgeTest is Test {
         view
         returns (bytes memory message)
     {
+        // encode shortcut data
+        bytes memory shortcutData =
+            abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
         // encode callback data
-        bytes memory callbackData = abi.encode(token, address(this), bytes32(0), commands, state);
+        bytes memory callbackData = abi.encode(token, address(this), shortcutData);
         // encode message
         message = OFTComposeMsgCodec.encode(
             uint64(0),
