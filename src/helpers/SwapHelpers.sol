@@ -30,7 +30,8 @@ contract SwapHelpers {
         public
         payable
         returns (uint256 amountOut)
-    {  
+    {
+        uint256 balanceBefore = _balance(tokenOut, receiver);
         _swap(primary, operator, tokenIn, amountIn, data, pointers);
         amountOut = _balance(tokenOut, address(this));
         if (maxAmountOut > 0 && amountOut > maxAmountOut) {
@@ -39,7 +40,8 @@ contract SwapHelpers {
             amountOut = maxAmountOut;
         }
         _transfer(tokenOut, receiver, amountOut);
-        return amountOut;
+        uint256 balanceAfter = _balance(tokenOut, receiver);
+        amountOut = balanceAfter - balanceBefore;
     }
 
     function swap(
@@ -56,9 +58,11 @@ contract SwapHelpers {
         payable
         returns (uint256 amountOut)
     {
+        uint256 balanceBefore = _balance(tokenOut, receiver);
         _swap(primary, operator, tokenIn, amountIn, data, pointers);
-        amountOut = _balance(tokenOut, address(this));
-        _transfer(tokenOut, receiver, amountOut);
+        _transfer(tokenOut, receiver, _balance(tokenOut, address(this)));
+        uint256 balanceAfter = _balance(tokenOut, receiver);
+        amountOut = balanceAfter - balanceBefore;
     }
 
     function swap(

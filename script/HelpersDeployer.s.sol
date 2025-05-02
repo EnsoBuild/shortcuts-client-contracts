@@ -23,7 +23,7 @@ struct DeployerResult {
     TupleHelpers tupleHelpers;
 }
 
-contract FullDeployer is Script {
+contract HelpersDeployer is Script {
     function run() public returns (DeployerResult memory result) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
