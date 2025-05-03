@@ -4,8 +4,8 @@ pragma solidity ^0.8.28;
 import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
 import { ILayerZeroComposer } from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroComposer.sol";
 
-import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IRouter {
     enum TokenType {
@@ -20,7 +20,13 @@ interface IRouter {
         bytes data;
     }
 
-    function routeSingle(Token calldata tokenIn, bytes calldata data) external payable returns (bytes memory response);
+    function routeSingle(
+        Token calldata tokenIn,
+        bytes calldata data
+    )
+        external
+        payable
+        returns (bytes memory response);
 }
 
 contract StargateV2Receiver is Ownable, ILayerZeroComposer {
@@ -49,8 +55,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         if (msg.sender != endpoint) revert NotEndpoint(msg.sender);
 
         bytes memory composeMsg = _message.composeMsg();
-        (address token, address receiver, bytes memory shortcutData) =
-            abi.decode(composeMsg, (address, address, bytes));
+        (address token, address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, address, bytes));
 
         // try to execute shortcut
         uint256 amount = _message.amountLD();
@@ -72,14 +77,14 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
             tokenIn = IRouter.Token(IRouter.TokenType.Native, abi.encode(amount));
             value = amount;
         } else {
-            tokenIn =  IRouter.Token(IRouter.TokenType.ERC20, abi.encode(token, amount));
+            tokenIn = IRouter.Token(IRouter.TokenType.ERC20, abi.encode(token, amount));
             IERC20(token).forceApprove(address(router), amount);
         }
         router.routeSingle{ value: value }(tokenIn, data);
     }
 
     // sweep funds to the contract owner in order to refund user
-    function sweep(address[] memory tokens) onlyOwner external {
+    function sweep(address[] memory tokens) external onlyOwner {
         address receiver = owner();
         address token;
         for (uint256 i = 0; i < tokens.length; ++i) {
@@ -88,11 +93,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         }
     }
 
-    function _transfer(
-        address token,
-        address receiver,
-        uint256 amount
-    ) internal {
+    function _transfer(address token, address receiver, uint256 amount) internal {
         if (token == _NATIVE_ASSET) {
             (bool success,) = receiver.call{ value: amount }("");
             if (!success) revert TransferFailed(receiver);
@@ -102,9 +103,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     }
 
     function _balance(address token) internal view returns (uint256 balance) {
-        balance = token == _NATIVE_ASSET
-            ? address(this).balance
-            : IERC20(token).balanceOf(address(this));
+        balance = token == _NATIVE_ASSET ? address(this).balance : IERC20(token).balanceOf(address(this));
     }
 
     receive() external payable { }

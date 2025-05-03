@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Script.sol";
 import "../src/EnsoShortcuts.sol";
+import "forge-std/Script.sol";
 
 contract Deployer is Script {
-    mapping(uint => address) socketReceivers;
+    mapping(uint256 => address) socketReceivers;
 
     constructor() {
         // Ethereum
@@ -21,10 +21,10 @@ contract Deployer is Script {
         socketReceivers[137] = 0x8DfeB2e0B392f0033C8685E35FB4763d88a70d12;
 
         // Arbitrum
-        socketReceivers[42161] = 0x88616cB9499F32Ff6A784B66B60aABF0bCf0df39;
+        socketReceivers[42_161] = 0x88616cB9499F32Ff6A784B66B60aABF0bCf0df39;
 
         // Avalanche
-        socketReceivers[43114] = 0x83b2cda6A33128324ee9cb2f0360bA8a42Cec2C6;
+        socketReceivers[43_114] = 0x83b2cda6A33128324ee9cb2f0360bA8a42Cec2C6;
     }
 
     function run() public returns (EnsoShortcuts socketEnsoShortcuts) {
@@ -33,8 +33,6 @@ contract Deployer is Script {
         address socketReceiver = socketReceivers[block.chainid];
 
         vm.broadcast(deployerPrivateKey);
-        socketEnsoShortcuts = new EnsoShortcuts{salt: "SocketEnsoShortcuts"}(
-            socketReceiver
-        );
+        socketEnsoShortcuts = new EnsoShortcuts{ salt: "SocketEnsoShortcuts" }(socketReceiver);
     }
 }

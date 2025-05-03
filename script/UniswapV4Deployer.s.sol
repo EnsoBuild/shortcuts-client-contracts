@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "forge-std/Script.sol";
 import "../src/helpers/UniswapV4Helpers.sol";
+import "forge-std/Script.sol";
 
 contract UniswapV4Deployer is Script {
     function run() public returns (UniswapV4Helpers uniswapV4Helpers, address poolManager) {
@@ -28,17 +28,17 @@ contract UniswapV4Deployer is Script {
             poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
         } else if (chainId == 8453) {
             poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
-        } else if (chainId == 42161) {
+        } else if (chainId == 42_161) {
             poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
-        } else if (chainId == 43114) {
+        } else if (chainId == 43_114) {
             poolManager = 0x06380C0e0912312B5150364B9DC4542BA0DbBc85;
-        } else if (chainId == 57073) {
+        } else if (chainId == 57_073) {
             poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
         } else {
             revert("No pool manager");
         }
 
-        uniswapV4Helpers = new UniswapV4Helpers{salt: "UniswapV4Helpers"}(poolManager);
+        uniswapV4Helpers = new UniswapV4Helpers{ salt: "UniswapV4Helpers" }(poolManager);
 
         vm.stopBroadcast();
     }

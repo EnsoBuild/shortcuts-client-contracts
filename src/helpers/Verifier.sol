@@ -7,48 +7,36 @@ contract Verifier {
         bytes32[] memory commands,
         bytes[] memory state,
         bytes memory signature
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         bytes32 messageHash = getMessageHash(commands, state);
         bytes32 ethSignedMessageHash = getEthSignedMessageHash(messageHash);
 
         return recoverSigner(ethSignedMessageHash, signature) == signer;
     }
 
-    function getMessageHash(
-        bytes32[] memory commands,
-        bytes[] memory state
-    ) public pure returns (bytes32) {
+    function getMessageHash(bytes32[] memory commands, bytes[] memory state) public pure returns (bytes32) {
         return keccak256(abi.encode(commands, state));
     }
 
-    function getEthSignedMessageHash(bytes32 messageHash)
-        public
-        pure
-        returns (bytes32)
-    {
+    function getEthSignedMessageHash(bytes32 messageHash) public pure returns (bytes32) {
         /*
         Signature is produced by signing a keccak256 hash with the following format:
         "\x19Ethereum Signed Message\n" + len(msg) + msg
         */
-        return keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
-        );
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
     }
 
-    function recoverSigner(
-        bytes32 ethSignedMessageHash,
-        bytes memory signature
-    ) internal pure returns (address) {
+    function recoverSigner(bytes32 ethSignedMessageHash, bytes memory signature) internal pure returns (address) {
         (bytes32 r, bytes32 s, uint8 v) = splitSignature(signature);
 
         return ecrecover(ethSignedMessageHash, v, r, s);
     }
 
-    function splitSignature(bytes memory sig)
-        internal
-        pure
-        returns (bytes32 r, bytes32 s, uint8 v)
-    {
+    function splitSignature(bytes memory sig) internal pure returns (bytes32 r, bytes32 s, uint8 v) {
         require(sig.length == 65, "invalid signature length");
 
         assembly {
