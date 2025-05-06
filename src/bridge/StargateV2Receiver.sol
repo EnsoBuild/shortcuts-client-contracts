@@ -35,37 +35,48 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
 
     address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    address public immutable endpoint;
     IRouter public immutable router;
+    address public immutable endpoint;
+
+    uint256 public immutable reserveGas;
 
     event ShortcutExecutionSuccessful(bytes32 guid);
     event ShortcutExecutionFailed(bytes32 guid);
+    event InsufficientGas(bytes32 guid);
 
     error NotEndpoint(address sender);
     error NotSelf();
     error TransferFailed(address receiver);
 
-    constructor(address _endpoint, address _router) Ownable(msg.sender) {
-        endpoint = _endpoint;
+    constructor(address _endpoint, address _router, uint256 _reserveGas) Ownable(msg.sender) {
         router = IRouter(_router);
+        endpoint = _endpoint;
+        reserveGas = _reserveGas;
     }
 
     // layer zero callback
     function lzCompose(address, bytes32 _guid, bytes calldata _message, address, bytes calldata) external payable {
         if (msg.sender != endpoint) revert NotEndpoint(msg.sender);
 
+        uint256 amount = _message.amountLD();
         bytes memory composeMsg = _message.composeMsg();
         (address token, address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, address, bytes));
 
-        // try to execute shortcut
-        uint256 amount = _message.amountLD();
-        try this.execute(token, amount, shortcutData) {
-            emit ShortcutExecutionSuccessful(_guid);
-        } catch {
-            // if shortcut fails send funds to receiver
-            emit ShortcutExecutionFailed(_guid);
+        uint256 availableGas = gasleft();
+        if (availableGas < reserveGas) {
+            emit InsufficientGas(_guid);
             _transfer(token, receiver, amount);
+        } else {
+            // try to execute shortcut
+            try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData) {
+                emit ShortcutExecutionSuccessful(_guid);
+            } catch {
+                // if shortcut fails send funds to receiver
+                emit ShortcutExecutionFailed(_guid);
+                _transfer(token, receiver, amount);
+            }
         }
+        
     }
 
     // execute shortcut using router
