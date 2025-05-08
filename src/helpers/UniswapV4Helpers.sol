@@ -212,7 +212,17 @@ contract UniswapV4Helpers {
         returns (bytes memory)
     {
         return encodeMintFromDeltasWithHooks(
-            currency0, currency1, fee, tickSpacing, tickLower, tickUpper, amount0Max, amount1Max, recipient, refund, address(0)
+            currency0,
+            currency1,
+            fee,
+            tickSpacing,
+            tickLower,
+            tickUpper,
+            amount0Max,
+            amount1Max,
+            recipient,
+            refund,
+            address(0)
         );
     }
 }
