@@ -133,6 +133,32 @@ contract BridgeTest is Test {
         assertEq(balanceBefore, weth.balanceOf(address(this)));
     }
 
+    function testSweep() public {
+        vm.selectFork(_ethereumFork);
+
+        // transfer funds
+        weth.deposit{ value: AMOUNT }();
+        weth.transfer(address(stargateReceiver), AMOUNT);
+        (bool success,) = address(stargateReceiver).call{ value: AMOUNT }("");
+
+        uint256 ethOnReceiver = address(stargateReceiver).balance;
+        uint256 wethOnReceiver = weth.balanceOf(address(stargateReceiver));
+
+        uint256 ethBalanceBefore = address(this).balance;
+        uint256 wethBalanceBefore = weth.balanceOf(address(this));
+
+        // sweep
+        address[] memory tokens = new address[](2);
+        tokens[0] = eth;
+        tokens[1] = address(weth);
+        stargateReceiver.sweep(tokens);
+
+        uint256 ethBalanceAfter = address(this).balance;
+        uint256 wethBalanceAfter = weth.balanceOf(address(this));
+        assertEq(ethOnReceiver, ethBalanceAfter - ethBalanceBefore);
+        assertEq(wethOnReceiver, wethBalanceAfter - wethBalanceBefore);
+    }
+
     receive() external payable { }
 
     function _buildLzComposeMessage(

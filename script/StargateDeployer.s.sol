@@ -27,7 +27,10 @@ contract StargateDeployer is Script {
         } else if (chainId == 999) {
             endpoint = 0x3A73033C0b1407574C76BdBAc67f126f6b4a9AA9; // hyper
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
-        } else {
+        } else if (chainId == 59_144) {
+            endpoint = 0x1a44076050125825900e736c501f859c50fE728c; // linea
+            router = 0xA146d46823f3F594B785200102Be5385CAfCE9B5;
+        }  else {
             endpoint = 0x1a44076050125825900e736c501f859c50fE728c; // default
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         }
