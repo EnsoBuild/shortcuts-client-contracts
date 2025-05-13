@@ -35,6 +35,8 @@ if [ $broadcast == "broadcast" ]; then
         elif [ $verifier == "blockscout" ]; then
             if [ $network_upper == "INK"]; then
                 params+=(--verifier-url "https://explorer.inkonchain.com/api")
+            elif [ $network_upper == "PLUME"]; then
+                params+=(--verifier-url "https://explorer.plume.org/api")
             else
                 params+=(--verifier-url "https://${network}.blockscout.com/api")
             fi
