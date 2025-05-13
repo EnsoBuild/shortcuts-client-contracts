@@ -10,8 +10,8 @@ contract StargateDeployer is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
+        address deployer = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA;
         uint256 chainId = block.chainid;
-
         if (chainId == 324) {
             endpoint = 0xd07C30aF3Ff30D96BDc9c6044958230Eb797DDBF; // zksync
             router = 0x1BD8CefD703CF6b8fF886AD2E32653C32bc62b5C;
@@ -30,12 +30,15 @@ contract StargateDeployer is Script {
         } else if (chainId == 59_144) {
             endpoint = 0x1a44076050125825900e736c501f859c50fE728c; // linea
             router = 0xA146d46823f3F594B785200102Be5385CAfCE9B5;
-        }  else {
+        } else if (chainId == 98_866) {
+            endpoint = 0xC1b15d3B262bEeC0e3565C11C9e0F6134BdaCB36; // plume
+            router = 0x3067BDBa0e6628497d527bEF511c22DA8b32cA3F;
+        } else {
             endpoint = 0x1a44076050125825900e736c501f859c50fE728c; // default
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         }
 
-        stargateHelper = address(new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, router, 100000));
+        stargateHelper = address(new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, router, deployer, 100000));
 
         vm.stopBroadcast();
     }

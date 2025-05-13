@@ -36,7 +36,7 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
         router = new EnsoRouter();
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
-        stargateReceiver = new StargateV2Receiver(address(this), address(router), 100000);
+        stargateReceiver = new StargateV2Receiver(address(this), address(router), address(this), 100000);
     }
 
     function testEthBridge() public {

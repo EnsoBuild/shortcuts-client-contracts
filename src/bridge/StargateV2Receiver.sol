@@ -48,7 +48,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     error NotSelf();
     error TransferFailed(address receiver);
 
-    constructor(address _endpoint, address _router, uint256 _reserveGas) Ownable(msg.sender) {
+    constructor(address _endpoint, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
         router = IRouter(_router);
         endpoint = _endpoint;
         reserveGas = _reserveGas;
