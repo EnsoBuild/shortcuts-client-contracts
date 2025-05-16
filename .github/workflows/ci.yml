@@ -29,6 +29,7 @@ env:
   POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
   SONIC_RPC_URL: ${{ secrets.SONIC_RPC_URL }}
   ZKSYNC_RPC_URL: ${{ secrets.ZKSYNC_RPC_URL }}
+  PLUME_RPC_URL: ${{ secrets.PLUME_RPC_URL }}
 
 jobs:
   check:
