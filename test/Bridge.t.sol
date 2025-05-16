@@ -40,6 +40,9 @@ contract BridgeTest is Test {
     uint256 public constant ETH_AMOUNT = 10 ** 18;
     uint256 public constant USDC_AMOUNT = 10 ** 9;
 
+    uint256 reserveGas = 40000;
+    uint256 transferGas = 70000;
+
     error TransferFailed();
 
     function setUp() public {
@@ -47,7 +50,7 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
         router = new EnsoRouter();
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
-        stargateReceiver = new StargateV2Receiver(address(this), tokenMessaging, address(router),  address(this), 100000);
+        stargateReceiver = new StargateV2Receiver(address(this), tokenMessaging, address(router), transferGas, reserveGas);
     }
 
     function testEthBridge() public {
@@ -149,30 +152,48 @@ contract BridgeTest is Test {
         assertEq(USDC_AMOUNT, balanceAfter - balanceBefore);
     }
 
-    function testSweep() public {
+    function testClaim() public {
         vm.selectFork(_ethereumFork);
 
-        // transfer funds
-        weth.deposit{ value: ETH_AMOUNT }();
-        weth.transfer(address(stargateReceiver), ETH_AMOUNT);
-        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
-
+        // assert funds are not on receiver contract
         uint256 ethOnReceiver = address(stargateReceiver).balance;
-        uint256 wethOnReceiver = weth.balanceOf(address(stargateReceiver));
+        uint256 usdcOnReceiver = IERC20(usdc).balanceOf(address(stargateReceiver));
+        assertLt(ethOnReceiver, ETH_AMOUNT);
+        assertLt(usdcOnReceiver, USDC_AMOUNT);
+
+        // transfer funds
+        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        if (!success) revert TransferFailed();
+        vm.startPrank(usdcPool);
+        IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
+        vm.stopPrank();
 
         uint256 ethBalanceBefore = address(this).balance;
-        uint256 wethBalanceBefore = weth.balanceOf(address(this));
+        uint256 usdcBalanceBefore = IERC20(usdc).balanceOf(address(this));
 
-        // sweep
-        address[] memory tokens = new address[](2);
-        tokens[0] = eth;
-        tokens[1] = address(weth);
-        stargateReceiver.sweep(tokens);
+        // setup lzCompose messages and get funds stuck due to low gas
+        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        stargateReceiver.lzCompose{ gas: reserveGas }(ethPool, bytes32(0), message, address(0), "");
+
+        (commands, state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT);
+        message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
+        stargateReceiver.lzCompose{ gas: reserveGas }(usdcPool, bytes32(0), message, address(0), "");
+
+        // assert funds are still on receiver contract
+        ethOnReceiver = address(stargateReceiver).balance;
+        usdcOnReceiver = IERC20(usdc).balanceOf(address(stargateReceiver));
+        assertGe(ethOnReceiver, ETH_AMOUNT);
+        assertGe(usdcOnReceiver, USDC_AMOUNT);
+
+        // claim
+        stargateReceiver.claim(address(0), address(this)); // stargate uses zero address for ETH token
+        stargateReceiver.claim(usdc, address(this));
 
         uint256 ethBalanceAfter = address(this).balance;
-        uint256 wethBalanceAfter = weth.balanceOf(address(this));
-        assertEq(ethOnReceiver, ethBalanceAfter - ethBalanceBefore);
-        assertEq(wethOnReceiver, wethBalanceAfter - wethBalanceBefore);
+        uint256 usdcBalanceAfter = IERC20(usdc).balanceOf(address(this));
+        assertEq(ETH_AMOUNT, ethBalanceAfter - ethBalanceBefore);
+        assertEq(USDC_AMOUNT, usdcBalanceAfter - usdcBalanceBefore);
     }
 
     receive() external payable { }
@@ -260,7 +281,7 @@ contract BridgeTest is Test {
 
     function _buildTransfer(address token, address receiver, uint256 amount)
         internal
-        view
+        pure
         returns (bytes32[] memory commands, bytes[] memory state)
     {
         // Setup script to transfer token

@@ -7,6 +7,9 @@ import "forge-std/Script.sol";
 contract StargateDeployer is Script {
     mapping(uint256 => address) private tokenMessagingAddresses;
 
+    uint256 transferGas = 70000;
+    uint256 reserveGas = 40000;
+
     constructor() {
         tokenMessagingAddresses[1] = 0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980; //ethereum
         tokenMessagingAddresses[10] = 0xF1fCb4CBd57B67d683972A59B6a7b1e2E8Bf27E6; //optimism
@@ -61,7 +64,7 @@ contract StargateDeployer is Script {
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         }
 
-        stargateHelper = address(new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, tokenMessaging, router, deployer, 100000));
+        stargateHelper = address(new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, tokenMessaging, router, transferGas, reserveGas));
 
         vm.stopBroadcast();
     }

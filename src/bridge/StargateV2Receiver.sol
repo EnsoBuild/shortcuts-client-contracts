@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
 import { ILayerZeroComposer } from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroComposer.sol";
 
-import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IRouter {
@@ -37,32 +36,37 @@ interface IPool {
     function token() external view returns (address);
 }
 
-contract StargateV2Receiver is Ownable, ILayerZeroComposer {
+contract StargateV2Receiver is ILayerZeroComposer {
     using OFTComposeMsgCodec for bytes;
     using SafeERC20 for IERC20;
 
-    address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    address private constant _STARGATE_NATIVE_ASSET = address(0);
+    address private constant _NATIVE_ASSET = address(0);
 
     address public immutable endpoint;
     ITokenMessaging public immutable tokenMessaging;
     IRouter public immutable router;
 
+    uint256 public immutable transferGas;
     uint256 public immutable reserveGas;
+
+    mapping(address => mapping(address => uint256)) public unreceived;
 
     event ShortcutExecutionSuccessful(bytes32 guid);
     event ShortcutExecutionFailed(bytes32 guid);
     event InsufficientGas(bytes32 guid);
+    event TransferSuccessful(address receiver);
+    event FundsToClaim(address receiver, address token, uint256 amount);
 
     error NotEndpoint(address sender);
     error NotSelf();
     error TransferFailed(address receiver);
     error InvalidAsset();
 
-    constructor(address _endpoint, address _tokenMessaging, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
+    constructor(address _endpoint, address _tokenMessaging, address _router, uint256 _transferGas, uint256 _reserveGas) {
         endpoint = _endpoint;
         tokenMessaging = ITokenMessaging(_tokenMessaging);
         router = IRouter(_router);
+        transferGas = _transferGas;
         reserveGas = _reserveGas;
     }
 
@@ -78,17 +82,18 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         (address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, bytes));
 
         uint256 availableGas = gasleft();
-        if (availableGas < reserveGas) {
+        uint256 fallbackGas = transferGas + reserveGas;
+        if (availableGas < fallbackGas) {
             emit InsufficientGas(_guid);
-            _transfer(token, receiver, amount);
+            _tryTransfer(token, receiver, amount);
         } else {
             // try to execute shortcut
-            try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData) {
+            try this.execute{ gas: availableGas - fallbackGas }(token, amount, shortcutData) {
                 emit ShortcutExecutionSuccessful(_guid);
             } catch {
                 // if shortcut fails send funds to receiver
                 emit ShortcutExecutionFailed(_guid);
-                _transfer(token, receiver, amount);
+                _tryTransfer(token, receiver, amount);
             }
         }
         
@@ -99,7 +104,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         if (msg.sender != address(this)) revert NotSelf();
         IRouter.Token memory tokenIn;
         uint256 value;
-        if (token == _STARGATE_NATIVE_ASSET) {
+        if (token == _NATIVE_ASSET) {
             tokenIn = IRouter.Token(IRouter.TokenType.Native, abi.encode(amount));
             value = amount;
         } else {
@@ -109,27 +114,55 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         router.routeSingle{ value: value }(tokenIn, data);
     }
 
-    // sweep funds to the contract owner in order to refund user
-    function sweep(address[] memory tokens) external onlyOwner {
-        address receiver = owner();
-        address token;
-        for (uint256 i = 0; i < tokens.length; ++i) {
-            token = tokens[i];
-            _transfer(token, receiver, _balance(token));
-        }
+    // claim funds that are held on this contract
+    function claim(address token, address receiver) external {
+        uint256 amount = unreceived[token][receiver];
+        delete unreceived[token][receiver];
+        bool success = _transfer(token, receiver, amount, gasleft());
+        if (!success) revert TransferFailed(receiver);
     }
 
-    function _transfer(address token, address receiver, uint256 amount) internal {
-        if (token == _STARGATE_NATIVE_ASSET || token == _NATIVE_ASSET) {
-            (bool success,) = receiver.call{ value: amount }("");
-            if (!success) revert TransferFailed(receiver);
+    function _tryTransfer(address token, address receiver, uint256 amount) internal {
+        uint256 availableGas = gasleft();
+        if (availableGas < reserveGas) {
+            // try to set amount in state so it can be retrieved manually
+            unreceived[token][receiver] += amount;
+            emit FundsToClaim(receiver, token, amount);
         } else {
-            IERC20(token).safeTransfer(receiver, amount);
+            bool success = _transfer(token, receiver, amount, availableGas - reserveGas);
+            if (!success) {
+                // set amount in state so it can be retrieved manually
+                unreceived[token][receiver] += amount;
+                emit FundsToClaim(receiver, token, amount);
+            } else {
+                emit TransferSuccessful(receiver);
+            }
         }
     }
 
-    function _balance(address token) internal view returns (uint256 balance) {
-        balance = token == _NATIVE_ASSET ? address(this).balance : IERC20(token).balanceOf(address(this));
+    function _transfer(address token, address receiver, uint256 amount, uint256 gas) internal returns (bool success) {
+        if (token == _NATIVE_ASSET) {
+            (success,) = receiver.call{ gas: gas, value: amount }("");
+        } else {
+            success = _tryERC20SafeTransfer(token, receiver, amount, gas);
+        }
+    }
+
+    function _tryERC20SafeTransfer(address token, address receiver, uint256 amount, uint256 gas) internal returns (bool success) {
+        success = _callOptionalReturnBool(token, abi.encodeCall(IERC20.transfer, (receiver, amount)), gas);
+    }
+
+    // taken from OpenZeppelin's SafeERC20 and modified to control the gas sent
+    function _callOptionalReturnBool(address token, bytes memory data, uint256 txGas) private returns (bool) {
+        bool success;
+        uint256 returnSize;
+        uint256 returnValue;
+        assembly ("memory-safe") {
+            success := call(txGas, token, 0, add(data, 0x20), mload(data), 0, 0x20)
+            returnSize := returndatasize()
+            returnValue := mload(0)
+        }
+        return success && (returnSize == 0 ? token.code.length > 0 : returnValue == 1);
     }
 
     receive() external payable { }
