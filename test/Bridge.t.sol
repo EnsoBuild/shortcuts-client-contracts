@@ -17,17 +17,31 @@ interface IWETH {
     function balanceOf(address owner) external view returns (uint256);
 }
 
+interface IERC20 {
+    function transfer(address to, uint256 amount) external;
+    function balanceOf(address owner) external view returns (uint256);
+}
+
 contract BridgeTest is Test {
     StargateV2Receiver public stargateReceiver;
     EnsoRouter public router;
     EnsoShortcuts public shortcuts;
     IWETH public weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address public eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address public usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public tokenMessaging = 0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980;
+    address public ethPool = 0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
+    address public usdcPool = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+    address public vitalik = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
 
     string _rpcURL = vm.envString("ETHEREUM_RPC_URL");
     uint256 _ethereumFork;
 
-    uint256 public constant AMOUNT = 10 ** 18;
+    uint256 public constant ETH_AMOUNT = 10 ** 18;
+    uint256 public constant USDC_AMOUNT = 10 ** 9;
+
+    uint256 reserveGas = 40000;
+    uint256 transferGas = 70000;
 
     error TransferFailed();
 
@@ -36,7 +50,7 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
         router = new EnsoRouter();
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
-        stargateReceiver = new StargateV2Receiver(address(this), address(router), address(this), 100000);
+        stargateReceiver = new StargateV2Receiver(address(this), tokenMessaging, address(router), transferGas, reserveGas);
     }
 
     function testEthBridge() public {
@@ -44,16 +58,16 @@ contract BridgeTest is Test {
 
         uint256 balanceBefore = weth.balanceOf(address(this));
 
-        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(AMOUNT);
-        bytes memory message = _buildLzComposeMessage(eth, AMOUNT, commands, state);
+        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
 
         // transfer funds
-        (bool success,) = address(stargateReceiver).call{ value: AMOUNT }("");
+        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
         if (!success) revert TransferFailed();
         // trigger compose
-        stargateReceiver.lzCompose(address(0), bytes32(0), message, address(0), "");
+        stargateReceiver.lzCompose(ethPool, bytes32(0), message, address(0), "");
         uint256 balanceAfter = weth.balanceOf(address(this));
-        assertEq(AMOUNT, balanceAfter - balanceBefore);
+        assertEq(ETH_AMOUNT, balanceAfter - balanceBefore);
     }
 
     function testEthBridgeWithFailingShortcut() public {
@@ -62,16 +76,16 @@ contract BridgeTest is Test {
         uint256 balanceBefore = address(this).balance;
 
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
-        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(AMOUNT * 100);
-        bytes memory message = _buildLzComposeMessage(eth, AMOUNT, commands, state);
+        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT * 100);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
 
         // transfer funds
-        (bool success,) = address(stargateReceiver).call{ value: AMOUNT }("");
+        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
         if (!success) revert TransferFailed();
         // confirm funds have left this address
         assertGt(balanceBefore, address(this).balance);
         // trigger compose
-        stargateReceiver.lzCompose(address(0), bytes32(0), message, address(0), "");
+        stargateReceiver.lzCompose(ethPool, bytes32(0), message, address(0), "");
         // confirm funds have been returned to this address
         assertEq(balanceBefore, address(this).balance);
     }
@@ -81,88 +95,110 @@ contract BridgeTest is Test {
 
         uint256 balanceBefore = address(this).balance;
 
-        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(AMOUNT);
-        bytes memory message = _buildLzComposeMessage(eth, AMOUNT, commands, state);
+        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
 
         // transfer funds
-        (bool success,) = address(stargateReceiver).call{ value: AMOUNT }("");
+        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
         if (!success) revert TransferFailed();
         // confirm funds have left this address
         assertGt(balanceBefore, address(this).balance);
         // trigger compose with insufficient gas
-        stargateReceiver.lzCompose{ gas: 99000 }(address(0), bytes32(0), message, address(0), "");
+        stargateReceiver.lzCompose{ gas: 99000 }(ethPool, bytes32(0), message, address(0), "");
         // confirm funds have been returned to this address
         assertEq(balanceBefore, address(this).balance);
     }
 
 
-    function testWethBridge() public {
+    function testUsdcBridge() public {
         vm.selectFork(_ethereumFork);
 
-        weth.deposit{ value: AMOUNT }();
-        uint256 balanceBefore = address(this).balance;
+        uint256 balanceBefore = IERC20(usdc).balanceOf(vitalik);
 
-        (bytes32[] memory commands, bytes[] memory state) = _buildWethWithdraw(AMOUNT);
-        bytes memory message = _buildLzComposeMessage(address(weth), AMOUNT, commands, state);
+        (bytes32[] memory commands, bytes[] memory state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
 
         // transfer funds
-        weth.transfer(address(stargateReceiver), AMOUNT);
+        vm.startPrank(usdcPool);
+        IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
+        vm.stopPrank();
         // trigger compose
-        stargateReceiver.lzCompose(address(0), bytes32(0), message, address(0), "");
-        uint256 balanceAfter = address(this).balance;
-        assertEq(AMOUNT, balanceAfter - balanceBefore);
+        stargateReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
+        uint256 balanceAfter = IERC20(usdc).balanceOf(vitalik);
+        assertEq(USDC_AMOUNT, balanceAfter - balanceBefore);
     }
 
-    function testWethBridgeWithFailingShortcut() public {
+    function testUsdcBridgeWithFailingShortcut() public {
         vm.selectFork(_ethereumFork);
 
-        weth.deposit{ value: AMOUNT }();
-        uint256 balanceBefore = weth.balanceOf(address(this));
+        uint256 balanceBefore = IERC20(usdc).balanceOf(address(this));
 
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
-        (bytes32[] memory commands, bytes[] memory state) = _buildWethWithdraw(AMOUNT * 100);
-        bytes memory message = _buildLzComposeMessage(address(weth), AMOUNT, commands, state);
+        (bytes32[] memory commands, bytes[] memory state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT * 100);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
 
         // transfer funds
-        weth.transfer(address(stargateReceiver), AMOUNT);
-        // confirm funds have left this address
-        assertGt(balanceBefore, weth.balanceOf(address(this)));
+        vm.startPrank(usdcPool);
+        IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
+        vm.stopPrank();
+        // confirm funds have landed in the stargate receiver
+        assertGt(IERC20(usdc).balanceOf(address(stargateReceiver)), 0);
         // trigger compose
-        stargateReceiver.lzCompose(address(0), bytes32(0), message, address(0), "");
-        // confirm funds have been returned to this address
-        assertEq(balanceBefore, weth.balanceOf(address(this)));
+        stargateReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
+        // confirm funds have left the stargate receiver
+        assertEq(IERC20(usdc).balanceOf(address(stargateReceiver)), 0);
+        // confirm funds have been returned this address
+        uint256 balanceAfter = IERC20(usdc).balanceOf(address(this));
+        assertEq(USDC_AMOUNT, balanceAfter - balanceBefore);
     }
 
-    function testSweep() public {
+    function testClaim() public {
         vm.selectFork(_ethereumFork);
 
-        // transfer funds
-        weth.deposit{ value: AMOUNT }();
-        weth.transfer(address(stargateReceiver), AMOUNT);
-        (bool success,) = address(stargateReceiver).call{ value: AMOUNT }("");
-
+        // assert funds are not on receiver contract
         uint256 ethOnReceiver = address(stargateReceiver).balance;
-        uint256 wethOnReceiver = weth.balanceOf(address(stargateReceiver));
+        uint256 usdcOnReceiver = IERC20(usdc).balanceOf(address(stargateReceiver));
+        assertLt(ethOnReceiver, ETH_AMOUNT);
+        assertLt(usdcOnReceiver, USDC_AMOUNT);
+
+        // transfer funds
+        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        if (!success) revert TransferFailed();
+        vm.startPrank(usdcPool);
+        IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
+        vm.stopPrank();
 
         uint256 ethBalanceBefore = address(this).balance;
-        uint256 wethBalanceBefore = weth.balanceOf(address(this));
+        uint256 usdcBalanceBefore = IERC20(usdc).balanceOf(address(this));
 
-        // sweep
-        address[] memory tokens = new address[](2);
-        tokens[0] = eth;
-        tokens[1] = address(weth);
-        stargateReceiver.sweep(tokens);
+        // setup lzCompose messages and get funds stuck due to low gas
+        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        stargateReceiver.lzCompose{ gas: reserveGas }(ethPool, bytes32(0), message, address(0), "");
+
+        (commands, state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT);
+        message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
+        stargateReceiver.lzCompose{ gas: reserveGas }(usdcPool, bytes32(0), message, address(0), "");
+
+        // assert funds are still on receiver contract
+        ethOnReceiver = address(stargateReceiver).balance;
+        usdcOnReceiver = IERC20(usdc).balanceOf(address(stargateReceiver));
+        assertGe(ethOnReceiver, ETH_AMOUNT);
+        assertGe(usdcOnReceiver, USDC_AMOUNT);
+
+        // claim
+        stargateReceiver.claim(address(0), address(this)); // stargate uses zero address for ETH token
+        stargateReceiver.claim(usdc, address(this));
 
         uint256 ethBalanceAfter = address(this).balance;
-        uint256 wethBalanceAfter = weth.balanceOf(address(this));
-        assertEq(ethOnReceiver, ethBalanceAfter - ethBalanceBefore);
-        assertEq(wethOnReceiver, wethBalanceAfter - wethBalanceBefore);
+        uint256 usdcBalanceAfter = IERC20(usdc).balanceOf(address(this));
+        assertEq(ETH_AMOUNT, ethBalanceAfter - ethBalanceBefore);
+        assertEq(USDC_AMOUNT, usdcBalanceAfter - usdcBalanceBefore);
     }
 
     receive() external payable { }
 
     function _buildLzComposeMessage(
-        address token,
         uint256 amount,
         bytes32[] memory commands,
         bytes[] memory state
@@ -175,7 +211,7 @@ contract BridgeTest is Test {
         bytes memory shortcutData =
             abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
         // encode callback data
-        bytes memory callbackData = abi.encode(token, address(this), shortcutData);
+        bytes memory callbackData = abi.encode(address(this), shortcutData);
         // encode message
         message = OFTComposeMsgCodec.encode(
             uint64(0),
@@ -241,5 +277,26 @@ contract BridgeTest is Test {
 
         state[0] = abi.encode(amount);
         state[1] = ""; // Empty state for transfer of eth
+    }
+
+    function _buildTransfer(address token, address receiver, uint256 amount)
+        internal
+        pure
+        returns (bytes32[] memory commands, bytes[] memory state)
+    {
+        // Setup script to transfer token
+        commands = new bytes32[](1);
+        state = new bytes[](2);
+
+        commands[0] = WeirollPlanner.buildCommand(
+            IERC20.transfer.selector,
+            0x01, // call
+            0x0001ffffffff, // 1 input
+            0xff, // no output
+            token
+        );
+
+        state[0] = abi.encode(receiver);
+        state[1] = abi.encode(amount);
     }
 }
