@@ -78,6 +78,7 @@ contract MaverickV2Helpers {
         address refund
     )
         external
+        returns (uint256)
     {
         // get funds from msg.sender
         tokenA.safeTransferFrom(msg.sender, address(this), amountA);
@@ -104,7 +105,7 @@ contract MaverickV2Helpers {
         tokenA.forceApprove(manager, amountA);
         tokenB.forceApprove(manager, amountB);
         // add liquidity (boostedPosition will be sent to receiver)
-        IMaverickV2LiquidityManager(manager).addLiquidityAndMintBoostedPosition(
+        (uint256 mintedLPAmount, , ) = IMaverickV2LiquidityManager(manager).addLiquidityAndMintBoostedPosition(
             receiver,
             boostedPosition,
             packedSqrtPriceBreaks,
@@ -113,5 +114,7 @@ contract MaverickV2Helpers {
         // refund remaining
         tokenA.safeTransfer(refund, tokenA.balanceOf(address(this)));
         tokenB.safeTransfer(refund, tokenB.balanceOf(address(this)));
+
+        return mintedLPAmount;
     }
 }
