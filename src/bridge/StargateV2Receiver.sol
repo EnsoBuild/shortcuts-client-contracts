@@ -41,8 +41,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     using OFTComposeMsgCodec for bytes;
     using SafeERC20 for IERC20;
 
-    address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    address private constant _STARGATE_NATIVE_ASSET = address(0);
+    address private constant _NATIVE_ASSET = address(0);
 
     address public immutable endpoint;
     ITokenMessaging public immutable tokenMessaging;
@@ -99,7 +98,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         if (msg.sender != address(this)) revert NotSelf();
         IRouter.Token memory tokenIn;
         uint256 value;
-        if (token == _STARGATE_NATIVE_ASSET) {
+        if (token == _NATIVE_ASSET) {
             tokenIn = IRouter.Token(IRouter.TokenType.Native, abi.encode(amount));
             value = amount;
         } else {
@@ -120,7 +119,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     }
 
     function _transfer(address token, address receiver, uint256 amount) internal {
-        if (token == _STARGATE_NATIVE_ASSET || token == _NATIVE_ASSET) {
+        if (token == _NATIVE_ASSET) {
             (bool success,) = receiver.call{ value: amount }("");
             if (!success) revert TransferFailed(receiver);
         } else {

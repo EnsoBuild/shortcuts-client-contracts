@@ -27,7 +27,7 @@ contract BridgeTest is Test {
     EnsoRouter public router;
     EnsoShortcuts public shortcuts;
     IWETH public weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    address public eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address public eth = address(0);
     address public usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public tokenMessaging = 0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980;
     address public ethPool = 0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
