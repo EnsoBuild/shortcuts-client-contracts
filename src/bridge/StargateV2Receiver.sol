@@ -29,14 +29,23 @@ interface IRouter {
         returns (bytes memory response);
 }
 
+interface ITokenMessaging {
+    function assetIds(address) external view returns (uint16);
+}
+
+interface IPool {
+    function token() external view returns (address);
+}
+
 contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     using OFTComposeMsgCodec for bytes;
     using SafeERC20 for IERC20;
 
-    address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address private constant _NATIVE_ASSET = address(0);
 
-    IRouter public immutable router;
     address public immutable endpoint;
+    ITokenMessaging public immutable tokenMessaging;
+    IRouter public immutable router;
 
     uint256 public immutable reserveGas;
 
@@ -47,20 +56,25 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     error NotEndpoint(address sender);
     error NotSelf();
     error TransferFailed(address receiver);
+    error InvalidAsset();
 
-    constructor(address _endpoint, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
-        router = IRouter(_router);
+    constructor(address _endpoint, address _tokenMessaging, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
         endpoint = _endpoint;
+        tokenMessaging = ITokenMessaging(_tokenMessaging);
+        router = IRouter(_router);
         reserveGas = _reserveGas;
     }
 
     // layer zero callback
-    function lzCompose(address, bytes32 _guid, bytes calldata _message, address, bytes calldata) external payable {
+    function lzCompose(address _from, bytes32 _guid, bytes calldata _message, address, bytes calldata) external payable {
         if (msg.sender != endpoint) revert NotEndpoint(msg.sender);
+        if (tokenMessaging.assetIds(_from) == 0) revert InvalidAsset();
+
+        address token = IPool(_from).token();
 
         uint256 amount = _message.amountLD();
         bytes memory composeMsg = _message.composeMsg();
-        (address token, address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, address, bytes));
+        (address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, bytes));
 
         uint256 availableGas = gasleft();
         if (availableGas < reserveGas) {
