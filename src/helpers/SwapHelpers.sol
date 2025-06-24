@@ -108,8 +108,7 @@ contract SwapHelpers {
         bytes memory data,
         uint256[] memory pointers
     )
-        public
-        payable
+        internal
     {
         if (pointers.length != 0) insertAmount(data, pointers, amountIn);
         if (tokenIn == _ETH) {
