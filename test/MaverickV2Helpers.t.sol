@@ -42,17 +42,7 @@ contract MaverickV2HelpersTest is Test {
         usdce.approve(address(maverickHelpers), USDCE_AMOUNT);
         pusd.approve(address(maverickHelpers), PUSD_AMOUNT);
         maverickHelpers.addLiquidityAndMintBoostedPosition(
-            USDCE_AMOUNT,
-            PUSD_AMOUNT,
-            usdce,
-            pusd,
-            true,
-            100,
-            yap,
-            manager,
-            lens,
-            address(this),
-            refund
+            USDCE_AMOUNT, PUSD_AMOUNT, usdce, pusd, true, 100, yap, manager, lens, address(this), refund
         );
         // assert that the test address received yap
         assertGt(IERC20(yap).balanceOf(address(this)), 0);

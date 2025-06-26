@@ -58,7 +58,15 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     error TransferFailed(address receiver);
     error InvalidAsset();
 
-    constructor(address _endpoint, address _tokenMessaging, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
+    constructor(
+        address _endpoint,
+        address _tokenMessaging,
+        address _router,
+        address _owner,
+        uint256 _reserveGas
+    )
+        Ownable(_owner)
+    {
         endpoint = _endpoint;
         tokenMessaging = ITokenMessaging(_tokenMessaging);
         router = IRouter(_router);
@@ -66,7 +74,16 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     }
 
     // layer zero callback
-    function lzCompose(address _from, bytes32 _guid, bytes calldata _message, address, bytes calldata) external payable {
+    function lzCompose(
+        address _from,
+        bytes32 _guid,
+        bytes calldata _message,
+        address,
+        bytes calldata
+    )
+        external
+        payable
+    {
         if (msg.sender != endpoint) revert NotEndpoint(msg.sender);
         if (tokenMessaging.assetIds(_from) == 0) revert InvalidAsset();
 
@@ -90,7 +107,6 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
                 _transfer(token, receiver, amount);
             }
         }
-        
     }
 
     // execute shortcut using router

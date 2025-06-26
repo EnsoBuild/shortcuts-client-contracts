@@ -17,12 +17,12 @@ contract StargateDeployer is Script {
         tokenMessagingAddresses[146] = 0x2086f755A6d9254045C257ea3d382ef854849B0f; //sonic
         tokenMessagingAddresses[1868] = 0xAF54BE5B6eEc24d6BFACf1cce4eaF680A8239398; //soneium
         tokenMessagingAddresses[8453] = 0x5634c4a5FEd09819E3c46D86A965Dd9447d86e47; //base
-        tokenMessagingAddresses[42161] = 0x19cFCE47eD54a88614648DC3f19A5980097007dD; //arbitrum
-        tokenMessagingAddresses[43114] = 0x17E450Be3Ba9557F2378E20d64AD417E59Ef9A34; //avalanche
-        tokenMessagingAddresses[57073] = 0x45f1A95A4D3f3836523F5c83673c797f4d4d263B; //ink
-        tokenMessagingAddresses[59144] = 0x5f688F563Dc16590e570f97b542FA87931AF2feD; //linea
-        tokenMessagingAddresses[80094] = 0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6; //bera
-        tokenMessagingAddresses[98866] = 0xf26d57bbE1D99561B13003783b5e040B71AdCb14; //plume
+        tokenMessagingAddresses[42_161] = 0x19cFCE47eD54a88614648DC3f19A5980097007dD; //arbitrum
+        tokenMessagingAddresses[43_114] = 0x17E450Be3Ba9557F2378E20d64AD417E59Ef9A34; //avalanche
+        tokenMessagingAddresses[57_073] = 0x45f1A95A4D3f3836523F5c83673c797f4d4d263B; //ink
+        tokenMessagingAddresses[59_144] = 0x5f688F563Dc16590e570f97b542FA87931AF2feD; //linea
+        tokenMessagingAddresses[80_094] = 0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6; //bera
+        tokenMessagingAddresses[98_866] = 0xf26d57bbE1D99561B13003783b5e040B71AdCb14; //plume
     }
 
     function run() public returns (address stargateHelper, address endpoint, address tokenMessaging, address router) {
@@ -61,7 +61,9 @@ contract StargateDeployer is Script {
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         }
 
-        stargateHelper = address(new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, tokenMessaging, router, deployer, 100000));
+        stargateHelper = address(
+            new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, tokenMessaging, router, deployer, 100_000)
+        );
 
         vm.stopBroadcast();
     }

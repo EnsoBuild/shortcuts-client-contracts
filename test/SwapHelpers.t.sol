@@ -3,8 +3,8 @@ pragma solidity ^0.8.28;
 
 import "../lib/forge-std/src/Test.sol";
 
-import "../src/helpers/SwapHelpers.sol";
 import "../src/EnsoShortcuts.sol";
+import "../src/helpers/SwapHelpers.sol";
 import "../src/router/EnsoRouter.sol";
 import "./mocks/MockERC20.sol";
 import "./mocks/MockVault.sol";
@@ -22,7 +22,7 @@ contract SwapHelpersTest is Test {
     uint256 _ethereumFork;
 
     uint256 public constant AMOUNT = 10 ** 18;
-    uint256 public constant MAX_AMOUNT_OUT = AMOUNT/2;
+    uint256 public constant MAX_AMOUNT_OUT = AMOUNT / 2;
     uint256 public constant TOKENID = 1;
     address public constant FEE_RECEIVER = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
 
@@ -132,7 +132,18 @@ contract SwapHelpersTest is Test {
         bytes memory swapData =
             abi.encodeWithSelector(router.safeRouteSingle.selector, tokenIn, tokenOut, address(swapHelpers), data);
 
-        swapHelpers.swapWithLimit(address(router), address(router), token, vault, AMOUNT, MAX_AMOUNT_OUT, address(this), FEE_RECEIVER, swapData, new uint256[](0));
+        swapHelpers.swapWithLimit(
+            address(router),
+            address(router),
+            token,
+            vault,
+            AMOUNT,
+            MAX_AMOUNT_OUT,
+            address(this),
+            FEE_RECEIVER,
+            swapData,
+            new uint256[](0)
+        );
 
         assertEq(AMOUNT - MAX_AMOUNT_OUT, vault.balanceOf(address(this)));
         assertEq(MAX_AMOUNT_OUT, vault.balanceOf(FEE_RECEIVER));
