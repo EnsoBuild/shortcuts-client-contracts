@@ -5,7 +5,6 @@ import { Script, console2 } from "forge-std/Script.sol";
 
 import { FeeSplitter } from "../src/helpers/FeeSplitter.sol";
 
-
 // Deployer for the Infrared FeeSplitter
 contract FeeSplitterDeployerYieldNest is Script {
     mapping(uint256 => address) private ensoAddresses;

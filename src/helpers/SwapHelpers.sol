@@ -125,14 +125,8 @@ contract SwapHelpers {
             }
         }
     }
-    
-    function _transfer(
-        IERC20 token,
-        address receiver,
-        uint256 amount
-    )
-        internal
-    {
+
+    function _transfer(IERC20 token, address receiver, uint256 amount) internal {
         if (token == _ETH) {
             (bool success,) = receiver.call{ value: amount }("");
             if (!success) revert TransferFailed(receiver);
@@ -141,17 +135,8 @@ contract SwapHelpers {
         }
     }
 
-    function _balance(
-        IERC20 token,
-        address account
-    )
-        internal
-        view
-        returns (uint256 balance)
-    {
-        balance = token == _ETH
-            ? account.balance
-            : token.balanceOf(account);
+    function _balance(IERC20 token, address account) internal view returns (uint256 balance) {
+        balance = token == _ETH ? account.balance : token.balanceOf(account);
     }
 
     receive() external payable { }

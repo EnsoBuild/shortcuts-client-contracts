@@ -60,7 +60,7 @@ contract MaverickV2Helpers {
     using SafeERC20 for IERC20;
 
     uint256 public constant VERSION = 1;
-    uint256 BIP = 10000;
+    uint256 BIP = 10_000;
 
     error InvalidBIP(uint256 amount);
 
@@ -84,9 +84,7 @@ contract MaverickV2Helpers {
         tokenA.safeTransferFrom(msg.sender, address(this), amountA);
         tokenB.safeTransferFrom(msg.sender, address(this), amountB);
         // get target amount
-        uint256 targetAmount = targetIsA
-            ? amountA
-            : amountB;
+        uint256 targetAmount = targetIsA ? amountA : amountB;
         // conditionally modify target amount
         if (targetBipModifier > 0) {
             if (targetBipModifier > BIP - 1) revert InvalidBIP(targetBipModifier);
@@ -105,11 +103,8 @@ contract MaverickV2Helpers {
         tokenA.forceApprove(manager, amountA);
         tokenB.forceApprove(manager, amountB);
         // add liquidity (boostedPosition will be sent to receiver)
-        (uint256 mintedLPAmount, , ) = IMaverickV2LiquidityManager(manager).addLiquidityAndMintBoostedPosition(
-            receiver,
-            boostedPosition,
-            packedSqrtPriceBreaks,
-            packedArgs
+        (uint256 mintedLPAmount,,) = IMaverickV2LiquidityManager(manager).addLiquidityAndMintBoostedPosition(
+            receiver, boostedPosition, packedSqrtPriceBreaks, packedArgs
         );
         // refund remaining
         tokenA.safeTransfer(refund, tokenA.balanceOf(address(this)));

@@ -47,7 +47,8 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
         router = new EnsoRouter();
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
-        stargateReceiver = new StargateV2Receiver(address(this), tokenMessaging, address(router),  address(this), 100000);
+        stargateReceiver =
+            new StargateV2Receiver(address(this), tokenMessaging, address(router), address(this), 100_000);
     }
 
     function testEthBridge() public {
@@ -101,11 +102,10 @@ contract BridgeTest is Test {
         // confirm funds have left this address
         assertGt(balanceBefore, address(this).balance);
         // trigger compose with insufficient gas
-        stargateReceiver.lzCompose{ gas: 99000 }(ethPool, bytes32(0), message, address(0), "");
+        stargateReceiver.lzCompose{ gas: 99_000 }(ethPool, bytes32(0), message, address(0), "");
         // confirm funds have been returned to this address
         assertEq(balanceBefore, address(this).balance);
     }
-
 
     function testUsdcBridge() public {
         vm.selectFork(_ethereumFork);
@@ -258,7 +258,11 @@ contract BridgeTest is Test {
         state[1] = ""; // Empty state for transfer of eth
     }
 
-    function _buildTransfer(address token, address receiver, uint256 amount)
+    function _buildTransfer(
+        address token,
+        address receiver,
+        uint256 amount
+    )
         internal
         view
         returns (bytes32[] memory commands, bytes[] memory state)

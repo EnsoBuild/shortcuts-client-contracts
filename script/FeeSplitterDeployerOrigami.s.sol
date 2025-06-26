@@ -5,7 +5,6 @@ import { Script, console2 } from "forge-std/Script.sol";
 
 import { FeeSplitter } from "../src/helpers/FeeSplitter.sol";
 
-
 // Deployer for the Infrared FeeSplitter
 contract FeeSplitterDeployerOrigami is Script {
     mapping(uint256 => address) private ensoAddresses;
@@ -13,10 +12,10 @@ contract FeeSplitterDeployerOrigami is Script {
 
     constructor() {
         ensoAddresses[1] = 0xAb27dB9E0105AF3d9717b0CcEf11e2CC65515609; //ethereum
-        ensoAddresses[80094] = 0xA67B61399B8b817e763f05dEF4694F22f1bDCC7d; //bera
+        ensoAddresses[80_094] = 0xA67B61399B8b817e763f05dEF4694F22f1bDCC7d; //bera
 
         origamiAddresses[1] = 0x781B4c57100738095222bd92D37B07ed034AB696; //ethereum
-        origamiAddresses[80094] = 0x781B4c57100738095222bd92D37B07ed034AB696; //bera
+        origamiAddresses[80_094] = 0x781B4c57100738095222bd92D37B07ed034AB696; //bera
     }
 
     function run() public returns (address feeSplitter, address enso, address origami) {
