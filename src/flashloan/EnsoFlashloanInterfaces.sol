@@ -30,19 +30,18 @@ interface IERC3156FlashBorrower {
     ) external returns (bytes32);
 }
 
-interface IEulerFlashloan {
-    function flashLoan(
-        address receiver,
-        address token,
-        uint256 amount,
-        bytes memory data
-    ) external;
-}
-
 interface IMorpho {
     function flashLoan(
         address token,
         uint256 assets,
         bytes calldata data
     ) external;
+}
+
+interface IEulerGenericFactory {
+    function isProxy(address proxy) external view returns (bool);
+}
+
+interface IEVault {
+    function flashLoan(uint256 amount, bytes calldata data) external;
 }
