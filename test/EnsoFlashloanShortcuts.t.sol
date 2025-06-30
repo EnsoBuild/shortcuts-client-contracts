@@ -269,4 +269,184 @@ contract EnsoFlashloanShortcutsTest is Test, ERC721Holder, ERC1155Holder {
         vm.expectRevert(EnsoFlashloanShortcuts.NotAuthorized.selector);
         shortcuts.onFlashLoan(data);
     }
+
+    // BalancerV2 test:
+    // - flashlent asset: WETH
+    // - no other assets involved
+    // - WETH.withdraw -> WETH.deposit
+    function testBalancerV2Flashloan() public {
+        vm.selectFork(_ethereumFork);
+
+        address balancerV2Vault = address(
+            0xBA12222222228d8Ba445958a75a0704d566BF2C8
+        );
+
+        IWETH weth = IWETH(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
+        uint256 wethAmount = 1 ether;
+
+        bytes32[] memory commands = new bytes32[](2);
+        bytes[] memory state = new bytes[](1);
+
+        // Unwrap -> Wrap
+        commands[0] = WeirollPlanner.buildCommand(
+            weth.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // 1 inputs
+            0xff, // no output
+            address(weth)
+        );
+        commands[1] = WeirollPlanner.buildCommand(
+            weth.deposit.selector,
+            0x03, // call
+            0x00ffffffffff, // 1 inputs
+            0xff, // no output
+            address(weth)
+        );
+
+        state[0] = abi.encode(wethAmount);
+
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(weth);
+        amounts[0] = wethAmount;
+
+        bytes memory balancerV2Data = abi.encode(
+            balancerV2Vault,
+            tokens,
+            amounts
+        );
+
+        shortcuts.flashLoan(
+            FlashloanProtocols.BalancerV2,
+            user_bob,
+            balancerV2Data,
+            commands,
+            state
+        );
+    }
+
+    // BalancerV2 test:
+    // - flashlent assets: WETH and USDC
+    // - no other assets involved
+    // - WETH.withdraw -> WETH.deposit
+    function testBalancerV2Flashloan_multipleAssets() public {
+        vm.selectFork(_ethereumFork);
+
+        address balancerV2Vault = address(
+            0xBA12222222228d8Ba445958a75a0704d566BF2C8
+        );
+
+        IWETH weth = IWETH(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
+        uint256 wethAmount = 1 ether;
+
+        address usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+        uint256 usdcAmount = 100 * 10 ** 6;
+
+        bytes32[] memory commands = new bytes32[](2);
+        bytes[] memory state = new bytes[](1);
+
+        // Unwrap -> Wrap
+        commands[0] = WeirollPlanner.buildCommand(
+            weth.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // 1 inputs
+            0xff, // no output
+            address(weth)
+        );
+        commands[1] = WeirollPlanner.buildCommand(
+            weth.deposit.selector,
+            0x03, // call
+            0x00ffffffffff, // 1 inputs
+            0xff, // no output
+            address(weth)
+        );
+
+        state[0] = abi.encode(wethAmount);
+
+        address[] memory tokens = new address[](2);
+        uint256[] memory amounts = new uint256[](2);
+
+        // NOTE: Tokens must be in sorted order
+        tokens[0] = address(usdc);
+        amounts[0] = usdcAmount;
+        tokens[1] = address(weth);
+        amounts[1] = wethAmount;
+
+        bytes memory balancerV2Data = abi.encode(
+            balancerV2Vault,
+            tokens,
+            amounts
+        );
+
+        shortcuts.flashLoan(
+            FlashloanProtocols.BalancerV2,
+            user_bob,
+            balancerV2Data,
+            commands,
+            state
+        );
+    }
+
+    function testBalancerV2Flashloan_excess() public {
+        vm.selectFork(_ethereumFork);
+
+        address balancerV2Vault = address(
+            0xBA12222222228d8Ba445958a75a0704d566BF2C8
+        );
+
+        IWETH weth = IWETH(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
+        uint256 wethAmount = 1 ether;
+
+        bytes32[] memory commands = new bytes32[](2);
+        bytes[] memory state = new bytes[](1);
+
+        // Unwrap -> Wrap
+        commands[0] = WeirollPlanner.buildCommand(
+            weth.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // 1 inputs
+            0xff, // no output
+            address(weth)
+        );
+        commands[1] = WeirollPlanner.buildCommand(
+            weth.deposit.selector,
+            0x03, // call
+            0x00ffffffffff, // 1 inputs
+            0xff, // no output
+            address(weth)
+        );
+
+        state[0] = abi.encode(wethAmount);
+
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+
+        tokens[0] = address(weth);
+        amounts[0] = wethAmount;
+
+        bytes memory balancerV2Data = abi.encode(
+            balancerV2Vault,
+            tokens,
+            amounts
+        );
+
+        vm.startPrank(user_bob);
+        vm.deal(user_bob, wethAmount);
+        weth.deposit{value: wethAmount}();
+
+        // Simulate that router transfers tokens to flashloan contract
+        weth.transfer(address(shortcuts), wethAmount);
+
+        uint256 balanceBefore = weth.balanceOf(receiver);
+        shortcuts.flashLoan(
+            FlashloanProtocols.BalancerV2,
+            receiver,
+            balancerV2Data,
+            commands,
+            state
+        );
+        uint256 balanceAfter = weth.balanceOf(receiver);
+
+        assertEq(balanceAfter - balanceBefore, wethAmount);
+    }
 }
