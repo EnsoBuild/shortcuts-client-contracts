@@ -45,3 +45,12 @@ interface IEulerGenericFactory {
 interface IEVault {
     function flashLoan(uint256 amount, bytes calldata data) external;
 }
+
+interface IBalancerV2Vault {
+    function flashLoan(
+        address recipient,
+        address[] memory tokens,
+        uint256[] memory amounts,
+        bytes memory userData
+    ) external;
+}
