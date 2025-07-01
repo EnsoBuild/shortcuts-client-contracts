@@ -35,16 +35,15 @@ contract EnsoFlashloanShortcutsTest is Test, ERC721Holder, ERC1155Holder {
     address user_bob = makeAddr("bob");
     address receiver = makeAddr("receiver");
 
+    address morpho = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
+
     string _rpcURL = vm.envString("ETHEREUM_RPC_URL");
     uint256 _ethereumFork;
 
     function setUp() public {
         _ethereumFork = vm.createFork(_rpcURL);
         vm.selectFork(_ethereumFork);
-        shortcuts = new EnsoFlashloanShortcuts(
-            IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb),
-            IEulerGenericFactory(0x29a56a1b8214D9Cf7c5561811750D5cBDb45CC8e)
-        );
+        shortcuts = new EnsoFlashloanShortcuts();
     }
 
     // Morpho test:
@@ -80,7 +79,7 @@ contract EnsoFlashloanShortcutsTest is Test, ERC721Holder, ERC1155Holder {
 
         state[0] = abi.encode(amount);
 
-        bytes memory morphoData = abi.encode(token, amount);
+        bytes memory morphoData = abi.encode(morpho, token, amount);
 
         shortcuts.flashLoan(
             FlashloanProtocols.Morpho,
@@ -123,7 +122,7 @@ contract EnsoFlashloanShortcutsTest is Test, ERC721Holder, ERC1155Holder {
 
         state[0] = abi.encode(amount);
 
-        bytes memory morphoData = abi.encode(token, amount);
+        bytes memory morphoData = abi.encode(morpho, token, amount);
 
         vm.startPrank(user_bob);
         vm.deal(user_bob, amount);
@@ -254,20 +253,6 @@ contract EnsoFlashloanShortcutsTest is Test, ERC721Holder, ERC1155Holder {
         uint256 balanceAfter = token.balanceOf(receiver);
 
         assertEq(balanceAfter - balanceBefore, amount);
-    }
-
-    // Euler test:
-    // - revert if attacker calls onFlashLoan with fake Euler vault
-    function testEulerFlashLoan_fakeEulerVault() public {
-        vm.selectFork(_ethereumFork);
-
-        address fakeEulerVault = address(0xdead);
-
-        bytes memory data = bytes("");
-
-        vm.prank(fakeEulerVault);
-        vm.expectRevert(EnsoFlashloanShortcuts.NotAuthorized.selector);
-        shortcuts.onFlashLoan(data);
     }
 
     // BalancerV2 test:
@@ -448,5 +433,58 @@ contract EnsoFlashloanShortcutsTest is Test, ERC721Holder, ERC1155Holder {
         uint256 balanceAfter = weth.balanceOf(receiver);
 
         assertEq(balanceAfter - balanceBefore, wethAmount);
+    }
+
+    function testAaveV3FlashLoan() public {
+        vm.selectFork(_ethereumFork);
+
+        IAaveV3Pool aaveV3Pool = IAaveV3Pool(
+            address(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2)
+        );
+        IWETH token = IWETH(
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)
+        );
+
+        uint256 amount = 1 ether;
+        uint256 BPS = 10_000;
+        uint256 totalFee = aaveV3Pool.FLASHLOAN_PREMIUM_TOTAL();
+        uint256 fee = (amount * totalFee) / BPS;
+
+        bytes32[] memory commands = new bytes32[](2);
+        bytes[] memory state = new bytes[](1);
+
+        // Unwrap -> Wrap
+        commands[0] = WeirollPlanner.buildCommand(
+            token.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // 1 inputs
+            0xff, // no output
+            address(token)
+        );
+        commands[1] = WeirollPlanner.buildCommand(
+            token.deposit.selector,
+            0x03, // call
+            0x00ffffffffff, // 1 inputs
+            0xff, // no output
+            address(token)
+        );
+
+        state[0] = abi.encode(amount);
+        bytes memory aaveData = abi.encode(aaveV3Pool, token, amount);
+
+        // Pretend that user did necessary actions to have enough to repay
+        // for the flashloan with fee
+        vm.startPrank(user_bob);
+        vm.deal(user_bob, amount);
+        token.deposit{value: fee}();
+        token.transfer(address(shortcuts), fee);
+
+        shortcuts.flashLoan(
+            FlashloanProtocols.AaveV3,
+            user_bob,
+            aaveData,
+            commands,
+            state
+        );
     }
 }

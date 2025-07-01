@@ -38,10 +38,6 @@ interface IMorpho {
     ) external;
 }
 
-interface IEulerGenericFactory {
-    function isProxy(address proxy) external view returns (bool);
-}
-
 interface IEVault {
     function flashLoan(uint256 amount, bytes calldata data) external;
 }
@@ -52,5 +48,17 @@ interface IBalancerV2Vault {
         address[] memory tokens,
         uint256[] memory amounts,
         bytes memory userData
+    ) external;
+}
+
+interface IAaveV3Pool {
+    function FLASHLOAN_PREMIUM_TOTAL() external view returns (uint128);
+
+    function flashLoanSimple(
+        address receiverAddress,
+        address asset,
+        uint256 amount,
+        bytes calldata params,
+        uint16 referralCode
     ) external;
 }
