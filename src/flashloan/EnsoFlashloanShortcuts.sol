@@ -29,7 +29,7 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         bytes calldata data,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) external {
+    ) external payable {
         if (protocol == FlashloanProtocols.Euler) {
             _executeEulerFlashLoan(excessReceiver, data, commands, state);
         } else if (protocol == FlashloanProtocols.BalancerV2) {
