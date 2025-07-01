@@ -182,7 +182,7 @@ contract EnsoFlashloanShortcutsTest is Test, ERC721Holder, ERC1155Holder {
 
         state[0] = abi.encode(amount);
 
-        bytes memory eulerData = abi.encode(token, amount, eulerVault);
+        bytes memory eulerData = abi.encode(eulerVault, token, amount);
 
         shortcuts.flashLoan(
             FlashloanProtocols.Euler,
@@ -232,7 +232,7 @@ contract EnsoFlashloanShortcutsTest is Test, ERC721Holder, ERC1155Holder {
 
         state[0] = abi.encode(amount);
 
-        bytes memory eulerData = abi.encode(token, amount, eulerVault);
+        bytes memory eulerData = abi.encode(eulerVault, token, amount);
 
         vm.startPrank(user_bob);
         vm.deal(user_bob, amount);
