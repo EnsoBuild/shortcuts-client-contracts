@@ -56,9 +56,9 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         bytes32[] calldata commands,
         bytes[] calldata state
     ) private {
-        (address token, uint256 amount, IEVault EulerVault) = abi.decode(
+        (IEVault EulerVault, address token, uint256 amount) = abi.decode(
             data,
-            (address, uint256, IEVault)
+            (IEVault, address, uint256)
         );
 
         bytes memory eulerCallback = abi.encode(
