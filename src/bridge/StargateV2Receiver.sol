@@ -50,7 +50,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     uint256 public immutable reserveGas;
 
     event ShortcutExecutionSuccessful(bytes32 guid);
-    event ShortcutExecutionFailed(bytes32 guid);
+    event ShortcutExecutionFailed(bytes32 guid, bytes error);
     event InsufficientGas(bytes32 guid);
 
     error NotEndpoint(address sender);
@@ -101,9 +101,9 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
             // try to execute shortcut
             try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData) {
                 emit ShortcutExecutionSuccessful(_guid);
-            } catch {
+            } catch (bytes memory err) {
                 // if shortcut fails send funds to receiver
-                emit ShortcutExecutionFailed(_guid);
+                emit ShortcutExecutionFailed(_guid, err);
                 _transfer(token, receiver, amount);
             }
         }
