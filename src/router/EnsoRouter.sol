@@ -1,25 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 import { EnsoShortcuts } from "../EnsoShortcuts.sol";
 
 import { IERC1155 } from "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
+import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 
-enum TokenType {
-    Native,
-    ERC20,
-    ERC721,
-    ERC1155
-}
-
-struct Token {
-    TokenType tokenType;
-    bytes data;
-}
-
-contract EnsoRouter {
+contract EnsoRouter is IEnsoRouter {
     using SafeERC20 for IERC20;
 
     address public immutable shortcuts;
@@ -133,8 +122,7 @@ contract EnsoRouter {
             (IERC20 erc20, uint256 amount) = abi.decode(token.data, (IERC20, uint256));
             erc20.safeTransferFrom(msg.sender, shortcuts, amount);
         } else if (tokenType == TokenType.Native) {
-            (uint256 amount) = abi.decode(token.data, (uint256));
-            if (msg.value != amount) revert WrongMsgValue(msg.value, amount);
+            // no need to get amount, it will come from msg.value
             isNativeAsset = true;
         } else if (tokenType == TokenType.ERC721) {
             (IERC721 erc721, uint256 tokenId) = abi.decode(token.data, (IERC721, uint256));

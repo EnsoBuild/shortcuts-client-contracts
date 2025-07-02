@@ -1,41 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.24;
 
 import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
 import { ILayerZeroComposer } from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroComposer.sol";
 
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-
-interface IRouter {
-    enum TokenType {
-        Native,
-        ERC20,
-        ERC721,
-        ERC1155
-    }
-
-    struct Token {
-        TokenType tokenType;
-        bytes data;
-    }
-
-    function routeSingle(
-        Token calldata tokenIn,
-        bytes calldata data
-    )
-        external
-        payable
-        returns (bytes memory response);
-}
-
-interface ITokenMessaging {
-    function assetIds(address) external view returns (uint16);
-}
-
-interface IPool {
-    function token() external view returns (address);
-}
+import { ITokenMessaging } from "./interfaces/stargate/ITokenMessaging.sol";
+import { IPool } from "./interfaces/stargate/IPool.sol";
+import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 
 contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     using OFTComposeMsgCodec for bytes;
@@ -45,7 +18,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
 
     address public immutable endpoint;
     ITokenMessaging public immutable tokenMessaging;
-    IRouter public immutable router;
+    IEnsoRouter public immutable router;
 
     uint256 public immutable reserveGas;
 
@@ -56,7 +29,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     error NotEndpoint(address sender);
     error NotSelf();
     error TransferFailed(address receiver);
-    error InvalidAsset();
+    error InvalidAsset(address oft);
 
     constructor(
         address _endpoint,
@@ -69,7 +42,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     {
         endpoint = _endpoint;
         tokenMessaging = ITokenMessaging(_tokenMessaging);
-        router = IRouter(_router);
+        router = IEnsoRouter(_router);
         reserveGas = _reserveGas;
     }
 
@@ -78,14 +51,15 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         address _from,
         bytes32 _guid,
         bytes calldata _message,
-        address,
-        bytes calldata
+        address, // _executor, we don't restrict who can execute composed messages to this contract
+        bytes calldata // _extraData, we don't use any extra data from the executor
     )
         external
         payable
     {
         if (msg.sender != endpoint) revert NotEndpoint(msg.sender);
-        if (tokenMessaging.assetIds(_from) == 0) revert InvalidAsset();
+        // confirm that the _from address is a valid stargate oft
+        if (tokenMessaging.assetIds(_from) == 0) revert InvalidAsset(_from);
 
         address token = IPool(_from).token();
 
@@ -112,13 +86,13 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     // execute shortcut using router
     function execute(address token, uint256 amount, bytes calldata data) public {
         if (msg.sender != address(this)) revert NotSelf();
-        IRouter.Token memory tokenIn;
+        Token memory tokenIn;
         uint256 value;
         if (token == _NATIVE_ASSET) {
-            tokenIn = IRouter.Token(IRouter.TokenType.Native, abi.encode(amount));
+            tokenIn = Token(TokenType.Native, abi.encode(amount));
             value = amount;
         } else {
-            tokenIn = IRouter.Token(IRouter.TokenType.ERC20, abi.encode(token, amount));
+            tokenIn = Token(TokenType.ERC20, abi.encode(token, amount));
             IERC20(token).forceApprove(address(router), amount);
         }
         router.routeSingle{ value: value }(tokenIn, data);
@@ -147,5 +121,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         balance = token == _NATIVE_ASSET ? address(this).balance : IERC20(token).balanceOf(address(this));
     }
 
-    receive() external payable { }
+    receive() external payable {
+        // receive all native transfers
+    }
 }
