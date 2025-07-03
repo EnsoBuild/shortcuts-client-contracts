@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import "./EnsoFlashloanInterfaces.sol";
+import { IAaveV3Pool, IBalancerV2Vault, IERC3156FlashBorrower, IEVault, IMorpho } from "./EnsoFlashloanInterfaces.sol";
 
-import {VM} from "enso-weiroll/VM.sol";
+import { VM } from "enso-weiroll/VM.sol";
 
-import {ERC1155Holder} from "openzeppelin-contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {ERC721Holder} from "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";
-import {IERC20, SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC1155Holder } from "openzeppelin-contracts/token/ERC1155/utils/ERC1155Holder.sol";
+
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC721Holder } from "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";
 
 enum FlashloanProtocols {
     Euler,
@@ -29,7 +30,10 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         bytes calldata data,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) external payable {
+    )
+        external
+        payable
+    {
         if (protocol == FlashloanProtocols.Euler) {
             _executeEulerFlashLoan(excessReceiver, data, commands, state);
         } else if (protocol == FlashloanProtocols.BalancerV2) {
@@ -55,19 +59,12 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         bytes calldata data,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) private {
-        (IEVault EulerVault, address token, uint256 amount) = abi.decode(
-            data,
-            (IEVault, address, uint256)
-        );
+    )
+        private
+    {
+        (IEVault EulerVault, address token, uint256 amount) = abi.decode(data, (IEVault, address, uint256));
 
-        bytes memory eulerCallback = abi.encode(
-            amount,
-            token,
-            excessReceiver,
-            commands,
-            state
-        );
+        bytes memory eulerCallback = abi.encode(amount, token, excessReceiver, commands, state);
 
         EulerVault.flashLoan(amount, eulerCallback);
     }
@@ -77,18 +74,13 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         bytes calldata data,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) private {
-        (
-            IBalancerV2Vault Vault,
-            address[] memory tokens,
-            uint256[] memory amounts
-        ) = abi.decode(data, (IBalancerV2Vault, address[], uint256[]));
+    )
+        private
+    {
+        (IBalancerV2Vault Vault, address[] memory tokens, uint256[] memory amounts) =
+            abi.decode(data, (IBalancerV2Vault, address[], uint256[]));
 
-        bytes memory balancerV2Callback = abi.encode(
-            excessReceiver,
-            commands,
-            state
-        );
+        bytes memory balancerV2Callback = abi.encode(excessReceiver, commands, state);
 
         Vault.flashLoan(address(this), tokens, amounts, balancerV2Callback);
     }
@@ -98,17 +90,11 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         bytes calldata data,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) private {
-        (IMorpho morpho, address token, uint256 amount) = abi.decode(
-            data,
-            (IMorpho, address, uint256)
-        );
-        bytes memory morphoCallback = abi.encode(
-            token,
-            excessReceiver,
-            commands,
-            state
-        );
+    )
+        private
+    {
+        (IMorpho morpho, address token, uint256 amount) = abi.decode(data, (IMorpho, address, uint256));
+        bytes memory morphoCallback = abi.encode(token, excessReceiver, commands, state);
 
         morpho.flashLoan(token, amount, morphoCallback);
     }
@@ -118,11 +104,10 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         bytes calldata data,
         bytes32[] calldata commands,
         bytes[] calldata state
-    ) private {
-        (IAaveV3Pool Pool, address token, uint256 amount) = abi.decode(
-            data,
-            (IAaveV3Pool, address, uint256)
-        );
+    )
+        private
+    {
+        (IAaveV3Pool Pool, address token, uint256 amount) = abi.decode(data, (IAaveV3Pool, address, uint256));
 
         bytes memory aaveCallback = abi.encode(excessReceiver, commands, state);
 
@@ -133,13 +118,8 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
 
     // Euler
     function onFlashLoan(bytes calldata data) external {
-        (
-            uint256 amount,
-            IERC20 token,
-            address excessReceiver,
-            bytes32[] memory commands,
-            bytes[] memory state
-        ) = abi.decode(data, (uint256, IERC20, address, bytes32[], bytes[]));
+        (uint256 amount, IERC20 token, address excessReceiver, bytes32[] memory commands, bytes[] memory state) =
+            abi.decode(data, (uint256, IERC20, address, bytes32[], bytes[]));
 
         this.execute(commands, state);
 
@@ -154,12 +134,11 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         uint256[] calldata amounts,
         uint256[] calldata feeAmounts,
         bytes calldata data
-    ) external {
-        (
-            address excessReceiver,
-            bytes32[] memory commands,
-            bytes[] memory state
-        ) = abi.decode(data, (address, bytes32[], bytes[]));
+    )
+        external
+    {
+        (address excessReceiver, bytes32[] memory commands, bytes[] memory state) =
+            abi.decode(data, (address, bytes32[], bytes[]));
 
         this.execute(commands, state);
 
@@ -172,12 +151,8 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
 
     // Morpho
     function onMorphoFlashLoan(uint256 amount, bytes calldata data) external {
-        (
-            IERC20 token,
-            address excessReceiver,
-            bytes32[] memory commands,
-            bytes[] memory state
-        ) = abi.decode(data, (IERC20, address, bytes32[], bytes[]));
+        (IERC20 token, address excessReceiver, bytes32[] memory commands, bytes[] memory state) =
+            abi.decode(data, (IERC20, address, bytes32[], bytes[]));
 
         this.execute(commands, state);
 
@@ -193,13 +168,13 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         uint256 premium,
         address initiator,
         bytes calldata data
-    ) external returns (bool) {
+    )
+        external
+        returns (bool)
+    {
         require(initiator == address(this), NotAuthorized());
-        (
-            address excessReceiver,
-            bytes32[] memory commands,
-            bytes[] memory state
-        ) = abi.decode(data, (address, bytes32[], bytes[]));
+        (address excessReceiver, bytes32[] memory commands, bytes[] memory state) =
+            abi.decode(data, (address, bytes32[], bytes[]));
 
         this.execute(commands, state);
 
@@ -210,11 +185,7 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         return true;
     }
 
-    function _returnExcessAssets(
-        IERC20 token,
-        uint256 flashloanAmount,
-        address receiver
-    ) private {
+    function _returnExcessAssets(IERC20 token, uint256 flashloanAmount, address receiver) private {
         uint256 flashloanAssetBalance = token.balanceOf(address(this));
         if (flashloanAssetBalance > flashloanAmount) {
             uint256 excessAmount;
@@ -225,5 +196,5 @@ contract EnsoFlashloanShortcuts is VM, ERC721Holder, ERC1155Holder {
         }
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
