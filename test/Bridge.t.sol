@@ -57,7 +57,7 @@ contract BridgeTest is Test {
         uint256 balanceBefore = weth.balanceOf(address(this));
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state, 0);
 
         // transfer funds
         (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
@@ -75,7 +75,7 @@ contract BridgeTest is Test {
 
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT * 100);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state, 0);
 
         // transfer funds
         (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
@@ -94,7 +94,7 @@ contract BridgeTest is Test {
         uint256 balanceBefore = address(this).balance;
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state, 0);
 
         // transfer funds
         (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
@@ -113,16 +113,43 @@ contract BridgeTest is Test {
         uint256 balanceBefore = IERC20(usdc).balanceOf(vitalik);
 
         (bytes32[] memory commands, bytes[] memory state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state, 0);
 
         // transfer funds
         vm.startPrank(usdcPool);
         IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
         vm.stopPrank();
+
         // trigger compose
         stargateReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
         uint256 balanceAfter = IERC20(usdc).balanceOf(vitalik);
         assertEq(USDC_AMOUNT, balanceAfter - balanceBefore);
+    }
+
+    function testTokenAndNativeDropBridge() public {
+        vm.selectFork(_ethereumFork);
+
+        uint256 usdcBalanceBefore = IERC20(usdc).balanceOf(vitalik);
+        uint256 ethBalanceBefore = vitalik.balance;
+
+
+        (bytes32[] memory commands, bytes[] memory state) = _buildTokenAndValueTransfer(usdc, vitalik, USDC_AMOUNT, ETH_AMOUNT);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state, ETH_AMOUNT);
+
+        // transfer funds
+        vm.startPrank(usdcPool);
+        IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
+        vm.stopPrank();
+        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        if (!success) revert TransferFailed();
+        // trigger compose
+        stargateReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
+
+        uint256 usdcBalanceAfter = IERC20(usdc).balanceOf(vitalik);
+        uint256 ethBalanceAfter = vitalik.balance;
+
+        assertEq(USDC_AMOUNT, usdcBalanceAfter - usdcBalanceBefore);
+        assertEq(ETH_AMOUNT, ethBalanceAfter - ethBalanceBefore);
     }
 
     function testUsdcBridgeWithFailingShortcut() public {
@@ -132,7 +159,7 @@ contract BridgeTest is Test {
 
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
         (bytes32[] memory commands, bytes[] memory state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT * 100);
-        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state, 0);
 
         // transfer funds
         vm.startPrank(usdcPool);
@@ -156,6 +183,7 @@ contract BridgeTest is Test {
         weth.deposit{ value: ETH_AMOUNT }();
         weth.transfer(address(stargateReceiver), ETH_AMOUNT);
         (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        (success); // shh
 
         uint256 ethOnReceiver = address(stargateReceiver).balance;
         uint256 wethOnReceiver = weth.balanceOf(address(stargateReceiver));
@@ -180,7 +208,8 @@ contract BridgeTest is Test {
     function _buildLzComposeMessage(
         uint256 amount,
         bytes32[] memory commands,
-        bytes[] memory state
+        bytes[] memory state,
+        uint256 nativeDrop
     )
         internal
         view
@@ -190,7 +219,7 @@ contract BridgeTest is Test {
         bytes memory shortcutData =
             abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
         // encode callback data
-        bytes memory callbackData = abi.encode(address(this), shortcutData);
+        bytes memory callbackData = abi.encode(address(this), shortcutData, nativeDrop);
         // encode message
         message = OFTComposeMsgCodec.encode(
             uint64(0),
@@ -264,7 +293,7 @@ contract BridgeTest is Test {
         uint256 amount
     )
         internal
-        view
+        pure
         returns (bytes32[] memory commands, bytes[] memory state)
     {
         // Setup script to transfer token
@@ -281,5 +310,41 @@ contract BridgeTest is Test {
 
         state[0] = abi.encode(receiver);
         state[1] = abi.encode(amount);
+    }
+
+    function _buildTokenAndValueTransfer(
+        address token,
+        address receiver,
+        uint256 amount,
+        uint256 value
+    )
+        internal
+        pure
+        returns (bytes32[] memory commands, bytes[] memory state)
+    {
+        // Setup script to transfer token
+        commands = new bytes32[](2);
+        state = new bytes[](4);
+
+        commands[0] = WeirollPlanner.buildCommand(
+            IERC20.transfer.selector,
+            0x01, // call
+            0x0001ffffffff, // 1 input
+            0xff, // no output
+            token
+        );
+
+        commands[1] = WeirollPlanner.buildCommand(
+            0x00000000,
+            0x23, // call
+            0x0203ffffffff, // 2 inputs
+            0xff, // no output
+            receiver
+        );
+
+        state[0] = abi.encode(receiver);
+        state[1] = abi.encode(amount);
+        state[2] = abi.encode(value);
+        state[3] = ""; // Empty state for transfer of eth
     }
 }

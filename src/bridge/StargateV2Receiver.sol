@@ -65,7 +65,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
 
         uint256 amount = _message.amountLD();
         bytes memory composeMsg = _message.composeMsg();
-        (address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, bytes));
+        (address receiver, bytes memory shortcutData, uint256 nativeDrop) = abi.decode(composeMsg, (address, bytes, uint256));
 
         uint256 availableGas = gasleft();
         if (availableGas < reserveGas) {
@@ -73,29 +73,38 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
             _transfer(token, receiver, amount);
         } else {
             // try to execute shortcut
-            try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData) {
+            try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData, nativeDrop) {
                 emit ShortcutExecutionSuccessful(_guid);
             } catch (bytes memory err) {
                 // if shortcut fails send funds to receiver
                 emit ShortcutExecutionFailed(_guid, err);
                 _transfer(token, receiver, amount);
+                if (nativeDrop > 0 && address(this).balance >= nativeDrop) {
+                    _transfer(_NATIVE_ASSET, receiver, nativeDrop);
+                }
             }
         }
     }
 
     // execute shortcut using router
-    function execute(address token, uint256 amount, bytes calldata data) public {
+    function execute(address token, uint256 amount, bytes calldata data, uint256 value) public {
         if (msg.sender != address(this)) revert NotSelf();
         Token memory tokenIn;
-        uint256 value;
         if (token == _NATIVE_ASSET) {
-            tokenIn = Token(TokenType.Native, abi.encode(amount));
-            value = amount;
+            value += amount;
+            tokenIn = Token(TokenType.Native, abi.encode(value)); // support backwards compatibility by including amount data
         } else {
             tokenIn = Token(TokenType.ERC20, abi.encode(token, amount));
             IERC20(token).forceApprove(address(router), amount);
         }
-        router.routeSingle{ value: value }(tokenIn, data);
+        if (value > 0 && token != _NATIVE_ASSET) {
+            Token[] memory tokensIn = new Token[](2);
+            tokensIn[0] = tokenIn;
+            tokensIn[1] = Token(TokenType.Native, abi.encode(value)); // support backwards compatibility by including amount data
+            router.routeMulti{ value: value }(tokensIn, data);
+        } else {
+            router.routeSingle{ value: value }(tokenIn, data);
+        }
     }
 
     // sweep funds to the contract owner in order to refund user
