@@ -1,25 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-interface IRouter {
-    enum TokenType {
-        Native,
-        ERC20,
-        ERC721,
-        ERC1155
-    }
-
-    struct Token {
-        TokenType tokenType;
-        bytes data;
-    }
-
-    function routeSingle(
-        Token calldata tokenIn,
-        bytes calldata data
-    ) external payable returns (bytes memory response);
-}
-
 interface IERC3156FlashBorrower {
     function onFlashLoan(
         address initiator,
@@ -27,15 +8,13 @@ interface IERC3156FlashBorrower {
         uint256 amount,
         uint256 fee,
         bytes calldata data
-    ) external returns (bytes32);
+    )
+        external
+        returns (bytes32);
 }
 
 interface IMorpho {
-    function flashLoan(
-        address token,
-        uint256 assets,
-        bytes calldata data
-    ) external;
+    function flashLoan(address token, uint256 assets, bytes calldata data) external;
 }
 
 interface IEVault {
@@ -48,7 +27,8 @@ interface IBalancerV2Vault {
         address[] memory tokens,
         uint256[] memory amounts,
         bytes memory userData
-    ) external;
+    )
+        external;
 }
 
 interface IAaveV3Pool {
@@ -60,5 +40,6 @@ interface IAaveV3Pool {
         uint256 amount,
         bytes calldata params,
         uint16 referralCode
-    ) external;
+    )
+        external;
 }
