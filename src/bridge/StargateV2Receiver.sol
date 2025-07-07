@@ -4,11 +4,11 @@ pragma solidity ^0.8.24;
 import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
 import { ILayerZeroComposer } from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroComposer.sol";
 
+import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
+import { IPool } from "./interfaces/stargate/IPool.sol";
+import { ITokenMessaging } from "./interfaces/stargate/ITokenMessaging.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import { ITokenMessaging } from "./interfaces/stargate/ITokenMessaging.sol";
-import { IPool } from "./interfaces/stargate/IPool.sol";
-import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 
 contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     using OFTComposeMsgCodec for bytes;
@@ -65,7 +65,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
 
         uint256 amount = _message.amountLD();
         bytes memory composeMsg = _message.composeMsg();
-        (address receiver, bytes memory shortcutData, uint256 nativeDrop) = abi.decode(composeMsg, (address, bytes, uint256));
+        (address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, bytes));
 
         uint256 availableGas = gasleft();
         if (availableGas < reserveGas) {
@@ -73,14 +73,14 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
             _transfer(token, receiver, amount);
         } else {
             // try to execute shortcut
-            try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData, nativeDrop) {
+            try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData, msg.value) {
                 emit ShortcutExecutionSuccessful(_guid);
             } catch (bytes memory err) {
                 // if shortcut fails send funds to receiver
                 emit ShortcutExecutionFailed(_guid, err);
                 _transfer(token, receiver, amount);
-                if (nativeDrop > 0 && address(this).balance >= nativeDrop) {
-                    _transfer(_NATIVE_ASSET, receiver, nativeDrop);
+                if (msg.value > 0) {
+                    _transfer(_NATIVE_ASSET, receiver, msg.value);
                 }
             }
         }
@@ -92,7 +92,8 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         Token memory tokenIn;
         if (token == _NATIVE_ASSET) {
             value += amount;
-            tokenIn = Token(TokenType.Native, abi.encode(value)); // support backwards compatibility by including amount data
+            // support backwards compatibility by including amount data
+            tokenIn = Token(TokenType.Native, abi.encode(value)); 
         } else {
             tokenIn = Token(TokenType.ERC20, abi.encode(token, amount));
             IERC20(token).forceApprove(address(router), amount);
@@ -100,7 +101,8 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         if (value > 0 && token != _NATIVE_ASSET) {
             Token[] memory tokensIn = new Token[](2);
             tokensIn[0] = tokenIn;
-            tokensIn[1] = Token(TokenType.Native, abi.encode(value)); // support backwards compatibility by including amount data
+            // support backwards compatibility by including amount data
+            tokensIn[1] = Token(TokenType.Native, abi.encode(value));
             router.routeMulti{ value: value }(tokensIn, data);
         } else {
             router.routeSingle{ value: value }(tokenIn, data);
