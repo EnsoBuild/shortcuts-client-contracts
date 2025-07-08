@@ -33,7 +33,6 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
 
     constructor(
         address _endpoint,
-        address _tokenMessaging,
         address _router,
         address _owner,
         uint256 _reserveGas
@@ -41,7 +40,6 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         Ownable(_owner)
     {
         endpoint = _endpoint;
-        tokenMessaging = ITokenMessaging(_tokenMessaging);
         router = IEnsoRouter(_router);
         reserveGas = _reserveGas;
     }
@@ -58,8 +56,6 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         payable
     {
         if (msg.sender != endpoint) revert NotEndpoint(msg.sender);
-        // confirm that the _from address is a valid stargate oft
-        if (tokenMessaging.assetIds(_from) == 0) revert InvalidAsset(_from);
 
         address token = IPool(_from).token();
 
