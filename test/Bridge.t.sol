@@ -29,7 +29,6 @@ contract BridgeTest is Test {
     IWETH public weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address public eth = address(0);
     address public usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address public tokenMessaging = 0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980;
     address public ethPool = 0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
     address public usdcPool = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
     address public vitalik = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
@@ -48,7 +47,7 @@ contract BridgeTest is Test {
         router = new EnsoRouter();
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
         stargateReceiver =
-            new StargateV2Receiver(address(this), tokenMessaging, address(router), address(this), 100_000);
+            new StargateV2Receiver(address(this), address(router), address(this), 100_000);
     }
 
     function testEthBridge() public {

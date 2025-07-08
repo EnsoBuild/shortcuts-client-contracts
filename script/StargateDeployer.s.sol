@@ -62,7 +62,7 @@ contract StargateDeployer is Script {
         }
 
         stargateHelper = address(
-            new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, tokenMessaging, router, deployer, 100_000)
+            new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, router, deployer, 100_000)
         );
 
         vm.stopBroadcast();
