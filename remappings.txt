@@ -22,3 +22,4 @@ hardhat/=lib/v4-core/node_modules/hardhat/
 permit2/=lib/v4-periphery/lib/permit2/
 v4-core/=lib/v4-core/src/
 v4-periphery/=lib/v4-periphery/
+account-abstraction/=lib/account-abstraction/contracts/
