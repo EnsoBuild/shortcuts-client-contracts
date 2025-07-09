@@ -22,14 +22,18 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
 
     uint256 public immutable reserveGas;
 
+    mapping(address => bool) public validOFT;
+    mapping(address => bool) public validRegistrar;
+
     event ShortcutExecutionSuccessful(bytes32 guid);
     event ShortcutExecutionFailed(bytes32 guid, bytes error);
     event InsufficientGas(bytes32 guid);
 
     error NotEndpoint(address sender);
+    error NotRegistrar(address sender);
     error NotSelf();
     error TransferFailed(address receiver);
-    error InvalidAsset(address oft);
+    error InvalidOFT(address oft);
 
     constructor(
         address _endpoint,
@@ -42,6 +46,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         endpoint = _endpoint;
         router = IEnsoRouter(_router);
         reserveGas = _reserveGas;
+        validRegistrar[_owner] = true;
     }
 
     // layer zero callback
@@ -56,6 +61,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         payable
     {
         if (msg.sender != endpoint) revert NotEndpoint(msg.sender);
+        if (!validOFT[_from]) revert InvalidOFT(_from);
 
         address token = IPool(_from).token();
 
@@ -103,6 +109,28 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         } else {
             router.routeSingle{ value: value }(tokenIn, data);
         }
+    }
+
+    function setOFTs(address[] calldata ofts) external {
+        if (!validRegistrar[msg.sender]) revert NotRegistrar(msg.sender);
+        for (uint256 i = 0; i < ofts.length; ++i) {
+            validOFT[ofts[i]] = true;
+        }
+    }
+
+    function removeOFTs(address[] calldata ofts) external {
+        if (!validRegistrar[msg.sender]) revert NotRegistrar(msg.sender);
+        for (uint256 i = 0; i < ofts.length; ++i) {
+            delete validOFT[ofts[i]];
+        }
+    }
+
+    function setRegistrar(address account) external onlyOwner {
+        validRegistrar[account] = true;
+    }
+
+    function removeRegistrar(address account) external onlyOwner {
+        delete validRegistrar[account];
     }
 
     // sweep funds to the contract owner in order to refund user
