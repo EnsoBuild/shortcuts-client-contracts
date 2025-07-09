@@ -48,6 +48,11 @@ contract BridgeTest is Test {
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
         stargateReceiver =
             new StargateV2Receiver(address(this), address(router), address(this), 100_000);
+
+        address[] memory ofts = new address[](2);
+        ofts[0] = ethPool;
+        ofts[1] = usdcPool;
+        stargateReceiver.setOFTs(ofts);
     }
 
     function testEthBridge() public {
