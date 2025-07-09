@@ -4,15 +4,13 @@ pragma solidity ^0.8.20;
 import { IERC4337CloneInitializer } from "./interfaces/IERC4337CloneInitializer.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 
-contract ERC4337CloneFactory is Ownable {
+contract ERC4337CloneFactory is Ownable, Initializable {
     using LibClone for address;
 
     address public implementation;
     address public entryPoint;
-
-    event NewSigner(address newSigner);
-    event NewEntryPoint(address newEntryPoint);
 
     error ImplementationNotSet();
     error EntryPointNotSet();
@@ -31,6 +29,11 @@ contract ERC4337CloneFactory is Ownable {
     modifier entryPointSet() {
         if (entryPoint == address(0)) revert EntryPointNotSet();
         _;
+    }
+
+    function initialize(address implementation_, address entryPoint_) external initializer {
+        implementation = implementation_;
+        entryPoint = entryPoint_;
     }
 
     function deploy(address account) external implementationSet entryPointSet returns (address clone) {

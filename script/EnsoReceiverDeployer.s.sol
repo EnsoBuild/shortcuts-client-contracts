@@ -16,8 +16,7 @@ contract EnsoReceiverDeployer is Script {
 
         implementation = new EnsoReceiver{ salt: "EnsoReceiver" }();
         factory = new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(OWNER);
-        factory.setImplementation(address(implementation));
-        factory.setEntryPoint(ENTRY_POINT);
+        factory.initialize(address(implementation), ENTRY_POINT);
 
         vm.stopBroadcast();
     }
