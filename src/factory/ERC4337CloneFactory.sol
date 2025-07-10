@@ -3,8 +3,9 @@ pragma solidity ^0.8.20;
 
 import { IERC4337CloneInitializer } from "./interfaces/IERC4337CloneInitializer.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
-import { LibClone } from "solady/utils/LibClone.sol";
+
 import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 contract ERC4337CloneFactory is Ownable, Initializable {
     using LibClone for address;
