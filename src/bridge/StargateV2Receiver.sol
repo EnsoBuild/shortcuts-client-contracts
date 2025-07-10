@@ -6,7 +6,6 @@ import { ILayerZeroComposer } from "@layerzerolabs/lz-evm-protocol-v2/contracts/
 
 import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 import { IPool } from "./interfaces/stargate/IPool.sol";
-import { ITokenMessaging } from "./interfaces/stargate/ITokenMessaging.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -17,7 +16,6 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     address private constant _NATIVE_ASSET = address(0);
 
     address public immutable endpoint;
-    ITokenMessaging public immutable tokenMessaging;
     IEnsoRouter public immutable router;
 
     uint256 public immutable reserveGas;
@@ -35,14 +33,7 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
     error TransferFailed(address receiver);
     error InvalidOFT(address oft);
 
-    constructor(
-        address _endpoint,
-        address _router,
-        address _owner,
-        uint256 _reserveGas
-    )
-        Ownable(_owner)
-    {
+    constructor(address _endpoint, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
         endpoint = _endpoint;
         router = IEnsoRouter(_router);
         reserveGas = _reserveGas;
@@ -93,20 +84,24 @@ contract StargateV2Receiver is Ownable, ILayerZeroComposer {
         if (msg.sender != address(this)) revert NotSelf();
         Token memory tokenIn;
         if (token == _NATIVE_ASSET) {
+            // calls shouldn't be built so that they do both an lzReceive deposit of the native token
+            // and a native drop, but just in case, we add both amounts for our call to the router
             value += amount;
-            // support backwards compatibility by including amount data
-            tokenIn = Token(TokenType.Native, abi.encode(value)); 
+            // support older versions of the router by including amount data for native token
+            tokenIn = Token(TokenType.Native, abi.encode(value));
         } else {
             tokenIn = Token(TokenType.ERC20, abi.encode(token, amount));
             IERC20(token).forceApprove(address(router), amount);
         }
         if (value > 0 && token != _NATIVE_ASSET) {
+            // since this call will use token + native asset, setup a routeMulti call
             Token[] memory tokensIn = new Token[](2);
             tokensIn[0] = tokenIn;
-            // support backwards compatibility by including amount data
+            // support older versions of the router by including amount data for native token
             tokensIn[1] = Token(TokenType.Native, abi.encode(value));
             router.routeMulti{ value: value }(tokensIn, data);
         } else {
+            // setup a routeSingle call
             router.routeSingle{ value: value }(tokenIn, data);
         }
     }
