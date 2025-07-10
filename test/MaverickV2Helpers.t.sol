@@ -15,13 +15,13 @@ contract MaverickV2HelpersTest is Test {
     address public refund = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
 
     address public usdce_holder = 0x329C395D83493ea909ba3CE76b04766E17De4Ea8;
-    address public pusd_holder = 0x8e87Caf1FC5a0d4aebe0E0c976b24a3A9e3672C4;
+    address public pusd_holder = 0x131C4558343BC50c2c08164972f9748738902705;
 
     string _rpcURL = vm.envString("PLUME_RPC_URL");
     uint256 _plumeFork;
 
     uint256 public constant USDCE_AMOUNT = 10 ** 9;
-    uint256 public constant PUSD_AMOUNT = 10 ** 9;
+    uint256 public constant PUSD_AMOUNT = 1.4 * 10 ** 9;
 
     function setUp() public {
         _plumeFork = vm.createFork(_rpcURL);
