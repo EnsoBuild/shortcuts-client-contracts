@@ -4,7 +4,7 @@ auto_detect_solc = false
 bytecode_hash = "none" # Disables the metadata
 cbor_metadata = false # Diasbles the metadata
 evm_version = "cancun"
-libs = ["lib"]
+libs = ["lib", "dependencies"]
 optimizer = true
 optimizer-runs = 200
 out = "out"
@@ -25,6 +25,26 @@ quote_style = "double"
 sort_imports = true
 tab_width = 4
 wrap_comments = true
+
+[soldeer]
+recursive_deps = true
+remappings_generate = false # NB: temporary disabled to avoid compilation issues
+remappings_regenerate = false # NB: temporary disabled to avoid compilation issues
+remappings_version = true
+remappings_prefix = ""
+remappings_location = "txt"
+
+[dependencies]
+account-abstraction = { version = "0.8.0", git = "https://github.com/eth-infinitism/account-abstraction.git", rev = "4cbc06072cdc19fd60f285c5997f4f7f57a588de" }
+devtools = { version = "0.0.1", git = "https://github.com/LayerZero-Labs/devtools.git", rev = "ac8912867862f6dd737b0febabd8d3cb8f142df7" }
+enso-weiroll = { version = "1.4.1", git = "https://github.com/EnsoBuild/enso-weiroll.git", rev = "900250114203727ff236d3f6313673c17c2d90dd" }
+forge-std = { version = "1.9.7", git = "https://github.com/foundry-rs/forge-std.git", tag = "v1.9.7" }
+layerzero-v2 = { version = "2.0.2", git = "https://github.com/LayerZero-Labs/LayerZero-v2.git", rev = "9a4049ae3a374e1c0ef01ac9fb53dd83f4257a68" }
+"@openzeppelin-contracts" = { version = "5.2.0", git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git", rev = "acd4ff74de833399287ed6b31b4debf6b2b35527" }
+safe-tools = { version = "0.2.0", git = "https://github.com/colinnielsen/safe-tools.git", tag = "v0.2.0" }
+solady = { version = "0.1.22", git = "https://github.com/Vectorized/solady.git", tag = "v0.1.22" }
+v4-core = { version = "4.0.0", git = "https://github.com/Uniswap/v4-core.git", rev = "e50237c43811bd9b526eff40f26772152a42daba" }
+v4-periphery = { version = "4.0.0", git = "https://github.com/Uniswap/v4-periphery.git", rev = "9628c36b4f5083d19606e63224e4041fe748edae" }
 
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"
