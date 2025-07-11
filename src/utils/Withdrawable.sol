@@ -13,6 +13,7 @@ abstract contract Withdrawable is ERC721Holder, ERC1155Holder {
     address public receiver;
     IERC20 private constant _NATIVE_ASSET = IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
 
+    // @audit could reuse InvalidSender (it should be put on an Errors file)
     error OnlyReceiver(address sender);
     error ReceiverNotSet();
     error WithdrawFailed();
@@ -75,6 +76,8 @@ abstract contract Withdrawable is ERC721Holder, ERC1155Holder {
         erc20.safeTransfer(receiver, erc20.balanceOf(address(this)));
     }
 
+    // @audit shouldn't be an internal that allows to withdraw a single 721 (same for 1155) without the looping
+    // overhead?
     function _withdrawERC721s(IERC721 erc721, uint256[] memory ids) internal {
         for (uint256 i; i < ids.length; ++i) {
             erc721.safeTransferFrom(address(this), receiver, ids[i]);

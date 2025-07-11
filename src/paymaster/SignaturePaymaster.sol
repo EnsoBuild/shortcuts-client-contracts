@@ -9,6 +9,7 @@ import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOp
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
+// @audit wrong contract name, should be SignaturePaymaster
 contract TestPaymaster is IPaymaster, Ownable {
     using SignatureVerifier for bytes32;
 
@@ -60,6 +61,7 @@ contract TestPaymaster is IPaymaster, Ownable {
         bytes32 messageHash =
             getHash(userOp, validUntil, validAfter, feeReceiver, token, amount).getEthSignedMessageHash();
         address signer = messageHash.recoverSigner(signature);
+        // @audit where validSigners is set? And validSigners must store only entryPoint addresses
         if (!validSigners[signer]) {
             return ("", _packValidationData(true, validUntil, validAfter));
         }
@@ -69,6 +71,7 @@ contract TestPaymaster is IPaymaster, Ownable {
             (_packPostOpData(feeReceiver, token, amount, balance), _packValidationData(false, validUntil, validAfter));
     }
 
+    // @audit check it is not PostOpMode.postOpReverted?
     function postOp(
         PostOpMode, // mode
         bytes calldata context,

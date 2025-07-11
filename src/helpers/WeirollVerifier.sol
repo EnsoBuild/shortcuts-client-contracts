@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { SignatureVerifier } from "../libraries/SignatureVerifier.sol";
 
+// @audit no replay protection (aka. nonce), is it ok?
 contract WeirollVerifier {
     using SignatureVerifier for bytes32;
 

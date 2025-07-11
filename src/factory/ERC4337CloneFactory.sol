@@ -37,6 +37,8 @@ contract ERC4337CloneFactory is Ownable, Initializable {
         entryPoint = entryPoint_;
     }
 
+    // @audit does it deviate from specs?
+    // https://eips.ethereum.org/EIPS/eip-4337#reputation-scoring-and-throttlingbanning-for-global-entities
     function deploy(address account) external implementationSet entryPointSet returns (address clone) {
         bytes32 salt = _getSalt(account, account);
         clone = implementation.cloneDeterministic(salt);
@@ -57,6 +59,7 @@ contract ERC4337CloneFactory is Ownable, Initializable {
         IERC4337CloneInitializer(clone).initialize(account, signer, entryPoint);
     }
 
+    // @audit trust conflicts. Factory owner can rug by changing the implementation
     function setImplementation(address newImplementation) external onlyOwner {
         implementation = newImplementation;
     }

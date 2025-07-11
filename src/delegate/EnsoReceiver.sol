@@ -35,6 +35,8 @@ contract EnsoReceiver is
         _;
     }
 
+    // @audit this modifier and the above could reuse logic
+    // @audit error messages could be more descriptive, force you to look at the function modifier
     modifier onlyEntryPoint() {
         if (msg.sender != entryPoint) revert InvalidSender(msg.sender);
         _;
@@ -46,6 +48,11 @@ contract EnsoReceiver is
         entryPoint = entryPoint_;
     }
 
+    // @audit could entryPoint clear (sent to receiver) this contract of native token and tokens anytime, instead of
+    // only the ones
+    // involved in the data, is it ok?
+    // @audit YES - will there be enough gas to withdraw token?
+    // @audit no support for ERC721s, ERC1155s, etc.?
     function safeExecute(IERC20 token, bytes calldata data) external onlyReceiverOrEntryPoint {
         (bool success, bytes memory response) = address(this).call(data);
         if (success) {
@@ -79,6 +86,11 @@ contract EnsoReceiver is
     {
         validationData = _validateSignature(userOp, userOpHash);
         // _validateNonce(userOp.nonce); TODO: validate nonce?
+        // @audit I'd say YES
+        // @audit EntryPoint address is checked, but chainId should be too.
+        // @audit userOp.nonce comes from `entryPoint.getNonce(entryPoint, key)`, what's the key?
+        // `mapping(address => mapping(uint192 => uint256)) public nonceSequenceNumber;`
+        // @audit invalid nonce must revert as SIG_VALIDATION_FAILED
     }
 
     function _validateSignature(

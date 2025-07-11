@@ -9,6 +9,8 @@ error ERC1271Revert(bytes error);
 error InvalidSignatureLength(uint256 length);
 error InvalidSignatureV();
 
+// @audit why not using solady/src/utils/SgnatureCheckerLib.sol? or OZ utils/cryptography/SignatureChecker.sol?
+// Both audited and do the same?
 library SignatureVerifier {
     bytes4 private constant ERC1271_SUCCESS = 0x1626ba7e;
 
@@ -36,6 +38,7 @@ library SignatureVerifier {
         return ecrecover(_hash, v, r, s);
     }
 
+    // @audit from OZ utils/cryptography/MessageHashUtils.sol
     function getEthSignedMessageHash(bytes32 _hash) internal pure returns (bytes32) {
         /*
         Signature is produced by signing a keccak256 hash with the following format:

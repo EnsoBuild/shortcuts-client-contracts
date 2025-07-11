@@ -56,6 +56,7 @@ contract EIP7702EnsoShortcutsTest is Test {
 
         // Assert
         vm.assertNotEq(CALLER_ADDRESS.code, expectedCode);
+        vm.assertEq(CALLER_ADDRESS.code.length, 0);
     }
 
     function testExecuteShortcutReverts() public {
