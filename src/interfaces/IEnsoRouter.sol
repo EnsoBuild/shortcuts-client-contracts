@@ -17,24 +17,36 @@ interface IEnsoRouter {
     function routeSingle(
         Token calldata tokenIn,
         bytes calldata data
-    ) external payable returns (bytes memory response);
+    )
+        external
+        payable
+        returns (bytes memory response);
 
     function routeMulti(
         Token[] calldata tokensIn,
         bytes calldata data
-    ) external payable returns (bytes memory response);
+    )
+        external
+        payable
+        returns (bytes memory response);
 
     function safeRouteSingle(
         Token calldata tokenIn,
         Token calldata tokenOut,
         address receiver,
         bytes calldata data
-    ) external payable returns (bytes memory response);
+    )
+        external
+        payable
+        returns (bytes memory response);
 
     function safeRouteMulti(
         Token[] calldata tokensIn,
         Token[] calldata tokensOut,
         address receiver,
         bytes calldata data
-    ) external payable returns (bytes memory response);
+    )
+        external
+        payable
+        returns (bytes memory response);
 }

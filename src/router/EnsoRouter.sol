@@ -2,11 +2,10 @@
 pragma solidity ^0.8.20;
 
 import { EnsoShortcuts } from "../EnsoShortcuts.sol";
-
+import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 import { IERC1155 } from "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
-import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 
 contract EnsoRouter is IEnsoRouter {
     using SafeERC20 for IERC20;
