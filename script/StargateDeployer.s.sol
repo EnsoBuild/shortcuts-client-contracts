@@ -5,6 +5,7 @@ import "../src/bridge/StargateV2Receiver.sol";
 import "forge-std/Script.sol";
 
 contract StargateDeployer is Script {
+    /*
     mapping(uint256 => address) private tokenMessagingAddresses;
 
     constructor() {
@@ -24,17 +25,15 @@ contract StargateDeployer is Script {
         tokenMessagingAddresses[80_094] = 0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6; //bera
         tokenMessagingAddresses[98_866] = 0xf26d57bbE1D99561B13003783b5e040B71AdCb14; //plume
     }
+    */
 
-    function run() public returns (address stargateHelper, address endpoint, address tokenMessaging, address router) {
+    function run() public returns (address stargateReceiver, address endpoint, address router) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployerPrivateKey);
 
         address deployer = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA;
         uint256 chainId = block.chainid;
-
-        tokenMessaging = tokenMessagingAddresses[chainId];
-        if (tokenMessaging == address(0)) revert();
         if (chainId == 324) {
             endpoint = 0xd07C30aF3Ff30D96BDc9c6044958230Eb797DDBF; // zksync
             router = 0x1BD8CefD703CF6b8fF886AD2E32653C32bc62b5C;
@@ -61,7 +60,7 @@ contract StargateDeployer is Script {
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         }
 
-        stargateHelper =
+        stargateReceiver =
             address(new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, router, deployer, 100_000));
 
         vm.stopBroadcast();
