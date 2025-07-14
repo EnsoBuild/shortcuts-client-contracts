@@ -27,6 +27,7 @@ contract EnsoReceiver is
     event NewEntryPoint(address newEntryPoint);
 
     error InvalidSender(address sender);
+    error InvalidNonce();
 
     modifier onlyReceiverOrEntryPoint() {
         if (msg.sender != entryPoint && msg.sender != receiver) revert InvalidSender(msg.sender);
@@ -76,7 +77,7 @@ contract EnsoReceiver is
         returns (uint256 validationData)
     {
         validationData = _validateSignature(userOp, userOpHash);
-        // _validateNonce(userOp.nonce); TODO: validate nonce?
+        _validateNonce(userOp.nonce);
     }
 
     function _validateSignature(
@@ -88,6 +89,10 @@ contract EnsoReceiver is
         returns (uint256)
     {
         return SignatureCheckerLib.isValidSignatureNow(signer, userOpHash, userOp.signature) ? SIG_VALIDATION_SUCCESS : SIG_VALIDATION_FAILED;
+    }
+
+    function _validateNonce(uint256 nonce) internal pure {
+        if (nonce  == type(uint64).max) revert InvalidNonce();
     }
 
     /// @notice Function to validate msg.sender.
