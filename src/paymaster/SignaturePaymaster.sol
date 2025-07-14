@@ -11,16 +11,16 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
 import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 contract SignaturePaymaster is IPaymaster, Ownable {
-    using SignatureVerifier for bytes32;
-
     address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     IEntryPoint public entryPoint;
     mapping(address => bool) validSigners;
 
-    event ValidSignerSet(address indexed signer, bool isValidSigner);
+    event SignerAdded(address signer);
+    event SignerRemoved(address signer);
 
     error InvalidEntryPoint(address sender);
+    error InvalidSigner(address signer);
     error InsufficientFeeReceived(uint256 amount);
 
     uint256 private constant PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLib.PAYMASTER_VALIDATION_GAS_OFFSET;
@@ -200,9 +200,16 @@ contract SignaturePaymaster is IPaymaster, Ownable {
         entryPoint.withdrawStake(withdrawAddress);
     }
 
-    function setValidSigner(address signer, bool isValid) external onlyOwner {
-        validSigners[signer] = isValid;
-        emit ValidSignerSet(signer, isValid);
+    function addSigner(address signer) external onlyOwner {
+        if (validSigners[signer]) revert InvalidSigner(signer);
+        validSigners[signer] = true;
+        emit SignerAdded(signer);
+    }
+
+    function removeSigner(address signer) external onlyOwner {
+        if (!validSigners[signer]) revert InvalidSigner(signer);
+        delete validSigners[signer];
+        emit SignerRemoved(signer);
     }
 
     /**
