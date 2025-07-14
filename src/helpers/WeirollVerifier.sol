@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { SignatureVerifier } from "../libraries/SignatureVerifier.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 contract WeirollVerifier {
-    using SignatureVerifier for bytes32;
 
     function verify(
         address signer,
@@ -13,13 +13,13 @@ contract WeirollVerifier {
         bytes calldata signature
     )
         public
-        pure
+        view
         returns (bool)
     {
         bytes32 messageHash = getMessageHash(commands, state);
-        bytes32 ethSignedMessageHash = messageHash.getEthSignedMessageHash();
+        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(messageHash);
 
-        return ethSignedMessageHash.recoverSigner(signature) == signer;
+        return ECDSA.recoverCalldata(ethSignedMessageHash, signature) == signer;
     }
 
     function getMessageHash(bytes32[] calldata commands, bytes[] calldata state) public pure returns (bytes32) {

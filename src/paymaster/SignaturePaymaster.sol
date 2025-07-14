@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
-import { SignatureVerifier } from "../libraries/SignatureVerifier.sol";
 import { UserOperationLib } from "account-abstraction/core/UserOperationLib.sol";
 import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
 import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 contract SignaturePaymaster is IPaymaster, Ownable {
     using SignatureVerifier for bytes32;
@@ -59,9 +60,9 @@ contract SignaturePaymaster is IPaymaster, Ownable {
             uint256 amount,
             bytes calldata signature
         ) = parsePaymasterAndData(userOp.paymasterAndData);
-        bytes32 messageHash =
-            getHash(userOp, validUntil, validAfter, feeReceiver, token, amount).getEthSignedMessageHash();
-        address signer = messageHash.recoverSigner(signature);
+        bytes32 messageHash = getHash(userOp, validUntil, validAfter, feeReceiver, token, amount);
+        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(messageHash);
+        address signer = ECDSA.recover(ethSignedMessageHash, signature);
         if (!validSigners[signer]) {
             return ("", _packValidationData(true, validUntil, validAfter));
         }

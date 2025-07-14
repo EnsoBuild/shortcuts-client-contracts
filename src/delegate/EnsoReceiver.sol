@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import { AbstractEnsoShortcuts } from "../AbstractEnsoShortcuts.sol";
 import { AbstractMultiSend } from "../AbstractMultiSend.sol";
 import { IERC4337CloneInitializer } from "../factory/interfaces/IERC4337CloneInitializer.sol";
-import { SignatureVerifier } from "../libraries/SignatureVerifier.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import { IERC20, Withdrawable } from "../utils/Withdrawable.sol";
 import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
 import { IAccount, PackedUserOperation } from "account-abstraction/interfaces/IAccount.sol";
@@ -18,8 +18,6 @@ contract EnsoReceiver is
     Withdrawable,
     Initializable
 {
-    using SignatureVerifier for bytes32;
-
     address public signer;
     address public entryPoint;
 
@@ -89,7 +87,7 @@ contract EnsoReceiver is
         view
         returns (uint256)
     {
-        return userOpHash.isValidSig(signer, userOp.signature) ? SIG_VALIDATION_SUCCESS : SIG_VALIDATION_FAILED;
+        return SignatureCheckerLib.isValidSignatureNow(signer, userOpHash, userOp.signature) ? SIG_VALIDATION_SUCCESS : SIG_VALIDATION_FAILED;
     }
 
     /// @notice Function to validate msg.sender.
