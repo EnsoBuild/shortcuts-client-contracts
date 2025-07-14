@@ -16,7 +16,11 @@ contract TestPaymaster is IPaymaster, Ownable {
     IEntryPoint public entryPoint;
     mapping(address => bool) validSigners;
 
+    event SignerAdded(address signer);
+    event SignerRemoved(address signer);
+
     error InvalidEntryPoint(address sender);
+    error InvalidSigner(address signer);
     error InsufficientFeeReceived(uint256 amount);
 
     uint256 private constant PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLib.PAYMASTER_VALIDATION_GAS_OFFSET;
@@ -194,6 +198,18 @@ contract TestPaymaster is IPaymaster, Ownable {
      */
     function withdrawStake(address payable withdrawAddress) external onlyOwner {
         entryPoint.withdrawStake(withdrawAddress);
+    }
+
+    function addSigner(address signer) external onlyOwner {
+        if (validSigners[signer]) revert InvalidSigner(signer);
+        validSigners[signer] = true;
+        emit SignerAdded(signer);
+    }
+
+    function removeSigner(address signer) external onlyOwner {
+        if (!validSigners[signer]) revert InvalidSigner(signer);
+        delete validSigners[signer];
+        emit SignerRemoved(signer);
     }
 
     /**
