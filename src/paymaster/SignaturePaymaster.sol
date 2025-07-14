@@ -9,13 +9,15 @@ import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOp
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-contract TestPaymaster is IPaymaster, Ownable {
+contract SignaturePaymaster is IPaymaster, Ownable {
     using SignatureVerifier for bytes32;
 
     address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     IEntryPoint public entryPoint;
     mapping(address => bool) validSigners;
+
+    event ValidSignerSet(address indexed signer, bool isValidSigner);
 
     error InvalidEntryPoint(address sender);
     error InsufficientFeeReceived(uint256 amount);
@@ -195,6 +197,11 @@ contract TestPaymaster is IPaymaster, Ownable {
      */
     function withdrawStake(address payable withdrawAddress) external onlyOwner {
         entryPoint.withdrawStake(withdrawAddress);
+    }
+
+    function setValidSigner(address signer, bool isValid) external onlyOwner {
+        validSigners[signer] = isValid;
+        emit ValidSignerSet(signer, isValid);
     }
 
     /**
