@@ -44,14 +44,14 @@ contract EnsoReceiver is
         entryPoint = entryPoint_;
     }
 
-    function safeExecute(IERC20 token, bytes calldata data) external onlyReceiverOrEntryPoint {
+    function safeExecute(IERC20 token, uint256 amount, bytes calldata data) external onlyReceiverOrEntryPoint {
         (bool success, bytes memory response) = address(this).call(data);
         if (success) {
             emit ShortcutExecutionSuccessful();
         } else {
             // if shortcut fails send funds to receiver
             emit ShortcutExecutionFailed(response);
-            _withdrawToken(token);
+            _withdrawToken(token, amount);
         }
     }
 
