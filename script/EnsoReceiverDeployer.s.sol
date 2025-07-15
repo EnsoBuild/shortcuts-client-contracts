@@ -6,7 +6,6 @@ import "../src/factory/ERC4337CloneFactory.sol";
 import "forge-std/Script.sol";
 
 contract EnsoReceiverDeployer is Script {
-    address OWNER = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA;
     address ENTRY_POINT = address(0); // TODO
 
     function run() public returns (EnsoReceiver implementation, ERC4337CloneFactory factory) {
@@ -15,8 +14,7 @@ contract EnsoReceiverDeployer is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         implementation = new EnsoReceiver{ salt: "EnsoReceiver" }();
-        factory = new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(OWNER);
-        factory.initialize(address(implementation), ENTRY_POINT);
+        factory = new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(address(implementation), ENTRY_POINT);
 
         vm.stopBroadcast();
     }
