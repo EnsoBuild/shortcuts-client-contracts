@@ -71,9 +71,9 @@ contract AlphaShortcutsTest is Test {
 
         // Deploy & set up ERC4337CloneFactory
         vm.startPrank(ENSO_DEPLOYER);
-        s_accountFactory = new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(ENSO_DEPLOYER);
-        s_accountFactory.setImplementation(address(s_accountImpl));
-        s_accountFactory.setEntryPoint(ENTRY_POINT_0_8);
+        s_accountFactory =
+            new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(address(s_accountImpl), ENTRY_POINT_0_8);
+
         vm.stopPrank();
     }
 
