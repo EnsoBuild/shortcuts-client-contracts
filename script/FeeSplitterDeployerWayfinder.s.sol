@@ -44,8 +44,8 @@ contract FeeSplitterDeployerWayfinder is Script {
         recipients[1] = ensoFeeCollector;
 
         uint16[] memory shares = new uint16[](2);
-        shares[0] = 1;
-        shares[1] = 1;
+        shares[0] = 7;
+        shares[1] = 3;
 
         vm.broadcast(deployerPrivateKey);
         feeSplitter = address(new FeeSplitter(ensoFeeCollector, recipients, shares));
