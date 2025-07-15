@@ -23,6 +23,7 @@ contract AlphaShortcutsTest is Test {
     using SafeERC20 for IERC20;
 
     IERC20 private constant NATIVE_ASSET = IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
+    IERC20 private constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address private constant ENSO_ACCOUNT = 0x93621DCA56fE26Cdee86e4F6B18E116e9758Ff11;
     address private constant ENSO_DEPLOYER = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA;
     address payable private constant ENTRY_POINT_0_8 = payable(0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108);
@@ -87,9 +88,7 @@ contract AlphaShortcutsTest is Test {
     // - Sender is EOA.
     // - Account manually deployed.
     // - TestPaymaster is lax.
-    function test_foo_1() public {
-        IERC20 weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-
+    function test_execution() public {
         PackedUserOperation memory userOp;
 
         // Deploy & set up EnsoReceiver, and fund it with 1 ETH
@@ -99,14 +98,15 @@ contract AlphaShortcutsTest is Test {
         userOp.sender = account;
 
         vm.prank(SIGNER);
-        (bool success, bytes memory data) = account.call{ value: 1 ether }("");
+        (bool success, ) = account.call{ value: 1 ether }("");
+        (success); // shh
 
         // NOTE: from EnsoReceiver address to receiver address (SIGNER), 1 ETH to 1 WETH via `delegate` strategy
         bytes memory shortcutCalldata =
             hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a56c2e2f1e3b4d48a5be640d785eba608130313233343536373839414243444546000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000004d0e30db00300ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010100ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010002ffffffff027e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120102ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b0000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000de0b6b3a76400000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dcef33a6f838000";
 
         vm.prank(SIGNER);
-        (bool success2, bytes memory data2) = account.call{ value: 1 ether }(shortcutCalldata);
+        (bool success2, ) = account.call{ value: 1 ether }(shortcutCalldata);
         assertEq(success2, true);
 
         // TODO VN: `.getAddress()` or `EntryPoint.getSenderAddress()`?
@@ -123,18 +123,15 @@ contract AlphaShortcutsTest is Test {
         bytes memory callData = abi.encodeCall(EnsoReceiver.safeExecute, (NATIVE_ASSET, 1 ether, shortcutCalldata));
         userOp.callData = callData;
 
-        uint256 routerCalldataGas = 200_000; // 95_820;
-        uint256 verificationGasLimit = 100_000;
+        uint256 routerCalldataGas = 100_000; // 95_820;
+        uint256 verificationGasLimit = 40_000;
         bytes32 accountGasLimits = bytes32(uint256(verificationGasLimit) << 128 | uint256(routerCalldataGas));
         userOp.accountGasLimits = accountGasLimits;
 
-        uint128 maxPriorityFeePerGas = 1 gwei;
-        uint128 maxFeePerGas = uint128(block.basefee) + maxPriorityFeePerGas;
-        bytes32 gasFees = bytes32((uint256(maxPriorityFeePerGas) << 128) | uint256(maxFeePerGas));
-        userOp.gasFees = gasFees;
+        userOp.gasFees = _gasFees();
 
-        uint128 paymasterVerificationGas = 1000000; // TODO
-        uint128 paymasterPostOp = 1000000; // TODO
+        uint128 paymasterVerificationGas = 11_000; // TODO: fails at 10_000, not sure how its calculated
+        uint128 paymasterPostOp = 0;
         bytes memory paymasterAndData = abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
         userOp.paymasterAndData = paymasterAndData;
 
@@ -166,11 +163,11 @@ contract AlphaShortcutsTest is Test {
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         userOps[0] = userOp;
 
-        uint256 balancePreSignerWeth = weth.balanceOf(SIGNER);
+        uint256 balancePreSignerWeth = WETH.balanceOf(SIGNER);
 
         s_entryPoint.handleOps(userOps, s_bundler);
 
-        uint256 balancePostSignerWeth = weth.balanceOf(SIGNER);
+        uint256 balancePostSignerWeth = WETH.balanceOf(SIGNER);
 
         uint256 balanceDiffSignerWeth = balancePostSignerWeth - balancePreSignerWeth;
         assertEq(balanceDiffSignerWeth, 1 ether);
@@ -180,5 +177,164 @@ contract AlphaShortcutsTest is Test {
         //  - TestPaymaster.validatePaymasterUserOp()
         //  - EnsoReceiver.safeExecute()
         //  - TestPaymaster.postOp
+    }
+
+    function test_init() public {
+        PackedUserOperation memory userOp;
+
+        // Get address
+        address payable account = payable(s_accountFactory.getAddress(SIGNER)); // 0x0905ab61D02f48bC4736e1fE5eaFA86557aA37F1
+        vm.label(account, "EnsoReceiver"); // 0x0905ab61D02f48bC4736e1fE5eaFA86557aA37F1
+        userOp.sender = account;
+
+        // Fund account before deployment
+        vm.prank(SIGNER);
+        (bool success, ) = account.call{ value: 1 ether }("");
+        (success); // shh
+
+        // Setup initCode
+        userOp.initCode = _initCode(SIGNER);
+
+        uint192 laneId = 0;
+        uint256 nonce = s_entryPoint.getNonce(account, laneId);
+        userOp.nonce = nonce;
+
+        bytes memory shortcutCalldata =
+            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a56c2e2f1e3b4d48a5be640d785eba608130313233343536373839414243444546000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000004d0e30db00300ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010100ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010002ffffffff027e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120102ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b0000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000de0b6b3a76400000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dcef33a6f838000";
+        bytes memory callData = abi.encodeCall(EnsoReceiver.safeExecute, (NATIVE_ASSET, 1 ether, shortcutCalldata));
+        userOp.callData = callData;
+
+        uint256 routerCalldataGas = 100_000; // 95_820;
+        uint256 verificationGasLimit = 200_000; // verifcation gas limit includes deployment costs
+        bytes32 accountGasLimits = bytes32(uint256(verificationGasLimit) << 128 | uint256(routerCalldataGas));
+        userOp.accountGasLimits = accountGasLimits;
+
+        userOp.gasFees = _gasFees();
+
+        uint128 paymasterVerificationGas = 11_000; // TODO: fails at 10_000, not sure how its calculated
+        uint128 paymasterPostOp = 0;
+        bytes memory paymasterAndData = abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
+        userOp.paymasterAndData = paymasterAndData;
+
+        // (
+        //     uint256 preOpGas,
+        //     uint256 prefund,
+        //     uint256 accountValidationData,
+        //     uint256 paymasterValidationData,
+        //     bytes memory paymasterContext
+        // ) = validationResult.returnInfo;
+
+        uint256 preVerificationGas = 100_000;
+        userOp.preVerificationGas = preVerificationGas;
+
+        bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(SIGNER_PK), userOpHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        userOp.signature = signature;
+
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
+        userOps[0] = userOp;
+
+        uint256 balancePreSignerWeth = WETH.balanceOf(SIGNER);
+
+        s_entryPoint.handleOps(userOps, s_bundler);
+
+        uint256 balancePostSignerWeth = WETH.balanceOf(SIGNER);
+
+        uint256 balanceDiffSignerWeth = balancePostSignerWeth - balancePreSignerWeth;
+        assertEq(balanceDiffSignerWeth, 1 ether);
+
+        // Bundler -> EntryPoint.handleOps
+        //  - EnsoReceiver.validateUserOp()
+        //  - TestPaymaster.validatePaymasterUserOp()
+        //  - EnsoReceiver.safeExecute()
+        //  - TestPaymaster.postOp
+    }
+
+    function test_failing_shortcut_eth_refund() public {
+        PackedUserOperation memory userOp;
+
+        // Get address
+        address payable account = payable(s_accountFactory.getAddress(SIGNER)); // 0x0905ab61D02f48bC4736e1fE5eaFA86557aA37F1
+        vm.label(account, "EnsoReceiver"); // 0x0905ab61D02f48bC4736e1fE5eaFA86557aA37F1
+        userOp.sender = account;
+
+        // Fund account before deployment
+        vm.prank(SIGNER);
+        (bool success, ) = account.call{ value: 1 ether }("");
+        (success); // shh
+
+        // Setup initCode
+        userOp.initCode = _initCode(SIGNER);
+
+        uint192 laneId = 0;
+        uint256 nonce = s_entryPoint.getNonce(account, laneId);
+        userOp.nonce = nonce;
+
+        // failing shortcut uses a minAmountOut of 10**18 + 1
+        bytes memory failingShortcutCalldata =
+            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a56c2e2f1e3b4d48a5be640d785eba608130313233343536373839414243444546000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000004d0e30db00300ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010100ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010002ffffffff027e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120102ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b0000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000de0b6b3a76400000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000DE0B6B3A7640001";
+        bytes memory callData = abi.encodeCall(EnsoReceiver.safeExecute, (NATIVE_ASSET, 1 ether, failingShortcutCalldata));
+        userOp.callData = callData;
+
+        uint256 routerCalldataGas = 100_000; // 95_820;
+        uint256 verificationGasLimit = 200_000; // verifcation gas limit includes deployment costs
+        bytes32 accountGasLimits = bytes32(uint256(verificationGasLimit) << 128 | uint256(routerCalldataGas));
+        userOp.accountGasLimits = accountGasLimits;
+
+        userOp.gasFees = _gasFees();
+
+        uint128 paymasterVerificationGas = 11_000; // TODO: fails at 10_000, not sure how its calculated
+        uint128 paymasterPostOp = 0;
+        bytes memory paymasterAndData = abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
+        userOp.paymasterAndData = paymasterAndData;
+
+        // (
+        //     uint256 preOpGas,
+        //     uint256 prefund,
+        //     uint256 accountValidationData,
+        //     uint256 paymasterValidationData,
+        //     bytes memory paymasterContext
+        // ) = validationResult.returnInfo;
+
+        uint256 preVerificationGas = 100_000;
+        userOp.preVerificationGas = preVerificationGas;
+
+        bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(SIGNER_PK), userOpHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        userOp.signature = signature;
+
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
+        userOps[0] = userOp;
+
+        // since this shortcut should fail, the eth deposited should be transferred back to signer
+        uint256 balancePreSignerEth = SIGNER.balance;
+
+        s_entryPoint.handleOps(userOps, s_bundler);
+
+        uint256 balancePostSignerEth = SIGNER.balance;
+
+        uint256 balanceDiffSignerEth = balancePostSignerEth - balancePreSignerEth;
+        assertEq(balanceDiffSignerEth, 1 ether);
+
+        // Bundler -> EntryPoint.handleOps
+        //  - EnsoReceiver.validateUserOp()
+        //  - TestPaymaster.validatePaymasterUserOp()
+        //  - EnsoReceiver.safeExecute()
+        //  - TestPaymaster.postOp
+    }
+
+    function _initCode(address signer) internal view returns (bytes memory initCode) {
+        bytes memory initCalldata = abi.encodeWithSelector(s_accountFactory.deploy.selector, signer);
+        initCode = abi.encodePacked(address(s_accountFactory), initCalldata);
+    }
+
+    function _gasFees() internal view returns (bytes32 gasFees) {
+        uint128 maxPriorityFeePerGas = 1 gwei;
+        uint128 maxFeePerGas = uint128(block.basefee) + maxPriorityFeePerGas;
+        gasFees = bytes32((uint256(maxPriorityFeePerGas) << 128) | uint256(maxFeePerGas));
     }
 }
