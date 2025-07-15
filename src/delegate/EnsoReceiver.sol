@@ -4,11 +4,12 @@ pragma solidity ^0.8.20;
 import { AbstractEnsoShortcuts } from "../AbstractEnsoShortcuts.sol";
 import { AbstractMultiSend } from "../AbstractMultiSend.sol";
 import { IERC4337CloneInitializer } from "../factory/interfaces/IERC4337CloneInitializer.sol";
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
+
 import { IERC20, Withdrawable } from "../utils/Withdrawable.sol";
 import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
 import { IAccount, PackedUserOperation } from "account-abstraction/interfaces/IAccount.sol";
 import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 contract EnsoReceiver is
     IAccount,
@@ -88,11 +89,13 @@ contract EnsoReceiver is
         view
         returns (uint256)
     {
-        return SignatureCheckerLib.isValidSignatureNow(signer, userOpHash, userOp.signature) ? SIG_VALIDATION_SUCCESS : SIG_VALIDATION_FAILED;
+        return SignatureCheckerLib.isValidSignatureNow(signer, userOpHash, userOp.signature)
+            ? SIG_VALIDATION_SUCCESS
+            : SIG_VALIDATION_FAILED;
     }
 
     function _validateNonce(uint256 nonce) internal pure {
-        if (nonce  == type(uint64).max) revert InvalidNonce();
+        if (nonce == type(uint64).max) revert InvalidNonce();
     }
 
     /// @notice Function to validate msg.sender.

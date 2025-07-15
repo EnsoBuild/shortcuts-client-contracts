@@ -5,7 +5,6 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
 import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 contract WeirollVerifier {
-
     function verify(
         address signer,
         bytes32[] calldata commands,

@@ -24,13 +24,7 @@ contract ERC4337CloneFactory {
         emit CloneDeployed(clone, account, account);
     }
 
-    function delegateDeploy(
-        address account,
-        address signer
-    )
-        external
-        returns (address clone)
-    {
+    function delegateDeploy(address account, address signer) external returns (address clone) {
         bytes32 salt = _getSalt(account, signer);
         clone = implementation.cloneDeterministic(salt);
         IERC4337CloneInitializer(clone).initialize(account, signer, entryPoint);
