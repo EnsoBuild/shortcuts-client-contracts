@@ -2,67 +2,33 @@
 pragma solidity ^0.8.20;
 
 import { IERC4337CloneInitializer } from "./interfaces/IERC4337CloneInitializer.sol";
-import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
-
-import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
-contract ERC4337CloneFactory is Ownable, Initializable {
+contract ERC4337CloneFactory {
     using LibClone for address;
 
-    address public implementation;
-    address public entryPoint;
+    address public immutable implementation;
+    address public immutable entryPoint;
 
-    error ImplementationNotSet();
-    error EntryPointNotSet();
+    event CloneDeployed(address clone, address account, address signer);
 
-    constructor(address owner_) Ownable(owner_) {
-        // could set the implementation here, but its nice to have a deterministic deployment
-        // if we upgrade the implementation down the road, we would still have to deploy with
-        // the old one to get the same
-    }
-
-    modifier implementationSet() {
-        if (implementation == address(0)) revert ImplementationNotSet();
-        _;
-    }
-
-    modifier entryPointSet() {
-        if (entryPoint == address(0)) revert EntryPointNotSet();
-        _;
-    }
-
-    function initialize(address implementation_, address entryPoint_) external initializer {
+    constructor(address implementation_, address entryPoint_) {
         implementation = implementation_;
         entryPoint = entryPoint_;
     }
 
-    function deploy(address account) external implementationSet entryPointSet returns (address clone) {
+    function deploy(address account) external returns (address clone) {
         bytes32 salt = _getSalt(account, account);
         clone = implementation.cloneDeterministic(salt);
         IERC4337CloneInitializer(clone).initialize(account, account, entryPoint);
+        emit CloneDeployed(clone, account, account);
     }
 
-    function delegateDeploy(
-        address account,
-        address signer
-    )
-        external
-        implementationSet
-        entryPointSet
-        returns (address clone)
-    {
+    function delegateDeploy(address account, address signer) external returns (address clone) {
         bytes32 salt = _getSalt(account, signer);
         clone = implementation.cloneDeterministic(salt);
         IERC4337CloneInitializer(clone).initialize(account, signer, entryPoint);
-    }
-
-    function setImplementation(address newImplementation) external onlyOwner {
-        implementation = newImplementation;
-    }
-
-    function setEntryPoint(address newEntryPoint) external onlyOwner {
-        entryPoint = newEntryPoint;
+        emit CloneDeployed(clone, account, signer);
     }
 
     function getAddress(address account) external view returns (address) {
@@ -73,7 +39,7 @@ contract ERC4337CloneFactory is Ownable, Initializable {
         return _getAddress(account, signer);
     }
 
-    function _getAddress(address account, address signer) internal view implementationSet returns (address) {
+    function _getAddress(address account, address signer) internal view returns (address) {
         bytes32 salt = _getSalt(account, signer);
         return implementation.predictDeterministicAddress(salt, address(this));
     }
