@@ -22,7 +22,6 @@ contract TestPaymaster is IPaymaster {
         returns (bytes memory context, uint256 validationData)
     {
         // allow all
-        return ("", 0);
     }
 
     function postOp(
