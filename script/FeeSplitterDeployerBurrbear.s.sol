@@ -5,7 +5,7 @@ import { Script, console2 } from "forge-std/Script.sol";
 
 import { FeeSplitter } from "../src/helpers/FeeSplitter.sol";
 
-// Deployer for the Infrared FeeSplitter
+// Deployer for the Burrbear FeeSplitter
 contract FeeSplitterDeployerBurrbear is Script {
     function run() public returns (address feeSplitter, address enso, address burrbear) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");

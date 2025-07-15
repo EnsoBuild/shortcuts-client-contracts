@@ -6,7 +6,7 @@ import { Script, console2 } from "forge-std/Script.sol";
 import { FeeSplitter } from "../src/helpers/FeeSplitter.sol";
 import { ChainId } from "../src/libraries/DataTypes.sol";
 
-// Deployer for the Infrared FeeSplitter
+// Deployer for the EtherFi FeeSplitter
 contract FeeSplitterDeployerEtherFi is Script {
     mapping(uint256 chainId => address feeCollector) private chainIdToEnsoFeeCollector;
     mapping(uint256 chainId => address feeCollector) private chainIdToPartnerFeeCollector;
