@@ -24,15 +24,15 @@ abstract contract Withdrawable is ERC721Holder, ERC1155Holder {
     }
 
     // @notice Withdraw native asset from this contract to the receiver
-    function withdrawNative(uint256 amount) external onlyReceiver {
-        _withdrawNative(amount);
+    function withdrawNative() external onlyReceiver {
+        _withdrawNative(address(this).balance);
     }
 
     // @notice Withdraw ERC20s
     // @param erc20s An array of erc20 addresses
-    function withdrawERC20s(IERC20[] calldata erc20s, uint256[] calldata amounts) external onlyReceiver {
+    function withdrawERC20s(IERC20[] calldata erc20s) external onlyReceiver {
         for (uint256 i; i < erc20s.length; ++i) {
-            _withdrawERC20(erc20s[i], amounts[i]);
+            _withdrawERC20(erc20s[i], erc20s[i].balanceOf(address(this)));
         }
     }
 
