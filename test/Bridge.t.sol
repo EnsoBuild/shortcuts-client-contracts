@@ -195,7 +195,10 @@ contract BridgeTest is Test {
         address[] memory tokens = new address[](2);
         tokens[0] = eth;
         tokens[1] = address(weth);
-        lzReceiver.sweep(tokens);
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = address(lzReceiver).balance;
+        amounts[1] = weth.balanceOf(address(lzReceiver));
+        lzReceiver.sweep(tokens, amounts);
 
         uint256 ethBalanceAfter = address(this).balance;
         uint256 wethBalanceAfter = weth.balanceOf(address(this));

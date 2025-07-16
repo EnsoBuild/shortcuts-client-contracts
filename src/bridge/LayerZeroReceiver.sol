@@ -17,7 +17,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     address public immutable endpoint;
     IEnsoRouter public immutable router;
 
-    uint256 public immutable reserveGas;
+    uint256 public reserveGas;
 
     mapping(address => bool) public validOFT;
     mapping(address => bool) public validRegistrar;
@@ -25,18 +25,29 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     event ShortcutExecutionSuccessful(bytes32 guid);
     event ShortcutExecutionFailed(bytes32 guid, bytes error);
     event InsufficientGas(bytes32 guid);
+    event OFTAdded(address oft);
+    event OFTRemoved(address oft);
+    event RegistrarAdded(address account);
+    event RegistrarRemoved(address account);
+    event ReserveGasUpdated(uint256 amount);
 
     error NotEndpoint(address sender);
     error NotRegistrar(address sender);
     error NotSelf();
     error TransferFailed(address receiver);
     error InvalidOFT(address oft);
+    error EndpointNotSet();
+    error RouterNotSet();
+    error InvalidArrayLength();
 
     constructor(address _endpoint, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
+        if (_endpoint == address(0)) revert EndpointNotSet();
+        if (_router == address(0)) revert RouterNotSet();
         endpoint = _endpoint;
         router = IEnsoRouter(_router);
-        reserveGas = _reserveGas;
         validRegistrar[_owner] = true;
+        reserveGas = _reserveGas;
+        emit ReserveGasUpdated(_reserveGas);
     }
 
     // layer zero callback
@@ -79,7 +90,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     }
 
     // execute shortcut using router
-    function execute(address token, uint256 amount, bytes calldata data, uint256 value) public {
+    function execute(address token, uint256 amount, bytes calldata data, uint256 value) external {
         if (msg.sender != address(this)) revert NotSelf();
         Token memory tokenIn;
         if (token == _NATIVE_ASSET) {
@@ -109,6 +120,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         if (!validRegistrar[msg.sender]) revert NotRegistrar(msg.sender);
         for (uint256 i = 0; i < ofts.length; ++i) {
             validOFT[ofts[i]] = true;
+            emit OFTAdded(ofts[i]);
         }
     }
 
@@ -116,24 +128,31 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         if (!validRegistrar[msg.sender]) revert NotRegistrar(msg.sender);
         for (uint256 i = 0; i < ofts.length; ++i) {
             delete validOFT[ofts[i]];
+            emit OFTRemoved(ofts[i]);
         }
     }
 
     function setRegistrar(address account) external onlyOwner {
         validRegistrar[account] = true;
+        emit RegistrarAdded(account);
     }
 
     function removeRegistrar(address account) external onlyOwner {
         delete validRegistrar[account];
+        emit RegistrarRemoved(account);
+    }
+
+    function setReserveGas(uint256 amount) external onlyOwner {
+        reserveGas = amount;
+        emit ReserveGasUpdated(amount);
     }
 
     // sweep funds to the contract owner in order to refund user
-    function sweep(address[] memory tokens) external onlyOwner {
+    function sweep(address[] memory tokens, uint256[] memory amounts) external onlyOwner {
+        if (tokens.length != amounts.length) revert InvalidArrayLength();
         address receiver = owner();
-        address token;
         for (uint256 i = 0; i < tokens.length; ++i) {
-            token = tokens[i];
-            _transfer(token, receiver, _balance(token));
+            _transfer(tokens[i], receiver, amounts[i]);
         }
     }
 
@@ -144,10 +163,6 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         } else {
             IERC20(token).safeTransfer(receiver, amount);
         }
-    }
-
-    function _balance(address token) internal view returns (uint256 balance) {
-        balance = token == _NATIVE_ASSET ? address(this).balance : IERC20(token).balanceOf(address(this));
     }
 
     receive() external payable {
