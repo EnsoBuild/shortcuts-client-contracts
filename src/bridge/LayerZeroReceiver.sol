@@ -13,6 +13,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     using SafeERC20 for IERC20;
 
     address private constant _NATIVE_ASSET = address(0);
+    uint256 private constant _TRY_CATCH_GAS = 2000;
 
     address public immutable endpoint;
     IEnsoRouter public immutable router;
@@ -24,13 +25,13 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
 
     event ShortcutExecutionSuccessful(bytes32 guid);
     event ShortcutExecutionFailed(bytes32 guid, bytes error);
-    event InsufficientGas(bytes32 guid);
     event OFTAdded(address oft);
     event OFTRemoved(address oft);
     event RegistrarAdded(address account);
     event RegistrarRemoved(address account);
     event ReserveGasUpdated(uint256 amount);
 
+    error InsufficientGas(bytes32 guid);
     error NotEndpoint(address sender);
     error NotRegistrar(address sender);
     error NotSelf();
@@ -71,20 +72,21 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         (address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, bytes));
 
         uint256 availableGas = gasleft();
-        if (availableGas < reserveGas) {
-            emit InsufficientGas(_guid);
+        if (availableGas < reserveGas) revert InsufficientGas(_guid);
+        // try to execute shortcut
+        try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData, msg.value) {
+            emit ShortcutExecutionSuccessful(_guid);
+        } catch (bytes memory err) {
+            if (err.length == 0 && gasleft() < reserveGas - _TRY_CATCH_GAS) {
+                // assume that the shortcut failed due to an out of gas error,
+                // to discourage griefing we will revert instead of transferring funds.
+                revert InsufficientGas(_guid);
+            }
+            // if shortcut fails send funds to receiver
+            emit ShortcutExecutionFailed(_guid, err);
             _transfer(token, receiver, amount);
-        } else {
-            // try to execute shortcut
-            try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData, msg.value) {
-                emit ShortcutExecutionSuccessful(_guid);
-            } catch (bytes memory err) {
-                // if shortcut fails send funds to receiver
-                emit ShortcutExecutionFailed(_guid, err);
-                _transfer(token, receiver, amount);
-                if (msg.value > 0) {
-                    _transfer(_NATIVE_ASSET, receiver, msg.value);
-                }
+            if (msg.value > 0) {
+                _transfer(_NATIVE_ASSET, receiver, msg.value);
             }
         }
     }

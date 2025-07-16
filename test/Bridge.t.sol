@@ -91,10 +91,8 @@ contract BridgeTest is Test {
         assertEq(balanceBefore, address(this).balance);
     }
 
-    function testEthBridgeWithInsufficientGas() public {
+    function testEthBridgeWithShortcutOutOfGas() public {
         vm.selectFork(_ethereumFork);
-
-        uint256 balanceBefore = address(this).balance;
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
         bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
@@ -102,12 +100,23 @@ contract BridgeTest is Test {
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
         if (!success) revert TransferFailed();
-        // confirm funds have left this address
-        assertGt(balanceBefore, address(this).balance);
         // trigger compose with insufficient gas
+        vm.expectRevert();
+        lzReceiver.lzCompose{ gas: 108_000 }(ethPool, bytes32(0), message, address(0), "");
+    }
+
+    function testEthBridgeWithLessThanReserveGas() public {
+        vm.selectFork(_ethereumFork);
+
+        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+
+        // transfer funds
+        (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
+        if (!success) revert TransferFailed();
+        // trigger compose with insufficient gas
+        vm.expectRevert();
         lzReceiver.lzCompose{ gas: 99_000 }(ethPool, bytes32(0), message, address(0), "");
-        // confirm funds have been returned to this address
-        assertEq(balanceBefore, address(this).balance);
     }
 
     function testUsdcBridge() public {
