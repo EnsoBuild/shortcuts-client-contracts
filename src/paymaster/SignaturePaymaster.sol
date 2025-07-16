@@ -5,6 +5,8 @@ import { UserOperationLib } from "account-abstraction/core/UserOperationLib.sol"
 import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
 import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
+
+import { console2 } from "forge-std-1.9.7/Test.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
@@ -67,29 +69,20 @@ contract SignaturePaymaster is IPaymaster, Ownable {
         if (!validSigners[signer]) {
             return ("", _packValidationData(true, validUntil, validAfter));
         }
-        // get token balance of fee receiver before userOp
-        uint256 balance = _balance(token, feeReceiver);
-        return
-            (_packPostOpData(feeReceiver, token, amount, balance), _packValidationData(false, validUntil, validAfter));
+
+        return ("", _packValidationData(false, validUntil, validAfter));
     }
 
     function postOp(
         PostOpMode, // mode
-        bytes calldata context,
+        bytes calldata, // context
         uint256, // actualGasCost
         uint256 // actualUserOpFeePerGas
     )
         external
         view
         onlyEntryPoint
-    {
-        // validate that fees have arrived in the fee receiver wallet
-        (address feeReceiver, address token, uint256 amount, uint256 balanceBefore) =
-            abi.decode(context, (address, address, uint256, uint256));
-        uint256 balanceAfter = _balance(token, feeReceiver);
-        uint256 received = balanceAfter - balanceBefore;
-        if (received < amount) revert InsufficientFeeReceived(received);
-    }
+    { }
 
     function parsePaymasterAndData(bytes calldata paymasterAndData)
         public
