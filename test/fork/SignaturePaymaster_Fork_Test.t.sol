@@ -1,0 +1,324 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import { EnsoReceiver } from "../../src/delegate/EnsoReceiver.sol";
+import { ERC4337CloneFactory } from "../../src/factory/ERC4337CloneFactory.sol";
+import { IERC4337CloneInitializer } from "../../src/factory/interfaces/IERC4337CloneInitializer.sol";
+import { SignaturePaymaster } from "../../src/paymaster/SignaturePaymaster.sol";
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+
+import { EntryPoint } from "account-abstraction/core/EntryPoint.sol";
+
+import { SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
+import { IAccount, PackedUserOperation } from "account-abstraction/interfaces/IAccount.sol";
+import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
+import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
+
+// TODO: missing tests
+// + test signature paymaster
+// - test signature validUntil/validAfter
+// - test failing shortcut with SignaturePaymaster (current postOp call should fail)
+// - test erc1271 signing with SignaturePaymaster (gnosis?)
+// - test admin functions for smart wallet and paymaster
+//   - update signers
+//   - update entryPoint?
+//   - withdraw funds
+//   - withdraw paymaster deposits
+// - research how to properly calculate gas limits
+//
+// - test successful shortcut with ERC20s
+// - test unsuccessful shortcut with ERC20s
+contract SignaturePaymaster_Fork_Test is Test {
+    using SafeERC20 for IERC20;
+
+    address private constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    IERC20 private constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+
+    address payable private constant ENSO_ACCOUNT = payable(0x93621DCA56fE26Cdee86e4F6B18E116e9758Ff11);
+    address payable private constant ENSO_DEPLOYER = payable(0x826e0BB2276271eFdF2a500597f37b94f6c153bA);
+    address payable private constant ENSO_FEE_RECEIVER = payable(0x6AA68C46eD86161eB318b1396F7b79E386e88676);
+
+    address payable private constant ENTRY_POINT_0_8 = payable(0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108);
+
+    address payable private constant ENSO_BACKEND = payable(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+    bytes32 private constant ENSO_BACKEND_PK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+    address payable private constant EOA_1 = payable(0xE150e171dDf7ef6785e2c6fBBbE9eCd0f2f63682);
+    bytes32 private constant EOA_1_PK = 0x74dc97524c0473f102953ebfe8bbec30f0e9cd304703ed7275c708921deaab3b;
+    address payable private constant BUNDLER_1 = payable(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
+    bytes32 private constant BUNDLER_1_PK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
+
+    uint256 private s_blockNumber;
+    EntryPoint private s_entryPoint;
+    SignaturePaymaster private s_paymaster;
+    EnsoReceiver private s_accountImpl;
+    ERC4337CloneFactory private s_accountFactory;
+
+    function setUp() public {
+        // Fork mainnet
+        s_blockNumber = 22_932_038;
+        string memory rpcUrl = vm.envString("ETHEREUM_RPC_URL");
+        vm.createSelectFork(rpcUrl, s_blockNumber);
+
+        // Roles
+        vm.label(address(WETH), "WETH9");
+        vm.label(ENSO_ACCOUNT, "ENSO_ACCOUNT");
+        vm.label(ENSO_DEPLOYER, "ENSO_DEPLOYER");
+        vm.label(ENSO_FEE_RECEIVER, "ENSO_FEE_RECEIVER");
+        vm.label(ENTRY_POINT_0_8, "EntryPoint_0_8");
+
+        vm.label(ENSO_BACKEND, "ENSO_BACKEND");
+        vm.label(EOA_1, "EOA_1");
+        vm.label(BUNDLER_1, "BUNDLER_1");
+
+        vm.deal(ENSO_DEPLOYER, 1000 ether);
+        vm.deal(EOA_1, 1000 ether);
+        vm.deal(BUNDLER_1, 1000 ether);
+
+        s_entryPoint = EntryPoint(ENTRY_POINT_0_8);
+
+        // Deploy SignaturePaymaster
+        vm.startPrank(ENSO_DEPLOYER);
+        s_paymaster = new SignaturePaymaster(IEntryPoint(ENTRY_POINT_0_8), ENSO_DEPLOYER);
+        vm.label(address(s_paymaster), "SignaturePaymaster");
+        s_paymaster.deposit{ value: 10 ether }();
+        s_paymaster.addSigner(ENSO_BACKEND);
+        vm.stopPrank();
+
+        // Deploy EnsoReceiver implementation
+        vm.prank(ENSO_DEPLOYER);
+        s_accountImpl = new EnsoReceiver{ salt: "EnsoReceiver" }();
+        vm.label(address(s_accountImpl), "EnsoReceiver_Impl");
+
+        // Deploy ERC4337CloneFactory
+        vm.startPrank(ENSO_DEPLOYER);
+        s_accountFactory =
+            new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(address(s_accountImpl), ENTRY_POINT_0_8);
+        vm.label(address(s_accountFactory), "ERC4337CloneFactory");
+        vm.stopPrank();
+    }
+
+    function test_successful_shortcut() public {
+        // *** Arrange ***
+        // --- Shortcut parameters ---
+        uint256 shortcutAmountIn = 1 ether;
+        address shortcutTokenIn = NATIVE_ASSET;
+        address shortcutTokenOut = address(WETH);
+        address shortcutReceiver = EOA_1;
+        uint256 shortcutFeeAmount = 0.01 ether;
+        address shortcutFeeReceiver = ENSO_FEE_RECEIVER;
+        bytes memory shortcutCalldata =
+            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a50b1a3b6069274a5e8cc0b1435a25fc813031323334353637383941424344454600000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000519198595a30081ffffffffff6aa68c46ed86161eb318b1396f7b79e386e88676d0e30db00302ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010302ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010204ffffffff047e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120104ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dbd2fc137a300000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dab99c187ffa000";
+        uint256 shortcutExecutionGas = 100_000;
+
+        // --- UserOp parameters ---
+        PackedUserOperation memory userOp;
+
+        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcutTokenIn`
+        address payable account = payable(s_accountFactory.getAddress(EOA_1));
+        vm.label(account, "EnsoReceiver");
+        userOp.sender = account;
+
+        vm.prank(EOA_1);
+        (bool success,) = account.call{ value: shortcutAmountIn }("");
+        (success); // shh
+
+        // UserOp.initCode - Setup initCode
+        userOp.initCode = _initCode(EOA_1);
+
+        // UserOp.nonce - Get nonce for the account
+        uint192 laneId = 0;
+        uint256 nonce = s_entryPoint.getNonce(account, laneId);
+        userOp.nonce = nonce;
+
+        // UserOp.callData - Encode the call to `EnsoReceiver.safeExecute`
+        bytes memory callData =
+            abi.encodeCall(EnsoReceiver.safeExecute, (IERC20(shortcutTokenIn), shortcutAmountIn, shortcutCalldata));
+        userOp.callData = callData;
+
+        // UserOp.accountGasLimits
+        uint256 verificationGasLimit = 200_000;
+        userOp.accountGasLimits = _accountGasLimits(shortcutExecutionGas, verificationGasLimit);
+
+        // UserOp.gasFees
+        userOp.gasFees = _gasFees();
+
+        // UserOp.preVerificationGas
+        userOp.preVerificationGas = 100_000;
+
+        // UserOp.paymasterAndData - Encode the paymaster and data
+        uint48 validUntil = uint48(block.timestamp + 5 seconds);
+        uint48 validAfter = uint48(block.timestamp - 5 seconds);
+        uint128 paymasterVerificationGas = 100_000;
+        uint128 paymasterPostOp = 100_000;
+        // NOTE: signature will be added later
+        bytes memory paymasterAndDataWoSignature = abi.encodePacked(
+            address(s_paymaster),
+            paymasterVerificationGas,
+            paymasterPostOp,
+            validUntil,
+            validAfter,
+            shortcutFeeReceiver,
+            shortcutTokenIn,
+            shortcutFeeAmount
+        );
+        userOp.paymasterAndData = paymasterAndDataWoSignature;
+
+        // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
+        bytes32 pmdHash =
+            s_paymaster.getHash(userOp, validUntil, validAfter, shortcutFeeReceiver, shortcutTokenIn, shortcutFeeAmount);
+        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
+        (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
+        bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
+
+        // NOTE: add `pmdSignature` to `userOp.paymasterAndData` (aka `paymasterAndDataWoSignature`)
+        bytes memory paymasterAndData = abi.encodePacked(paymasterAndDataWoSignature, pmdSignature);
+        userOp.paymasterAndData = paymasterAndData;
+
+        // UserOp.signature - Sign the userOpHash with EOA_1's private key
+        bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), userOpHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        userOp.signature = signature;
+
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
+        userOps[0] = userOp;
+
+        // --- Get balances before execution ---
+        uint256 balancePreReceiverTokenIn = _balance(shortcutTokenIn, shortcutReceiver);
+        uint256 balancePreReceiverTokenOut = _balance(shortcutTokenOut, shortcutReceiver);
+
+        uint256 balancePreFeeReceiverTokenIn = _balance(shortcutTokenIn, shortcutFeeReceiver);
+        uint256 balancePreFeeReceiverTokenOut = _balance(shortcutTokenOut, shortcutFeeReceiver);
+
+        uint256 balancePreEnsoReceiverTokenIn = _balance(shortcutTokenIn, address(account));
+        uint256 balancePreEnsoReceiverTokenOut = _balance(shortcutTokenOut, address(account));
+
+        uint256 balancePrePaymasterTokenIn = _balance(shortcutTokenIn, address(s_paymaster));
+        uint256 balancePrePaymasterTokenOut = _balance(shortcutTokenOut, address(s_paymaster));
+
+        uint256 balancePreEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
+
+        uint256 balancePreEntryPointTokenIn = _balance(shortcutTokenIn, ENTRY_POINT_0_8);
+        uint256 balancePreEntryPointTokenOut = _balance(shortcutTokenOut, ENTRY_POINT_0_8);
+
+        uint256 balancePreBundler1TokenIn = _balance(shortcutTokenIn, BUNDLER_1);
+        uint256 balancePreBundler1TokenOut = _balance(shortcutTokenOut, BUNDLER_1);
+
+        // *** Act ***
+        vm.prank(BUNDLER_1);
+        s_entryPoint.handleOps(userOps, BUNDLER_1);
+
+        // *** Assert ***
+        // --- Get balances after execution ---
+        uint256 balancePostReceiverTokenIn = _balance(shortcutTokenIn, shortcutReceiver);
+        uint256 balancePostReceiverTokenOut = _balance(shortcutTokenOut, shortcutReceiver);
+
+        uint256 balancePostFeeReceiverTokenIn = _balance(shortcutTokenIn, shortcutFeeReceiver);
+        uint256 balancePostFeeReceiverTokenOut = _balance(shortcutTokenOut, shortcutFeeReceiver);
+
+        uint256 balancePostEnsoReceiverTokenIn = _balance(shortcutTokenIn, address(account));
+        uint256 balancePostEnsoReceiverTokenOut = _balance(shortcutTokenOut, address(account));
+
+        uint256 balancePostPaymasterTokenIn = _balance(shortcutTokenIn, address(s_paymaster));
+        uint256 balancePostPaymasterTokenOut = _balance(shortcutTokenOut, address(s_paymaster));
+
+        uint256 balancePostEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
+
+        uint256 balancePostEntryPointTokenIn = _balance(shortcutTokenIn, ENTRY_POINT_0_8);
+        uint256 balancePostEntryPointTokenOut = _balance(shortcutTokenOut, ENTRY_POINT_0_8);
+
+        uint256 balancePostBundler1TokenIn = _balance(shortcutTokenIn, BUNDLER_1);
+        uint256 balancePostBundler1TokenOut = _balance(shortcutTokenOut, BUNDLER_1);
+
+        // Assert balances
+        _assertBalanceDiff(balancePreReceiverTokenIn, balancePostReceiverTokenIn, 0, "Receiver TokenIn (ETH)");
+        _assertBalanceDiff(
+            balancePreReceiverTokenOut,
+            balancePostReceiverTokenOut,
+            int256(shortcutAmountIn - shortcutFeeAmount),
+            "Receiver TokenOut (WETH)"
+        );
+
+        _assertBalanceDiff(
+            balancePreFeeReceiverTokenIn,
+            balancePostFeeReceiverTokenIn,
+            int256(shortcutFeeAmount),
+            "FeeReceiver TokenIn (ETH)"
+        );
+        _assertBalanceDiff(
+            balancePreFeeReceiverTokenOut, balancePostFeeReceiverTokenOut, 0, "FeeReceiver TokenOut (WETH)"
+        );
+
+        _assertBalanceDiff(
+            balancePreEnsoReceiverTokenIn,
+            balancePostEnsoReceiverTokenIn,
+            -int256(shortcutAmountIn),
+            "EnsoReceiver TokenIn (ETH)"
+        );
+
+        _assertBalanceDiff(
+            balancePreEnsoReceiverTokenOut, balancePostEnsoReceiverTokenOut, 0, "EnsoReceiver TokenOut (WETH)"
+        );
+
+        _assertBalanceDiff(balancePrePaymasterTokenIn, balancePostPaymasterTokenIn, 0, "Paymaster TokenIn (ETH)");
+        _assertBalanceDiff(balancePrePaymasterTokenOut, balancePostPaymasterTokenOut, 0, "Paymaster TokenOut (WETH)");
+
+        _assertBalanceDiff(
+            balancePreEntryPointPaymaster,
+            balancePostEntryPointPaymaster,
+            -2_072_545_223_413_995,
+            "EntryPoint Paymaster balance (ETH)"
+        );
+        _assertBalanceDiff(
+            balancePreEntryPointTokenIn,
+            balancePostEntryPointTokenIn,
+            -2_072_545_223_413_995,
+            "EntryPoint TokenIn (ETH)"
+        );
+        _assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
+
+        _assertBalanceDiff(balancePreBundler1TokenIn, balancePostBundler1TokenIn, 0, "Bundler1 TokenIn (ETH)");
+        _assertBalanceDiff(balancePreBundler1TokenOut, balancePostBundler1TokenOut, 0, "Bundler1 TokenOut (WETH)");
+    }
+
+    function _assertBalanceDiff(
+        uint256 balancePre,
+        uint256 balancePost,
+        int256 expectedDiff,
+        string memory label
+    )
+        internal
+        pure
+    {
+        int256 actualDiff = int256(balancePost) - int256(balancePre);
+        assertEq(actualDiff, expectedDiff, string(abi.encodePacked("Balance diff mismatch: ", label)));
+    }
+
+    function _balance(address token, address account) internal view returns (uint256 balance) {
+        balance = token == NATIVE_ASSET ? account.balance : IERC20(token).balanceOf(account);
+    }
+
+    function _initCode(address signer) internal view returns (bytes memory initCode) {
+        bytes memory initCalldata = abi.encodeWithSelector(s_accountFactory.deploy.selector, signer);
+        initCode = abi.encodePacked(address(s_accountFactory), initCalldata);
+    }
+
+    function _gasFees() internal view returns (bytes32 gasFees) {
+        uint128 maxPriorityFeePerGas = 1 gwei;
+        uint128 maxFeePerGas = uint128(block.basefee) + maxPriorityFeePerGas;
+        gasFees = bytes32((uint256(maxPriorityFeePerGas) << 128) | uint256(maxFeePerGas));
+    }
+
+    function _accountGasLimits(
+        uint256 shortcutExecutionGas,
+        uint256 verificationGasLimit // verifcation gas limit includes deployment costs
+    )
+        internal
+        pure
+        returns (bytes32 accountGasLimits)
+    {
+        accountGasLimits = bytes32(uint256(verificationGasLimit) << 128 | uint256(shortcutExecutionGas));
+    }
+}
