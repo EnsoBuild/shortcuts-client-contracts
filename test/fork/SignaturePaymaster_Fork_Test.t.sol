@@ -283,6 +283,202 @@ contract SignaturePaymaster_Fork_Test is Test {
         _assertBalanceDiff(balancePreBundler1TokenOut, balancePostBundler1TokenOut, 0, "Bundler1 TokenOut (WETH)");
     }
 
+    /**
+     * @dev It should revert due to not being executed after `validAfter` timestamp in `UserOp.paymasterAndData`
+     */
+    function test_unsuccessful_shortcut_invalid_paymentdata_validafter() public {
+        // *** Arrange ***
+        // --- Shortcut parameters ---
+        uint256 shortcutAmountIn = 1 ether;
+        address shortcutTokenIn = NATIVE_ASSET;
+        address shortcutTokenOut = address(WETH);
+        address shortcutReceiver = EOA_1;
+        uint256 shortcutFeeAmount = 0.01 ether;
+        address shortcutFeeReceiver = ENSO_FEE_RECEIVER;
+        bytes memory shortcutCalldata =
+            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a50b1a3b6069274a5e8cc0b1435a25fc813031323334353637383941424344454600000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000519198595a30081ffffffffff6aa68c46ed86161eb318b1396f7b79e386e88676d0e30db00302ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010302ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010204ffffffff047e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120104ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dbd2fc137a300000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dab99c187ffa000";
+        uint256 shortcutExecutionGas = 100_000;
+
+        // --- UserOp parameters ---
+        PackedUserOperation memory userOp;
+
+        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcutTokenIn`
+        address payable account = payable(s_accountFactory.getAddress(EOA_1));
+        vm.label(account, "EnsoReceiver");
+        userOp.sender = account;
+
+        vm.prank(EOA_1);
+        (bool success,) = account.call{ value: shortcutAmountIn }("");
+        (success); // shh
+
+        // UserOp.initCode - Setup initCode
+        userOp.initCode = _initCode(EOA_1);
+
+        // UserOp.nonce - Get nonce for the account
+        uint192 laneId = 0;
+        uint256 nonce = s_entryPoint.getNonce(account, laneId);
+        userOp.nonce = nonce;
+
+        // UserOp.callData - Encode the call to `EnsoReceiver.safeExecute`
+        bytes memory callData =
+            abi.encodeCall(EnsoReceiver.safeExecute, (IERC20(shortcutTokenIn), shortcutAmountIn, shortcutCalldata));
+        userOp.callData = callData;
+
+        // UserOp.accountGasLimits
+        uint256 verificationGasLimit = 200_000;
+        userOp.accountGasLimits = _accountGasLimits(shortcutExecutionGas, verificationGasLimit);
+
+        // UserOp.gasFees
+        userOp.gasFees = _gasFees();
+
+        // UserOp.preVerificationGas
+        userOp.preVerificationGas = 100_000;
+
+        // UserOp.paymasterAndData - Encode the paymaster and data
+        uint48 validUntil = uint48(block.timestamp + 5 seconds);
+        uint48 validAfter = uint48(block.timestamp); // NOTE: revert cause
+        uint128 paymasterVerificationGas = 100_000;
+        uint128 paymasterPostOp = 100_000;
+        // NOTE: signature will be added later
+        bytes memory paymasterAndDataWoSignature = abi.encodePacked(
+            address(s_paymaster),
+            paymasterVerificationGas,
+            paymasterPostOp,
+            validUntil,
+            validAfter,
+            shortcutFeeReceiver,
+            shortcutTokenIn,
+            shortcutFeeAmount
+        );
+        userOp.paymasterAndData = paymasterAndDataWoSignature;
+
+        // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
+        bytes32 pmdHash =
+            s_paymaster.getHash(userOp, validUntil, validAfter, shortcutFeeReceiver, shortcutTokenIn, shortcutFeeAmount);
+        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
+        (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
+        bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
+
+        // NOTE: add `pmdSignature` to `userOp.paymasterAndData` (aka `paymasterAndDataWoSignature`)
+        bytes memory paymasterAndData = abi.encodePacked(paymasterAndDataWoSignature, pmdSignature);
+        userOp.paymasterAndData = paymasterAndData;
+
+        // UserOp.signature - Sign the userOpHash with EOA_1's private key
+        bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), userOpHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        userOp.signature = signature;
+
+        uint256 userOpIndex = 0;
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
+        userOps[userOpIndex] = userOp;
+
+        // *** Act & Assert ***
+        vm.expectRevert(
+            abi.encodeWithSelector(IEntryPoint.FailedOp.selector, userOpIndex, "AA32 paymaster expired or not due")
+        );
+        vm.prank(BUNDLER_1);
+        s_entryPoint.handleOps(userOps, BUNDLER_1);
+    }
+
+    /**
+     * @dev It should revert due to not being executed before `validUntil` timestamp in `UserOp.paymasterAndData`
+     */
+    function test_unsuccessful_shortcut_invalid_paymentdata_validuntil() public {
+        // *** Arrange ***
+        // --- Shortcut parameters ---
+        uint256 shortcutAmountIn = 1 ether;
+        address shortcutTokenIn = NATIVE_ASSET;
+        address shortcutTokenOut = address(WETH);
+        address shortcutReceiver = EOA_1;
+        uint256 shortcutFeeAmount = 0.01 ether;
+        address shortcutFeeReceiver = ENSO_FEE_RECEIVER;
+        bytes memory shortcutCalldata =
+            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a50b1a3b6069274a5e8cc0b1435a25fc813031323334353637383941424344454600000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000519198595a30081ffffffffff6aa68c46ed86161eb318b1396f7b79e386e88676d0e30db00302ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010302ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010204ffffffff047e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120104ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dbd2fc137a300000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dab99c187ffa000";
+        uint256 shortcutExecutionGas = 100_000;
+
+        // --- UserOp parameters ---
+        PackedUserOperation memory userOp;
+
+        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcutTokenIn`
+        address payable account = payable(s_accountFactory.getAddress(EOA_1));
+        vm.label(account, "EnsoReceiver");
+        userOp.sender = account;
+
+        vm.prank(EOA_1);
+        (bool success,) = account.call{ value: shortcutAmountIn }("");
+        (success); // shh
+
+        // UserOp.initCode - Setup initCode
+        userOp.initCode = _initCode(EOA_1);
+
+        // UserOp.nonce - Get nonce for the account
+        uint192 laneId = 0;
+        uint256 nonce = s_entryPoint.getNonce(account, laneId);
+        userOp.nonce = nonce;
+
+        // UserOp.callData - Encode the call to `EnsoReceiver.safeExecute`
+        bytes memory callData =
+            abi.encodeCall(EnsoReceiver.safeExecute, (IERC20(shortcutTokenIn), shortcutAmountIn, shortcutCalldata));
+        userOp.callData = callData;
+
+        // UserOp.accountGasLimits
+        uint256 verificationGasLimit = 200_000;
+        userOp.accountGasLimits = _accountGasLimits(shortcutExecutionGas, verificationGasLimit);
+
+        // UserOp.gasFees
+        userOp.gasFees = _gasFees();
+
+        // UserOp.preVerificationGas
+        userOp.preVerificationGas = 100_000;
+
+        // UserOp.paymasterAndData - Encode the paymaster and data
+        uint48 validUntil = uint48(block.timestamp - 1 seconds); // NOTE: revert cause
+        uint48 validAfter = uint48(block.timestamp - 5 seconds);
+        uint128 paymasterVerificationGas = 100_000;
+        uint128 paymasterPostOp = 100_000;
+        // NOTE: signature will be added later
+        bytes memory paymasterAndDataWoSignature = abi.encodePacked(
+            address(s_paymaster),
+            paymasterVerificationGas,
+            paymasterPostOp,
+            validUntil,
+            validAfter,
+            shortcutFeeReceiver,
+            shortcutTokenIn,
+            shortcutFeeAmount
+        );
+        userOp.paymasterAndData = paymasterAndDataWoSignature;
+
+        // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
+        bytes32 pmdHash =
+            s_paymaster.getHash(userOp, validUntil, validAfter, shortcutFeeReceiver, shortcutTokenIn, shortcutFeeAmount);
+        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
+        (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
+        bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
+
+        // NOTE: add `pmdSignature` to `userOp.paymasterAndData` (aka `paymasterAndDataWoSignature`)
+        bytes memory paymasterAndData = abi.encodePacked(paymasterAndDataWoSignature, pmdSignature);
+        userOp.paymasterAndData = paymasterAndData;
+
+        // UserOp.signature - Sign the userOpHash with EOA_1's private key
+        bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), userOpHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        userOp.signature = signature;
+
+        uint256 userOpIndex = 0;
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
+        userOps[userOpIndex] = userOp;
+
+        // *** Act & Assert ***
+        vm.expectRevert(
+            abi.encodeWithSelector(IEntryPoint.FailedOp.selector, userOpIndex, "AA32 paymaster expired or not due")
+        );
+        vm.prank(BUNDLER_1);
+        s_entryPoint.handleOps(userOps, BUNDLER_1);
+    }
+
     function _assertBalanceDiff(
         uint256 balancePre,
         uint256 balancePost,
