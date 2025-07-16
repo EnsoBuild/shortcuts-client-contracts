@@ -6,7 +6,6 @@ import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
 import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
 
-import { console2 } from "forge-std-1.9.7/Test.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
