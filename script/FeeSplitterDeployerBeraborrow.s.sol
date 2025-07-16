@@ -9,7 +9,7 @@ struct DeployerResult {
     FeeSplitter feeSplitter;
 }
 
-// Deployer for the Infrared FeeSplitter
+// Deployer for the Beraborrow FeeSplitter
 contract DeployerFeeSpliter is Script {
     function run() public returns (DeployerResult memory result) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
