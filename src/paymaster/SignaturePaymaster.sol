@@ -20,8 +20,9 @@ contract SignaturePaymaster is IPaymaster, Ownable {
     event SignerRemoved(address signer);
 
     error InvalidEntryPoint(address sender);
-    error InvalidSigner(address signer);
     error InsufficientFeeReceived(uint256 amount);
+    error SignerAlreadyExists(address signer);
+    error SignerDoesNotExist(address signer);
 
     uint256 private constant PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLib.PAYMASTER_VALIDATION_GAS_OFFSET;
     uint256 private constant PAYMASTER_POSTOP_GAS_OFFSET = UserOperationLib.PAYMASTER_POSTOP_GAS_OFFSET;
@@ -201,13 +202,13 @@ contract SignaturePaymaster is IPaymaster, Ownable {
     }
 
     function addSigner(address signer) external onlyOwner {
-        if (validSigners[signer]) revert InvalidSigner(signer);
+        if (validSigners[signer]) revert SignerAlreadyExists(signer);
         validSigners[signer] = true;
         emit SignerAdded(signer);
     }
 
     function removeSigner(address signer) external onlyOwner {
-        if (!validSigners[signer]) revert InvalidSigner(signer);
+        if (!validSigners[signer]) revert SignerDoesNotExist(signer);
         delete validSigners[signer];
         emit SignerRemoved(signer);
     }
