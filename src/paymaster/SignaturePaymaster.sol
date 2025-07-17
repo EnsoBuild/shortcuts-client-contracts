@@ -9,7 +9,6 @@ import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOp
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 contract SignaturePaymaster is IPaymaster, Ownable {
     address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -63,7 +62,7 @@ contract SignaturePaymaster is IPaymaster, Ownable {
             bytes calldata signature
         ) = parsePaymasterAndData(userOp.paymasterAndData);
         bytes32 messageHash = getHash(userOp, validUntil, validAfter, feeReceiver, token, amount);
-        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(messageHash);
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(messageHash);
         address signer = ECDSA.recover(ethSignedMessageHash, signature);
         if (!validSigners[signer]) {
             return ("", _packValidationData(true, validUntil, validAfter));
