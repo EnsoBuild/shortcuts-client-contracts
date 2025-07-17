@@ -17,11 +17,7 @@ import { IAccount, PackedUserOperation } from "account-abstraction/interfaces/IA
 import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 // TODO: missing tests
-// + test signature paymaster
-// + test signature validUntil/validAfter
-// + test failing shortcut with SignaturePaymaster (current postOp call should fail)
 // - test erc1271 signing with SignaturePaymaster (gnosis?)
 // - test admin functions for smart wallet and paymaster
 //   - update signers
@@ -172,7 +168,7 @@ contract SignaturePaymaster_Fork_Test is Test {
         bytes32 pmdHash = s_paymaster.getHash(
             userOp, validUntil, validAfter, shortcut.feeReceiver, shortcut.tokensIn[0], shortcut.fee
         );
-        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -360,7 +356,7 @@ contract SignaturePaymaster_Fork_Test is Test {
         bytes32 pmdHash = s_paymaster.getHash(
             userOp, validUntil, validAfter, shortcut.feeReceiver, shortcut.tokensIn[0], shortcut.fee
         );
-        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -542,7 +538,7 @@ contract SignaturePaymaster_Fork_Test is Test {
         bytes32 pmdHash = s_paymaster.getHash(
             userOp, validUntil, validAfter, shortcut.feeReceiver, shortcut.tokensIn[0], shortcut.fee
         );
-        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -635,7 +631,7 @@ contract SignaturePaymaster_Fork_Test is Test {
         bytes32 pmdHash = s_paymaster.getHash(
             userOp, validUntil, validAfter, shortcut.feeReceiver, shortcut.tokensIn[0], shortcut.fee
         );
-        bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
