@@ -6,34 +6,29 @@ import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
 import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
 
-import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
-import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
+import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
-import { ECDSA } from "solady/utils/ECDSA.sol";
+import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 
-contract SignaturePaymaster is IPaymaster, Ownable {
+contract SignaturePaymaster is IPaymaster, Ownable2Step {
     address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     IEntryPoint public entryPoint;
-    mapping(address => bool) validSigners;
+    mapping(address signer => bool isValid) validSigners;
 
-    event SignerAdded(address signer);
-    event SignerRemoved(address signer);
+    event SignerSet(address signer, bool isValid);
 
     error InvalidEntryPoint(address sender);
     error InsufficientFeeReceived(uint256 amount);
-    error SignerAlreadyExists(address signer);
-    error SignerDoesNotExist(address signer);
+    error SignerIsAlreadySet(address signer, bool isValid);
 
     uint256 private constant PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLib.PAYMASTER_VALIDATION_GAS_OFFSET;
     uint256 private constant PAYMASTER_POSTOP_GAS_OFFSET = UserOperationLib.PAYMASTER_POSTOP_GAS_OFFSET;
     uint256 private constant PAYMASTER_DATA_OFFSET = UserOperationLib.PAYMASTER_DATA_OFFSET;
     uint256 private constant VALID_UNTIL_OFFSET = PAYMASTER_DATA_OFFSET;
     uint256 private constant VALID_AFTER_OFFSET = VALID_UNTIL_OFFSET + 6; // uint48 = bytes6
-    uint256 private constant FEE_RECEIVER_OFFSET = VALID_AFTER_OFFSET + 6; // uint48 = bytes6
-    uint256 private constant TOKEN_OFFSET = FEE_RECEIVER_OFFSET + 20; // address = bytes20
-    uint256 private constant AMOUNT_OFFSET = TOKEN_OFFSET + 20; // address = bytes20
-    uint256 private constant SIGNATURE_OFFSET = AMOUNT_OFFSET + 32; // uint256 = bytes32
+    uint256 private constant SIGNATURE_OFFSET = VALID_AFTER_OFFSET + 6; // uint256 = bytes32
 
     modifier onlyEntryPoint() {
         if (msg.sender != address(entryPoint)) revert InvalidEntryPoint(msg.sender);
@@ -54,18 +49,12 @@ contract SignaturePaymaster is IPaymaster, Ownable {
         onlyEntryPoint
         returns (bytes memory context, uint256 validationData)
     {
-        (
-            uint48 validUntil,
-            uint48 validAfter,
-            address feeReceiver,
-            address token,
-            uint256 amount,
-            bytes calldata signature
-        ) = parsePaymasterAndData(userOp.paymasterAndData);
-        bytes32 messageHash = getHash(userOp, validUntil, validAfter, feeReceiver, token, amount);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(messageHash);
-        address signer = ECDSA.recover(ethSignedMessageHash, signature);
-        if (!validSigners[signer]) {
+        (uint48 validUntil, uint48 validAfter, bytes calldata signature) =
+            parsePaymasterAndData(userOp.paymasterAndData);
+        bytes32 messageHash = getHash(userOp, validUntil, validAfter);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(messageHash);
+        (address recovered,,) = ECDSA.tryRecover(ethSignedMessageHash, signature);
+        if (!validSigners[recovered]) {
             return ("", _packValidationData(true, validUntil, validAfter));
         }
 
@@ -86,20 +75,10 @@ contract SignaturePaymaster is IPaymaster, Ownable {
     function parsePaymasterAndData(bytes calldata paymasterAndData)
         public
         pure
-        returns (
-            uint48 validUntil,
-            uint48 validAfter,
-            address feeReceiver,
-            address token,
-            uint256 amount,
-            bytes calldata signature
-        )
+        returns (uint48 validUntil, uint48 validAfter, bytes calldata signature)
     {
         validUntil = uint48(bytes6(paymasterAndData[VALID_UNTIL_OFFSET:VALID_AFTER_OFFSET]));
-        validAfter = uint48(bytes6(paymasterAndData[VALID_AFTER_OFFSET:FEE_RECEIVER_OFFSET]));
-        feeReceiver = address(bytes20(paymasterAndData[FEE_RECEIVER_OFFSET:TOKEN_OFFSET]));
-        token = address(bytes20(paymasterAndData[TOKEN_OFFSET:AMOUNT_OFFSET]));
-        amount = uint256(bytes32(paymasterAndData[AMOUNT_OFFSET:SIGNATURE_OFFSET]));
+        validAfter = uint48(bytes6(paymasterAndData[VALID_AFTER_OFFSET:SIGNATURE_OFFSET]));
         signature = paymasterAndData[SIGNATURE_OFFSET:];
     }
 
@@ -113,10 +92,7 @@ contract SignaturePaymaster is IPaymaster, Ownable {
     function getHash(
         PackedUserOperation calldata userOp,
         uint48 validUntil,
-        uint48 validAfter,
-        address feeReceiver,
-        address token,
-        uint256 amount
+        uint48 validAfter
     )
         public
         view
@@ -136,10 +112,7 @@ contract SignaturePaymaster is IPaymaster, Ownable {
                 block.chainid,
                 address(this),
                 validUntil,
-                validAfter,
-                feeReceiver,
-                token,
-                amount
+                validAfter
             )
         );
     }
@@ -193,16 +166,12 @@ contract SignaturePaymaster is IPaymaster, Ownable {
         entryPoint.withdrawStake(withdrawAddress);
     }
 
-    function addSigner(address signer) external onlyOwner {
-        if (validSigners[signer]) revert SignerAlreadyExists(signer);
-        validSigners[signer] = true;
-        emit SignerAdded(signer);
-    }
-
-    function removeSigner(address signer) external onlyOwner {
-        if (!validSigners[signer]) revert SignerDoesNotExist(signer);
-        delete validSigners[signer];
-        emit SignerRemoved(signer);
+    function setSigner(address signer, bool isValid) external onlyOwner {
+        if (validSigners[signer] == isValid) {
+            revert SignerIsAlreadySet(signer, isValid);
+        }
+        validSigners[signer] = isValid;
+        emit SignerSet(signer, isValid);
     }
 
     /**
