@@ -9,13 +9,15 @@ import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/Safe
 
 import { EntryPoint } from "account-abstraction/core/EntryPoint.sol";
 
+import { ShortcutDataTypes } from "../shortcuts/ShortcutDataTypes.sol";
+import { ShortcutsEthereum } from "../shortcuts/ShortcutsEthereum.sol";
+import { TokenAddressesEthereum } from "../utils/TokenAddresses.sol";
 import { SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
 import { IAccount, PackedUserOperation } from "account-abstraction/interfaces/IAccount.sol";
 import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
 import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
-
 // TODO: missing tests
 // + test signature paymaster
 // + test signature validUntil/validAfter
@@ -30,6 +32,7 @@ import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 //
 // - test successful shortcut with ERC20s
 // - test unsuccessful shortcut with ERC20s
+
 contract SignaturePaymaster_Fork_Test is Test {
     using SafeERC20 for IERC20;
 
@@ -108,27 +111,19 @@ contract SignaturePaymaster_Fork_Test is Test {
      */
     function test_successful_shortcut() public {
         // *** Arrange ***
-        // --- Shortcut parameters ---
-        uint256 shortcutAmountIn = 1 ether;
-        address shortcutTokenIn = NATIVE_ASSET;
-        address shortcutTokenOut = address(WETH);
-        address shortcutReceiver = EOA_1;
-        uint256 shortcutFeeAmount = 0.01 ether;
-        address shortcutFeeReceiver = ENSO_FEE_RECEIVER;
-        bytes memory shortcutCalldata =
-            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a50b1a3b6069274a5e8cc0b1435a25fc813031323334353637383941424344454600000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000519198595a30081ffffffffff6aa68c46ed86161eb318b1396f7b79e386e88676d0e30db00302ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010302ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010204ffffffff047e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120104ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dbd2fc137a300000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dab99c187ffa000";
-        uint256 shortcutExecutionGas = 100_000;
+        // --- Shortcut ---
+        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
 
-        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcutTokenIn`
+        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcut.tokensIn[0]`
         address payable account = payable(s_accountFactory.getAddress(EOA_1));
         vm.label(account, "EnsoReceiver");
         userOp.sender = account;
 
         vm.prank(EOA_1);
-        (bool success,) = account.call{ value: shortcutAmountIn }("");
+        (bool success,) = account.call{ value: shortcut.amountsIn[0] }("");
         (success); // shh
 
         // UserOp.initCode - Setup initCode
@@ -140,13 +135,14 @@ contract SignaturePaymaster_Fork_Test is Test {
         userOp.nonce = nonce;
 
         // UserOp.callData - Encode the call to `EnsoReceiver.safeExecute`
-        bytes memory callData =
-            abi.encodeCall(EnsoReceiver.safeExecute, (IERC20(shortcutTokenIn), shortcutAmountIn, shortcutCalldata));
+        bytes memory callData = abi.encodeCall(
+            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
+        );
         userOp.callData = callData;
 
         // UserOp.accountGasLimits
         uint256 verificationGasLimit = 200_000;
-        userOp.accountGasLimits = _accountGasLimits(shortcutExecutionGas, verificationGasLimit);
+        userOp.accountGasLimits = _accountGasLimits(shortcut.txGas, verificationGasLimit);
 
         // UserOp.gasFees
         userOp.gasFees = _gasFees();
@@ -166,15 +162,16 @@ contract SignaturePaymaster_Fork_Test is Test {
             paymasterPostOp,
             validUntil,
             validAfter,
-            shortcutFeeReceiver,
-            shortcutTokenIn,
-            shortcutFeeAmount
+            shortcut.feeReceiver,
+            shortcut.tokensIn[0],
+            shortcut.fee
         );
         userOp.paymasterAndData = paymasterAndDataWoSignature;
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
-        bytes32 pmdHash =
-            s_paymaster.getHash(userOp, validUntil, validAfter, shortcutFeeReceiver, shortcutTokenIn, shortcutFeeAmount);
+        bytes32 pmdHash = s_paymaster.getHash(
+            userOp, validUntil, validAfter, shortcut.feeReceiver, shortcut.tokensIn[0], shortcut.fee
+        );
         bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
@@ -193,25 +190,25 @@ contract SignaturePaymaster_Fork_Test is Test {
         userOps[0] = userOp;
 
         // --- Get balances before execution ---
-        uint256 balancePreReceiverTokenIn = _balance(shortcutTokenIn, shortcutReceiver);
-        uint256 balancePreReceiverTokenOut = _balance(shortcutTokenOut, shortcutReceiver);
+        uint256 balancePreReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.receiver);
+        uint256 balancePreReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.receiver);
 
-        uint256 balancePreFeeReceiverTokenIn = _balance(shortcutTokenIn, shortcutFeeReceiver);
-        uint256 balancePreFeeReceiverTokenOut = _balance(shortcutTokenOut, shortcutFeeReceiver);
+        uint256 balancePreFeeReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.feeReceiver);
+        uint256 balancePreFeeReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.feeReceiver);
 
-        uint256 balancePreEnsoReceiverTokenIn = _balance(shortcutTokenIn, address(account));
-        uint256 balancePreEnsoReceiverTokenOut = _balance(shortcutTokenOut, address(account));
+        uint256 balancePreEnsoReceiverTokenIn = _balance(shortcut.tokensIn[0], address(account));
+        uint256 balancePreEnsoReceiverTokenOut = _balance(shortcut.tokensOut[0], address(account));
 
-        uint256 balancePrePaymasterTokenIn = _balance(shortcutTokenIn, address(s_paymaster));
-        uint256 balancePrePaymasterTokenOut = _balance(shortcutTokenOut, address(s_paymaster));
+        uint256 balancePrePaymasterTokenIn = _balance(shortcut.tokensIn[0], address(s_paymaster));
+        uint256 balancePrePaymasterTokenOut = _balance(shortcut.tokensOut[0], address(s_paymaster));
 
         uint256 balancePreEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
 
-        uint256 balancePreEntryPointTokenIn = _balance(shortcutTokenIn, ENTRY_POINT_0_8);
-        uint256 balancePreEntryPointTokenOut = _balance(shortcutTokenOut, ENTRY_POINT_0_8);
+        uint256 balancePreEntryPointTokenIn = _balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
+        uint256 balancePreEntryPointTokenOut = _balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
 
-        uint256 balancePreBundler1TokenIn = _balance(shortcutTokenIn, BUNDLER_1);
-        uint256 balancePreBundler1TokenOut = _balance(shortcutTokenOut, BUNDLER_1);
+        uint256 balancePreBundler1TokenIn = _balance(shortcut.tokensIn[0], BUNDLER_1);
+        uint256 balancePreBundler1TokenOut = _balance(shortcut.tokensOut[0], BUNDLER_1);
 
         // *** Act & Assert ***
         vm.prank(BUNDLER_1);
@@ -220,39 +217,39 @@ contract SignaturePaymaster_Fork_Test is Test {
         s_entryPoint.handleOps(userOps, BUNDLER_1);
 
         // --- Get balances after execution ---
-        uint256 balancePostReceiverTokenIn = _balance(shortcutTokenIn, shortcutReceiver);
-        uint256 balancePostReceiverTokenOut = _balance(shortcutTokenOut, shortcutReceiver);
+        uint256 balancePostReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.receiver);
+        uint256 balancePostReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.receiver);
 
-        uint256 balancePostFeeReceiverTokenIn = _balance(shortcutTokenIn, shortcutFeeReceiver);
-        uint256 balancePostFeeReceiverTokenOut = _balance(shortcutTokenOut, shortcutFeeReceiver);
+        uint256 balancePostFeeReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.feeReceiver);
+        uint256 balancePostFeeReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.feeReceiver);
 
-        uint256 balancePostEnsoReceiverTokenIn = _balance(shortcutTokenIn, address(account));
-        uint256 balancePostEnsoReceiverTokenOut = _balance(shortcutTokenOut, address(account));
+        uint256 balancePostEnsoReceiverTokenIn = _balance(shortcut.tokensIn[0], address(account));
+        uint256 balancePostEnsoReceiverTokenOut = _balance(shortcut.tokensOut[0], address(account));
 
-        uint256 balancePostPaymasterTokenIn = _balance(shortcutTokenIn, address(s_paymaster));
-        uint256 balancePostPaymasterTokenOut = _balance(shortcutTokenOut, address(s_paymaster));
+        uint256 balancePostPaymasterTokenIn = _balance(shortcut.tokensIn[0], address(s_paymaster));
+        uint256 balancePostPaymasterTokenOut = _balance(shortcut.tokensOut[0], address(s_paymaster));
 
         uint256 balancePostEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
 
-        uint256 balancePostEntryPointTokenIn = _balance(shortcutTokenIn, ENTRY_POINT_0_8);
-        uint256 balancePostEntryPointTokenOut = _balance(shortcutTokenOut, ENTRY_POINT_0_8);
+        uint256 balancePostEntryPointTokenIn = _balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
+        uint256 balancePostEntryPointTokenOut = _balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
 
-        uint256 balancePostBundler1TokenIn = _balance(shortcutTokenIn, BUNDLER_1);
-        uint256 balancePostBundler1TokenOut = _balance(shortcutTokenOut, BUNDLER_1);
+        uint256 balancePostBundler1TokenIn = _balance(shortcut.tokensIn[0], BUNDLER_1);
+        uint256 balancePostBundler1TokenOut = _balance(shortcut.tokensOut[0], BUNDLER_1);
 
         // Assert balances
         _assertBalanceDiff(balancePreReceiverTokenIn, balancePostReceiverTokenIn, 0, "Receiver TokenIn (ETH)");
         _assertBalanceDiff(
             balancePreReceiverTokenOut,
             balancePostReceiverTokenOut,
-            int256(shortcutAmountIn - shortcutFeeAmount),
+            int256(shortcut.amountsIn[0] - shortcut.fee),
             "Receiver TokenOut (WETH)"
         );
 
         _assertBalanceDiff(
             balancePreFeeReceiverTokenIn,
             balancePostFeeReceiverTokenIn,
-            int256(shortcutFeeAmount),
+            int256(shortcut.fee),
             "FeeReceiver TokenIn (ETH)"
         );
         _assertBalanceDiff(
@@ -262,7 +259,7 @@ contract SignaturePaymaster_Fork_Test is Test {
         _assertBalanceDiff(
             balancePreEnsoReceiverTokenIn,
             balancePostEnsoReceiverTokenIn,
-            -int256(shortcutAmountIn),
+            -int256(shortcut.amountsIn[0]),
             "EnsoReceiver TokenIn (ETH)"
         );
 
@@ -300,28 +297,20 @@ contract SignaturePaymaster_Fork_Test is Test {
      */
     function test_unsuccessful_shortcut() public {
         // *** Arrange ***
-        // --- Shortcut parameters ---
-        uint256 shortcutAmountIn = 1 ether;
-        address shortcutTokenIn = NATIVE_ASSET;
-        address shortcutTokenOut = address(WETH);
-        address shortcutReceiver = EOA_1;
-        uint256 shortcutFeeAmount = 0.01 ether;
-        address shortcutFeeReceiver = ENSO_FEE_RECEIVER;
-        bytes memory shortcutCalldata =
-            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a50b1a3b6069274a5e8cc0b1435a25fc813031323334353637383941424344454600000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000519198595a30081ffffffffff6aa68c46ed86161eb318b1396f7b79e386e88676d0e30db00302ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010302ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010204ffffffff047e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120104ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dbd2fc137a300000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dab99c187ffa000";
-        uint256 shortcutExecutionGas = 100_000;
+        // --- Shortcut ---
+        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
 
-        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcutTokenIn`
+        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcut.tokensIn[0]`
         address payable account = payable(s_accountFactory.getAddress(EOA_1));
         vm.label(account, "EnsoReceiver");
         userOp.sender = account;
 
         vm.prank(EOA_1);
-        // NOTE: revert reason, `account.balance < shortcutAmountIn`
-        uint256 accountTokenInBalance = shortcutAmountIn - 0.5 ether;
+        // NOTE: revert reason, `account.balance < shortcut.amountsIn[0]`
+        uint256 accountTokenInBalance = shortcut.amountsIn[0] - 0.5 ether;
         (bool success,) = account.call{ value: accountTokenInBalance }("");
         (success); // shh
 
@@ -334,13 +323,14 @@ contract SignaturePaymaster_Fork_Test is Test {
         userOp.nonce = nonce;
 
         // UserOp.callData - Encode the call to `EnsoReceiver.safeExecute`
-        bytes memory callData =
-            abi.encodeCall(EnsoReceiver.safeExecute, (IERC20(shortcutTokenIn), accountTokenInBalance, shortcutCalldata));
+        bytes memory callData = abi.encodeCall(
+            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), accountTokenInBalance, shortcut.txData)
+        );
         userOp.callData = callData;
 
         // UserOp.accountGasLimits
         uint256 verificationGasLimit = 200_000;
-        userOp.accountGasLimits = _accountGasLimits(shortcutExecutionGas, verificationGasLimit);
+        userOp.accountGasLimits = _accountGasLimits(shortcut.txGas, verificationGasLimit);
 
         // UserOp.gasFees
         userOp.gasFees = _gasFees();
@@ -360,15 +350,16 @@ contract SignaturePaymaster_Fork_Test is Test {
             paymasterPostOp,
             validUntil,
             validAfter,
-            shortcutFeeReceiver,
-            shortcutTokenIn,
-            shortcutFeeAmount
+            shortcut.feeReceiver,
+            shortcut.tokensIn[0],
+            shortcut.fee
         );
         userOp.paymasterAndData = paymasterAndDataWoSignature;
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
-        bytes32 pmdHash =
-            s_paymaster.getHash(userOp, validUntil, validAfter, shortcutFeeReceiver, shortcutTokenIn, shortcutFeeAmount);
+        bytes32 pmdHash = s_paymaster.getHash(
+            userOp, validUntil, validAfter, shortcut.feeReceiver, shortcut.tokensIn[0], shortcut.fee
+        );
         bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
@@ -387,25 +378,25 @@ contract SignaturePaymaster_Fork_Test is Test {
         userOps[0] = userOp;
 
         // --- Get balances before execution ---
-        uint256 balancePreReceiverTokenIn = _balance(shortcutTokenIn, shortcutReceiver);
-        uint256 balancePreReceiverTokenOut = _balance(shortcutTokenOut, shortcutReceiver);
+        uint256 balancePreReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.receiver);
+        uint256 balancePreReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.receiver);
 
-        uint256 balancePreFeeReceiverTokenIn = _balance(shortcutTokenIn, shortcutFeeReceiver);
-        uint256 balancePreFeeReceiverTokenOut = _balance(shortcutTokenOut, shortcutFeeReceiver);
+        uint256 balancePreFeeReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.feeReceiver);
+        uint256 balancePreFeeReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.feeReceiver);
 
-        uint256 balancePreEnsoReceiverTokenIn = _balance(shortcutTokenIn, address(account));
-        uint256 balancePreEnsoReceiverTokenOut = _balance(shortcutTokenOut, address(account));
+        uint256 balancePreEnsoReceiverTokenIn = _balance(shortcut.tokensIn[0], address(account));
+        uint256 balancePreEnsoReceiverTokenOut = _balance(shortcut.tokensOut[0], address(account));
 
-        uint256 balancePrePaymasterTokenIn = _balance(shortcutTokenIn, address(s_paymaster));
-        uint256 balancePrePaymasterTokenOut = _balance(shortcutTokenOut, address(s_paymaster));
+        uint256 balancePrePaymasterTokenIn = _balance(shortcut.tokensIn[0], address(s_paymaster));
+        uint256 balancePrePaymasterTokenOut = _balance(shortcut.tokensOut[0], address(s_paymaster));
 
         uint256 balancePreEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
 
-        uint256 balancePreEntryPointTokenIn = _balance(shortcutTokenIn, ENTRY_POINT_0_8);
-        uint256 balancePreEntryPointTokenOut = _balance(shortcutTokenOut, ENTRY_POINT_0_8);
+        uint256 balancePreEntryPointTokenIn = _balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
+        uint256 balancePreEntryPointTokenOut = _balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
 
-        uint256 balancePreBundler1TokenIn = _balance(shortcutTokenIn, BUNDLER_1);
-        uint256 balancePreBundler1TokenOut = _balance(shortcutTokenOut, BUNDLER_1);
+        uint256 balancePreBundler1TokenIn = _balance(shortcut.tokensIn[0], BUNDLER_1);
+        uint256 balancePreBundler1TokenOut = _balance(shortcut.tokensOut[0], BUNDLER_1);
 
         bytes memory expectedErrorResponse =
             hex"ef3dcb2f0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc200000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000007556e6b6e6f776e00000000000000000000000000000000000000000000000000";
@@ -418,25 +409,25 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // *** Assert ***
         // --- Get balances after execution ---
-        uint256 balancePostReceiverTokenIn = _balance(shortcutTokenIn, shortcutReceiver);
-        uint256 balancePostReceiverTokenOut = _balance(shortcutTokenOut, shortcutReceiver);
+        uint256 balancePostReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.receiver);
+        uint256 balancePostReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.receiver);
 
-        uint256 balancePostFeeReceiverTokenIn = _balance(shortcutTokenIn, shortcutFeeReceiver);
-        uint256 balancePostFeeReceiverTokenOut = _balance(shortcutTokenOut, shortcutFeeReceiver);
+        uint256 balancePostFeeReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.feeReceiver);
+        uint256 balancePostFeeReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.feeReceiver);
 
-        uint256 balancePostEnsoReceiverTokenIn = _balance(shortcutTokenIn, address(account));
-        uint256 balancePostEnsoReceiverTokenOut = _balance(shortcutTokenOut, address(account));
+        uint256 balancePostEnsoReceiverTokenIn = _balance(shortcut.tokensIn[0], address(account));
+        uint256 balancePostEnsoReceiverTokenOut = _balance(shortcut.tokensOut[0], address(account));
 
-        uint256 balancePostPaymasterTokenIn = _balance(shortcutTokenIn, address(s_paymaster));
-        uint256 balancePostPaymasterTokenOut = _balance(shortcutTokenOut, address(s_paymaster));
+        uint256 balancePostPaymasterTokenIn = _balance(shortcut.tokensIn[0], address(s_paymaster));
+        uint256 balancePostPaymasterTokenOut = _balance(shortcut.tokensOut[0], address(s_paymaster));
 
         uint256 balancePostEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
 
-        uint256 balancePostEntryPointTokenIn = _balance(shortcutTokenIn, ENTRY_POINT_0_8);
-        uint256 balancePostEntryPointTokenOut = _balance(shortcutTokenOut, ENTRY_POINT_0_8);
+        uint256 balancePostEntryPointTokenIn = _balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
+        uint256 balancePostEntryPointTokenOut = _balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
 
-        uint256 balancePostBundler1TokenIn = _balance(shortcutTokenIn, BUNDLER_1);
-        uint256 balancePostBundler1TokenOut = _balance(shortcutTokenOut, BUNDLER_1);
+        uint256 balancePostBundler1TokenIn = _balance(shortcut.tokensIn[0], BUNDLER_1);
+        uint256 balancePostBundler1TokenOut = _balance(shortcut.tokensOut[0], BUNDLER_1);
 
         // Assert balances
         _assertBalanceDiff(
@@ -469,13 +460,13 @@ contract SignaturePaymaster_Fork_Test is Test {
         _assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -1_774_302_147_335_430,
+            -1_770_384_988_565_784,
             "EntryPoint Paymaster balance (ETH)"
         );
         _assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -1_774_302_147_335_430,
+            -1_770_384_988_565_784,
             "EntryPoint TokenIn (ETH)"
         );
         _assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
@@ -490,27 +481,19 @@ contract SignaturePaymaster_Fork_Test is Test {
      */
     function test_unsuccessful_shortcut_invalid_paymentdata_validafter() public {
         // *** Arrange ***
-        // --- Shortcut parameters ---
-        uint256 shortcutAmountIn = 1 ether;
-        address shortcutTokenIn = NATIVE_ASSET;
-        address shortcutTokenOut = address(WETH);
-        address shortcutReceiver = EOA_1;
-        uint256 shortcutFeeAmount = 0.01 ether;
-        address shortcutFeeReceiver = ENSO_FEE_RECEIVER;
-        bytes memory shortcutCalldata =
-            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a50b1a3b6069274a5e8cc0b1435a25fc813031323334353637383941424344454600000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000519198595a30081ffffffffff6aa68c46ed86161eb318b1396f7b79e386e88676d0e30db00302ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010302ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010204ffffffff047e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120104ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dbd2fc137a300000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dab99c187ffa000";
-        uint256 shortcutExecutionGas = 100_000;
+        // --- Shortcut ---
+        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
 
-        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcutTokenIn`
+        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcut.tokensIn[0]`
         address payable account = payable(s_accountFactory.getAddress(EOA_1));
         vm.label(account, "EnsoReceiver");
         userOp.sender = account;
 
         vm.prank(EOA_1);
-        (bool success,) = account.call{ value: shortcutAmountIn }("");
+        (bool success,) = account.call{ value: shortcut.amountsIn[0] }("");
         (success); // shh
 
         // UserOp.initCode - Setup initCode
@@ -522,13 +505,14 @@ contract SignaturePaymaster_Fork_Test is Test {
         userOp.nonce = nonce;
 
         // UserOp.callData - Encode the call to `EnsoReceiver.safeExecute`
-        bytes memory callData =
-            abi.encodeCall(EnsoReceiver.safeExecute, (IERC20(shortcutTokenIn), shortcutAmountIn, shortcutCalldata));
+        bytes memory callData = abi.encodeCall(
+            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
+        );
         userOp.callData = callData;
 
         // UserOp.accountGasLimits
         uint256 verificationGasLimit = 200_000;
-        userOp.accountGasLimits = _accountGasLimits(shortcutExecutionGas, verificationGasLimit);
+        userOp.accountGasLimits = _accountGasLimits(shortcut.txGas, verificationGasLimit);
 
         // UserOp.gasFees
         userOp.gasFees = _gasFees();
@@ -548,15 +532,16 @@ contract SignaturePaymaster_Fork_Test is Test {
             paymasterPostOp,
             validUntil,
             validAfter,
-            shortcutFeeReceiver,
-            shortcutTokenIn,
-            shortcutFeeAmount
+            shortcut.feeReceiver,
+            shortcut.tokensIn[0],
+            shortcut.fee
         );
         userOp.paymasterAndData = paymasterAndDataWoSignature;
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
-        bytes32 pmdHash =
-            s_paymaster.getHash(userOp, validUntil, validAfter, shortcutFeeReceiver, shortcutTokenIn, shortcutFeeAmount);
+        bytes32 pmdHash = s_paymaster.getHash(
+            userOp, validUntil, validAfter, shortcut.feeReceiver, shortcut.tokensIn[0], shortcut.fee
+        );
         bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
@@ -589,27 +574,19 @@ contract SignaturePaymaster_Fork_Test is Test {
      */
     function test_unsuccessful_shortcut_invalid_paymentdata_validuntil() public {
         // *** Arrange ***
-        // --- Shortcut parameters ---
-        uint256 shortcutAmountIn = 1 ether;
-        address shortcutTokenIn = NATIVE_ASSET;
-        address shortcutTokenOut = address(WETH);
-        address shortcutReceiver = EOA_1;
-        uint256 shortcutFeeAmount = 0.01 ether;
-        address shortcutFeeReceiver = ENSO_FEE_RECEIVER;
-        bytes memory shortcutCalldata =
-            hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a50b1a3b6069274a5e8cc0b1435a25fc813031323334353637383941424344454600000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000519198595a30081ffffffffff6aa68c46ed86161eb318b1396f7b79e386e88676d0e30db00302ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010302ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010204ffffffff047e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120104ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dbd2fc137a300000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dab99c187ffa000";
-        uint256 shortcutExecutionGas = 100_000;
+        // --- Shortcut ---
+        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
 
-        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcutTokenIn`
+        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcut.tokensIn[0]`
         address payable account = payable(s_accountFactory.getAddress(EOA_1));
         vm.label(account, "EnsoReceiver");
         userOp.sender = account;
 
         vm.prank(EOA_1);
-        (bool success,) = account.call{ value: shortcutAmountIn }("");
+        (bool success,) = account.call{ value: shortcut.amountsIn[0] }("");
         (success); // shh
 
         // UserOp.initCode - Setup initCode
@@ -621,13 +598,14 @@ contract SignaturePaymaster_Fork_Test is Test {
         userOp.nonce = nonce;
 
         // UserOp.callData - Encode the call to `EnsoReceiver.safeExecute`
-        bytes memory callData =
-            abi.encodeCall(EnsoReceiver.safeExecute, (IERC20(shortcutTokenIn), shortcutAmountIn, shortcutCalldata));
+        bytes memory callData = abi.encodeCall(
+            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
+        );
         userOp.callData = callData;
 
         // UserOp.accountGasLimits
         uint256 verificationGasLimit = 200_000;
-        userOp.accountGasLimits = _accountGasLimits(shortcutExecutionGas, verificationGasLimit);
+        userOp.accountGasLimits = _accountGasLimits(shortcut.txGas, verificationGasLimit);
 
         // UserOp.gasFees
         userOp.gasFees = _gasFees();
@@ -647,15 +625,16 @@ contract SignaturePaymaster_Fork_Test is Test {
             paymasterPostOp,
             validUntil,
             validAfter,
-            shortcutFeeReceiver,
-            shortcutTokenIn,
-            shortcutFeeAmount
+            shortcut.feeReceiver,
+            shortcut.tokensIn[0],
+            shortcut.fee
         );
         userOp.paymasterAndData = paymasterAndDataWoSignature;
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
-        bytes32 pmdHash =
-            s_paymaster.getHash(userOp, validUntil, validAfter, shortcutFeeReceiver, shortcutTokenIn, shortcutFeeAmount);
+        bytes32 pmdHash = s_paymaster.getHash(
+            userOp, validUntil, validAfter, shortcut.feeReceiver, shortcut.tokensIn[0], shortcut.fee
+        );
         bytes32 ethSignedMessageHash = SignatureCheckerLib.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
@@ -711,13 +690,13 @@ contract SignaturePaymaster_Fork_Test is Test {
     }
 
     function _accountGasLimits(
-        uint256 shortcutExecutionGas,
+        uint256 shortcutTxGas,
         uint256 verificationGasLimit // verifcation gas limit includes deployment costs
     )
         internal
         pure
         returns (bytes32 accountGasLimits)
     {
-        accountGasLimits = bytes32(uint256(verificationGasLimit) << 128 | uint256(shortcutExecutionGas));
+        accountGasLimits = bytes32(uint256(verificationGasLimit) << 128 | uint256(shortcutTxGas));
     }
 }
