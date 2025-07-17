@@ -28,7 +28,7 @@ contract EnsoReceiver is
     event NewEntryPoint(address newEntryPoint);
 
     error InvalidSender(address sender);
-    error InvalidNonce();
+    error UnorderedNonceNotSupported();
 
     modifier onlyReceiverOrEntryPoint() {
         if (msg.sender != entryPoint && msg.sender != receiver) revert InvalidSender(msg.sender);
@@ -95,7 +95,7 @@ contract EnsoReceiver is
     }
 
     function _validateNonce(uint256 nonce) internal pure {
-        if (nonce == type(uint64).max) revert InvalidNonce();
+        if (nonce == type(uint64).max) revert UnorderedNonceNotSupported();
     }
 
     /// @notice Function to validate msg.sender.
