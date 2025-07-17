@@ -98,7 +98,7 @@ contract AlphaShortcutsTest is Test {
         userOp.sender = account;
 
         vm.prank(SIGNER);
-        (bool success, ) = account.call{ value: 1 ether }("");
+        (bool success,) = account.call{ value: 1 ether }("");
         (success); // shh
 
         // NOTE: from EnsoReceiver address to receiver address (SIGNER), 1 ETH to 1 WETH via `delegate` strategy
@@ -106,7 +106,7 @@ contract AlphaShortcutsTest is Test {
             hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a56c2e2f1e3b4d48a5be640d785eba608130313233343536373839414243444546000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000004d0e30db00300ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010100ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010002ffffffff027e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120102ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b0000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000de0b6b3a76400000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000dcef33a6f838000";
 
         vm.prank(SIGNER);
-        (bool success2, ) = account.call{ value: 1 ether }(shortcutCalldata);
+        (bool success2,) = account.call{ value: 1 ether }(shortcutCalldata);
         assertEq(success2, true);
 
         // TODO VN: `.getAddress()` or `EntryPoint.getSenderAddress()`?
@@ -132,7 +132,8 @@ contract AlphaShortcutsTest is Test {
 
         uint128 paymasterVerificationGas = 11_000; // TODO: fails at 10_000, not sure how its calculated
         uint128 paymasterPostOp = 0;
-        bytes memory paymasterAndData = abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
+        bytes memory paymasterAndData =
+            abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
         userOp.paymasterAndData = paymasterAndData;
 
         // (
@@ -189,7 +190,7 @@ contract AlphaShortcutsTest is Test {
 
         // Fund account before deployment
         vm.prank(SIGNER);
-        (bool success, ) = account.call{ value: 1 ether }("");
+        (bool success,) = account.call{ value: 1 ether }("");
         (success); // shh
 
         // Setup initCode
@@ -213,7 +214,8 @@ contract AlphaShortcutsTest is Test {
 
         uint128 paymasterVerificationGas = 11_000; // TODO: fails at 10_000, not sure how its calculated
         uint128 paymasterPostOp = 0;
-        bytes memory paymasterAndData = abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
+        bytes memory paymasterAndData =
+            abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
         userOp.paymasterAndData = paymasterAndData;
 
         // (
@@ -262,7 +264,7 @@ contract AlphaShortcutsTest is Test {
 
         // Fund account before deployment
         vm.prank(SIGNER);
-        (bool success, ) = account.call{ value: 1 ether }("");
+        (bool success,) = account.call{ value: 1 ether }("");
         (success); // shh
 
         // Setup initCode
@@ -275,7 +277,8 @@ contract AlphaShortcutsTest is Test {
         // failing shortcut uses a minAmountOut of 10**18 + 1
         bytes memory failingShortcutCalldata =
             hex"95352c9fad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a56c2e2f1e3b4d48a5be640d785eba608130313233343536373839414243444546000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000004d0e30db00300ffffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2a9059cbb010100ffffffffffc02aaa39b223fe8d0a0e5c4f27ead9083c756cc26e7a43a3010002ffffffff027e7d64d987cab6eed08a191c4c2459daf2f8ed0b241c59120102ffffffffffff7e7d64d987cab6eed08a191c4c2459daf2f8ed0b0000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000de0b6b3a76400000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000e150e171ddf7ef6785e2c6fbbbe9ecd0f2f6368200000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000DE0B6B3A7640001";
-        bytes memory callData = abi.encodeCall(EnsoReceiver.safeExecute, (NATIVE_ASSET, 1 ether, failingShortcutCalldata));
+        bytes memory callData =
+            abi.encodeCall(EnsoReceiver.safeExecute, (NATIVE_ASSET, 1 ether, failingShortcutCalldata));
         userOp.callData = callData;
 
         uint256 routerCalldataGas = 100_000; // 95_820;
@@ -287,7 +290,8 @@ contract AlphaShortcutsTest is Test {
 
         uint128 paymasterVerificationGas = 11_000; // TODO: fails at 10_000, not sure how its calculated
         uint128 paymasterPostOp = 0;
-        bytes memory paymasterAndData = abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
+        bytes memory paymasterAndData =
+            abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp);
         userOp.paymasterAndData = paymasterAndData;
 
         // (
