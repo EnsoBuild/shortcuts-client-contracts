@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { EnsoReceiver } from "../../src/delegate/EnsoReceiver.sol";
-import { ERC4337CloneFactory } from "../../src/factory/ERC4337CloneFactory.sol";
-import { IERC4337CloneInitializer } from "../../src/factory/interfaces/IERC4337CloneInitializer.sol";
-import { SignaturePaymaster } from "../../src/paymaster/SignaturePaymaster.sol";
-import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-
+import { EnsoReceiver } from "../../../src/delegate/EnsoReceiver.sol";
+import { ERC4337CloneFactory } from "../../../src/factory/ERC4337CloneFactory.sol";
+import { SignaturePaymaster } from "../../../src/paymaster/SignaturePaymaster.sol";
+import { Shortcut } from "../../shortcuts/ShortcutDataTypes.sol";
+import { ShortcutsEthereum } from "../../shortcuts/ShortcutsEthereum.sol";
 import { EntryPoint } from "account-abstraction/core/EntryPoint.sol";
-
-import { Shortcut } from "../shortcuts/ShortcutDataTypes.sol";
-import { ShortcutsEthereum } from "../shortcuts/ShortcutsEthereum.sol";
-import { TokenAddressesEthereum } from "../utils/TokenAddresses.sol";
-import { SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
-import { IAccount } from "account-abstraction/interfaces/IAccount.sol";
-
-import { IAggregator } from "account-abstraction/interfaces/IAggregator.sol";
 import { IEntryPoint, PackedUserOperation } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
-
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 import {
     AdvancedSafeInitParams,
     DeployedSafe,
@@ -26,9 +18,8 @@ import {
     SafeTestLib,
     SafeTestTools
 } from "safe-tools-0.2.0/SafeTestTools.sol";
-import { ECDSA } from "solady/utils/ECDSA.sol";
 
-contract SignaturePaymaster_Fork_Test is Test {
+contract Alpha_SmartWallet_EntryPointV8_Fork_Test is Test {
     using SafeERC20 for IERC20;
 
     address private constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -163,7 +154,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -355,7 +346,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -541,7 +532,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -714,7 +705,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -798,7 +789,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
