@@ -9,7 +9,7 @@ import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/Safe
 
 import { EntryPoint } from "account-abstraction/core/EntryPoint.sol";
 
-import { ShortcutDataTypes } from "../shortcuts/ShortcutDataTypes.sol";
+import { Shortcut } from "../shortcuts/ShortcutDataTypes.sol";
 import { ShortcutsEthereum } from "../shortcuts/ShortcutsEthereum.sol";
 import { TokenAddressesEthereum } from "../utils/TokenAddresses.sol";
 import { SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
@@ -113,7 +113,7 @@ contract SignaturePaymaster_Fork_Test is Test {
     function test_successful_shortcut() public {
         // *** Arrange ***
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -304,7 +304,7 @@ contract SignaturePaymaster_Fork_Test is Test {
         vm.label(address(gnosisSafe), "GnosisSafe_1_3_0");
 
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
         shortcut.receiver = address(gnosisSafe); // NOTE: override receiver to smart wallet
 
         // --- UserOp parameters ---
@@ -489,7 +489,7 @@ contract SignaturePaymaster_Fork_Test is Test {
     function test_unsuccessful_shortcut() public {
         // *** Arrange ***
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -664,7 +664,7 @@ contract SignaturePaymaster_Fork_Test is Test {
     function test_unsuccessful_shortcut_invalid_paymentdata_validafter() public {
         // *** Arrange ***
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -748,7 +748,7 @@ contract SignaturePaymaster_Fork_Test is Test {
     function test_unsuccessful_shortcut_invalid_paymentdata_validuntil() public {
         // *** Arrange ***
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
