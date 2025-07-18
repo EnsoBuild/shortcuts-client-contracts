@@ -35,6 +35,12 @@ git = "https://github.com/LayerZero-Labs/LayerZero-v2.git"
 rev = "9a4049ae3a374e1c0ef01ac9fb53dd83f4257a68"
 
 [[dependencies]]
+name = "safe-smart-account"
+version = "1.5.0"
+git = "https://github.com/safe-global/safe-smart-account.git"
+rev = "dc437e8fba8b4805d76bcbd1c668c9fd3d1e83be"
+
+[[dependencies]]
 name = "safe-tools"
 version = "0.2.0"
 git = "https://github.com/colinnielsen/safe-tools.git"

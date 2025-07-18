@@ -1,34 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { EnsoReceiver } from "../../src/delegate/EnsoReceiver.sol";
-import { ERC4337CloneFactory } from "../../src/factory/ERC4337CloneFactory.sol";
-import { IERC4337CloneInitializer } from "../../src/factory/interfaces/IERC4337CloneInitializer.sol";
-import { SignaturePaymaster } from "../../src/paymaster/SignaturePaymaster.sol";
-import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-
+import { EnsoReceiver } from "../../../src/delegate/EnsoReceiver.sol";
+import { ERC4337CloneFactory } from "../../../src/factory/ERC4337CloneFactory.sol";
+import { SignaturePaymaster } from "../../../src/paymaster/SignaturePaymaster.sol";
+import { Shortcut } from "../../shortcuts/ShortcutDataTypes.sol";
+import { ShortcutsEthereum } from "../../shortcuts/ShortcutsEthereum.sol";
 import { EntryPoint } from "account-abstraction/core/EntryPoint.sol";
-
-import { ShortcutDataTypes } from "../shortcuts/ShortcutDataTypes.sol";
-import { ShortcutsEthereum } from "../shortcuts/ShortcutsEthereum.sol";
-import { TokenAddressesEthereum } from "../utils/TokenAddresses.sol";
-import { SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
-import { IAccount } from "account-abstraction/interfaces/IAccount.sol";
-
-import { IAggregator } from "account-abstraction/interfaces/IAggregator.sol";
 import { IEntryPoint, PackedUserOperation } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 
-import {
-    AdvancedSafeInitParams,
-    DeployedSafe,
-    SafeInstance,
-    SafeTestLib,
-    SafeTestTools
-} from "safe-tools-0.2.0/SafeTestTools.sol";
-import { ECDSA } from "solady/utils/ECDSA.sol";
-
-contract SignaturePaymaster_Fork_Test is Test {
+contract Alpha_EOA_EntryPointV8_Fork_Test is Test {
     using SafeERC20 for IERC20;
 
     address private constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -113,7 +97,7 @@ contract SignaturePaymaster_Fork_Test is Test {
     function test_successful_shortcut() public {
         // *** Arrange ***
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -163,7 +147,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -280,205 +264,6 @@ contract SignaturePaymaster_Fork_Test is Test {
     }
 
     /**
-     * @dev Should successfully execute the shortcut as expected:
-     * - Caller is an ERC1271 compatible Smart Wallet (GnosisSafe v1.3.0).
-     * - EnsoReceiver wraps 1 ETH (minus 0.01 ETH fees) as WETH, and sends them to EOA_1 (+0.99 WETH).
-     * - EnsoReceiver sends 0.01 ETH to fee receiver as part of the shortcut.
-     * - EntryPoint subtracts the execution cost from SignaturePaymaster balances.
-     * - Bundler execution costs are refunded.
-     */
-    function test_successful_shortcut_smart_wallet() public {
-        vm.skip(true); // NOTE: use Safe.sol instead of safe-tools-0.2.0.
-
-        // *** Arrange ***
-        // --- Smart Wallet ---
-        SafeTestTools safeTestTools = new SafeTestTools();
-        uint256[] memory ownerPKs = new uint256[](2);
-        ownerPKs[0] = uint256(EOA_1_PK);
-        ownerPKs[1] = uint256(EOA_2_PK);
-        uint256 threshold = 2;
-        uint256 initialBalance = 1 ether;
-        AdvancedSafeInitParams memory advancedParams;
-        SafeInstance memory safeInstance = safeTestTools._setupSafe(ownerPKs, threshold, initialBalance, advancedParams);
-        DeployedSafe gnosisSafe = safeInstance.safe;
-        vm.label(address(gnosisSafe), "GnosisSafe_1_3_0");
-
-        // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
-        shortcut.receiver = address(gnosisSafe); // NOTE: override receiver to smart wallet
-
-        // --- UserOp parameters ---
-        PackedUserOperation memory userOp;
-
-        // UserOp.account - Get account (EnsoReceiver) address, and fund it with `shortcut.tokensIn[0]`
-        address payable account = payable(s_accountFactory.getAddress(address(gnosisSafe)));
-        vm.label(account, "EnsoReceiver");
-        userOp.sender = account;
-
-        vm.prank(address(gnosisSafe));
-        (bool success,) = account.call{ value: shortcut.amountsIn[0] }("");
-        (success); // shh
-
-        // UserOp.initCode - Setup initCode
-        userOp.initCode = _initCode(address(gnosisSafe));
-
-        // UserOp.nonce - Get nonce for the account
-        uint192 laneId = 0;
-        uint256 nonce = s_entryPoint.getNonce(account, laneId);
-        userOp.nonce = nonce;
-
-        // UserOp.callData - Encode the call to `EnsoReceiver.safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
-        userOp.callData = callData;
-
-        // UserOp.accountGasLimits
-        uint256 verificationGasLimit = 200_000;
-        userOp.accountGasLimits = _accountGasLimits(shortcut.txGas, verificationGasLimit);
-
-        // UserOp.gasFees
-        userOp.gasFees = _gasFees();
-
-        // UserOp.preVerificationGas
-        userOp.preVerificationGas = 100_000;
-
-        // UserOp.paymasterAndData - Encode the paymaster and data
-        uint48 validUntil = uint48(block.timestamp + 5 seconds);
-        uint48 validAfter = uint48(block.timestamp - 5 seconds);
-        uint128 paymasterVerificationGas = 100_000;
-        uint128 paymasterPostOp = 100_000;
-        // NOTE: signature will be added later
-        bytes memory paymasterAndDataWoSignature =
-            abi.encodePacked(address(s_paymaster), paymasterVerificationGas, paymasterPostOp, validUntil, validAfter);
-        userOp.paymasterAndData = paymasterAndDataWoSignature;
-
-        // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
-        bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
-        (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
-        bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
-
-        // NOTE: add `pmdSignature` to `userOp.paymasterAndData` (aka `paymasterAndDataWoSignature`)
-        bytes memory paymasterAndData = abi.encodePacked(paymasterAndDataWoSignature, pmdSignature);
-        userOp.paymasterAndData = paymasterAndData;
-
-        // TODO VN: start
-        // UserOp.signature - Sign the userOpHash with Smart Wallet
-        bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(uint256(EOA_1_PK), userOpHash);
-        bytes memory signature1 = abi.encodePacked(r1, s1, v1);
-        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(uint256(EOA_2_PK), userOpHash);
-        bytes memory signature2 = abi.encodePacked(r2, s2, v2);
-        bytes memory multiSignature = bytes.concat(signature1, signature2);
-
-        SafeTestLib.EIP1271Sign(safeInstance, multiSignature);
-        userOp.signature = multiSignature;
-        // TODO VN: end
-
-        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
-        userOps[0] = userOp;
-
-        // --- Get balances before execution ---
-        uint256 balancePreReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.receiver);
-        uint256 balancePreReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.receiver);
-
-        uint256 balancePreFeeReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.feeReceiver);
-        uint256 balancePreFeeReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.feeReceiver);
-
-        uint256 balancePreEnsoReceiverTokenIn = _balance(shortcut.tokensIn[0], address(account));
-        uint256 balancePreEnsoReceiverTokenOut = _balance(shortcut.tokensOut[0], address(account));
-
-        uint256 balancePrePaymasterTokenIn = _balance(shortcut.tokensIn[0], address(s_paymaster));
-        uint256 balancePrePaymasterTokenOut = _balance(shortcut.tokensOut[0], address(s_paymaster));
-
-        uint256 balancePreEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
-
-        uint256 balancePreEntryPointTokenIn = _balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
-        uint256 balancePreEntryPointTokenOut = _balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
-
-        uint256 balancePreBundler1TokenIn = _balance(shortcut.tokensIn[0], BUNDLER_1);
-        uint256 balancePreBundler1TokenOut = _balance(shortcut.tokensOut[0], BUNDLER_1);
-
-        // *** Act & Assert ***
-        vm.prank(BUNDLER_1);
-        vm.expectEmit(address(account));
-        emit EnsoReceiver.ShortcutExecutionSuccessful();
-        s_entryPoint.handleOps(userOps, BUNDLER_1);
-
-        // --- Get balances after execution ---
-        uint256 balancePostReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.receiver);
-        uint256 balancePostReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.receiver);
-
-        uint256 balancePostFeeReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.feeReceiver);
-        uint256 balancePostFeeReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.feeReceiver);
-
-        uint256 balancePostEnsoReceiverTokenIn = _balance(shortcut.tokensIn[0], address(account));
-        uint256 balancePostEnsoReceiverTokenOut = _balance(shortcut.tokensOut[0], address(account));
-
-        uint256 balancePostPaymasterTokenIn = _balance(shortcut.tokensIn[0], address(s_paymaster));
-        uint256 balancePostPaymasterTokenOut = _balance(shortcut.tokensOut[0], address(s_paymaster));
-
-        uint256 balancePostEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
-
-        uint256 balancePostEntryPointTokenIn = _balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
-        uint256 balancePostEntryPointTokenOut = _balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
-
-        uint256 balancePostBundler1TokenIn = _balance(shortcut.tokensIn[0], BUNDLER_1);
-        uint256 balancePostBundler1TokenOut = _balance(shortcut.tokensOut[0], BUNDLER_1);
-
-        // Assert balances
-        _assertBalanceDiff(balancePreReceiverTokenIn, balancePostReceiverTokenIn, 0, "Receiver TokenIn (ETH)");
-        _assertBalanceDiff(
-            balancePreReceiverTokenOut,
-            balancePostReceiverTokenOut,
-            int256(shortcut.amountsIn[0] - shortcut.fee),
-            "Receiver TokenOut (WETH)"
-        );
-
-        _assertBalanceDiff(
-            balancePreFeeReceiverTokenIn,
-            balancePostFeeReceiverTokenIn,
-            int256(shortcut.fee),
-            "FeeReceiver TokenIn (ETH)"
-        );
-        _assertBalanceDiff(
-            balancePreFeeReceiverTokenOut, balancePostFeeReceiverTokenOut, 0, "FeeReceiver TokenOut (WETH)"
-        );
-
-        _assertBalanceDiff(
-            balancePreEnsoReceiverTokenIn,
-            balancePostEnsoReceiverTokenIn,
-            -int256(shortcut.amountsIn[0]),
-            "EnsoReceiver TokenIn (ETH)"
-        );
-
-        _assertBalanceDiff(
-            balancePreEnsoReceiverTokenOut, balancePostEnsoReceiverTokenOut, 0, "EnsoReceiver TokenOut (WETH)"
-        );
-
-        _assertBalanceDiff(balancePrePaymasterTokenIn, balancePostPaymasterTokenIn, 0, "Paymaster TokenIn (ETH)");
-        _assertBalanceDiff(balancePrePaymasterTokenOut, balancePostPaymasterTokenOut, 0, "Paymaster TokenOut (WETH)");
-
-        _assertBalanceDiff(
-            balancePreEntryPointPaymaster,
-            balancePostEntryPointPaymaster,
-            -2_007_965_471_000_526,
-            "EntryPoint Paymaster balance (ETH)"
-        );
-        _assertBalanceDiff(
-            balancePreEntryPointTokenIn,
-            balancePostEntryPointTokenIn,
-            -2_007_965_471_000_526,
-            "EntryPoint TokenIn (ETH)"
-        );
-        _assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
-
-        _assertBalanceDiff(balancePreBundler1TokenIn, balancePostBundler1TokenIn, 0, "Bundler1 TokenIn (ETH)");
-        _assertBalanceDiff(balancePreBundler1TokenOut, balancePostBundler1TokenOut, 0, "Bundler1 TokenOut (WETH)");
-    }
-
-    /**
      * @dev Should unsuccessfully execute the shortcut as expected:
      * - Caller is an EOA.
      * - EnsoReceiver sends 0.5 ETH back to receiver.
@@ -489,7 +274,7 @@ contract SignaturePaymaster_Fork_Test is Test {
     function test_unsuccessful_shortcut() public {
         // *** Arrange ***
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -541,7 +326,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -664,7 +449,7 @@ contract SignaturePaymaster_Fork_Test is Test {
     function test_unsuccessful_shortcut_invalid_paymentdata_validafter() public {
         // *** Arrange ***
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -714,7 +499,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 
@@ -748,7 +533,7 @@ contract SignaturePaymaster_Fork_Test is Test {
     function test_unsuccessful_shortcut_invalid_paymentdata_validuntil() public {
         // *** Arrange ***
         // --- Shortcut ---
-        ShortcutDataTypes.Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -798,7 +583,7 @@ contract SignaturePaymaster_Fork_Test is Test {
 
         // NOTE: Sign first the `userOp.paymasterAndData` with ENSO_BACKEND's private key
         bytes32 pmdHash = s_paymaster.getHash(userOp, validUntil, validAfter);
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(pmdHash);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(pmdHash);
         (uint8 pmdV, bytes32 pmdR, bytes32 pmdS) = vm.sign(uint256(ENSO_BACKEND_PK), ethSignedMessageHash);
         bytes memory pmdSignature = abi.encodePacked(pmdR, pmdS, pmdV);
 

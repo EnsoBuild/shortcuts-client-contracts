@@ -41,6 +41,7 @@ enso-weiroll = { version = "1.4.1", git = "https://github.com/EnsoBuild/enso-wei
 forge-std = { version = "1.9.7", git = "https://github.com/foundry-rs/forge-std.git", tag = "v1.9.7" }
 layerzero-v2 = { version = "2.0.2", git = "https://github.com/LayerZero-Labs/LayerZero-v2.git", rev = "9a4049ae3a374e1c0ef01ac9fb53dd83f4257a68" }
 "@openzeppelin-contracts" = { version = "5.2.0", git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git", rev = "acd4ff74de833399287ed6b31b4debf6b2b35527" }
+safe-smart-account = { version = "1.5.0", git = "https://github.com/safe-global/safe-smart-account.git", tag = "v1.5.0"}
 safe-tools = { version = "0.2.0", git = "https://github.com/colinnielsen/safe-tools.git", tag = "v0.2.0" }
 solady = { version = "0.1.22", git = "https://github.com/Vectorized/solady.git", tag = "v0.1.22" }
 v4-core = { version = "4.0.0", git = "https://github.com/Uniswap/v4-core.git", rev = "e50237c43811bd9b526eff40f26772152a42daba" }
