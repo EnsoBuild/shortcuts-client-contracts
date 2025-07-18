@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { EnsoShortcuts } from "../src/EnsoShortcuts.sol";
-import { StargateV2Receiver } from "../src/bridge/StargateV2Receiver.sol";
+import { LayerZeroReceiver } from "../src/bridge/LayerZeroReceiver.sol";
 import { EnsoRouter } from "../src/router/EnsoRouter.sol";
 import { WeirollPlanner } from "./utils/WeirollPlanner.sol";
 import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
@@ -23,7 +23,7 @@ interface IERC20 {
 }
 
 contract BridgeTest is Test {
-    StargateV2Receiver public stargateReceiver;
+    LayerZeroReceiver public lzReceiver;
     EnsoRouter public router;
     EnsoShortcuts public shortcuts;
     IWETH public weth = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -46,12 +46,12 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
         router = new EnsoRouter();
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
-        stargateReceiver = new StargateV2Receiver(address(this), address(router), address(this), 100_000);
+        lzReceiver = new LayerZeroReceiver(address(this), address(router), address(this), 100_000);
 
         address[] memory ofts = new address[](2);
         ofts[0] = ethPool;
         ofts[1] = usdcPool;
-        stargateReceiver.setOFTs(ofts);
+        lzReceiver.setOFTs(ofts);
     }
 
     function testEthBridge() public {
@@ -63,10 +63,10 @@ contract BridgeTest is Test {
         bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
 
         // transfer funds
-        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
         if (!success) revert TransferFailed();
         // trigger compose
-        stargateReceiver.lzCompose(ethPool, bytes32(0), message, address(0), "");
+        lzReceiver.lzCompose(ethPool, bytes32(0), message, address(0), "");
         uint256 balanceAfter = weth.balanceOf(address(this));
         assertEq(ETH_AMOUNT, balanceAfter - balanceBefore);
     }
@@ -81,12 +81,12 @@ contract BridgeTest is Test {
         bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
 
         // transfer funds
-        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
         if (!success) revert TransferFailed();
         // confirm funds have left this address
         assertGt(balanceBefore, address(this).balance);
         // trigger compose
-        stargateReceiver.lzCompose(ethPool, bytes32(0), message, address(0), "");
+        lzReceiver.lzCompose(ethPool, bytes32(0), message, address(0), "");
         // confirm funds have been returned to this address
         assertEq(balanceBefore, address(this).balance);
     }
@@ -100,12 +100,12 @@ contract BridgeTest is Test {
         bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
 
         // transfer funds
-        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
         if (!success) revert TransferFailed();
         // confirm funds have left this address
         assertGt(balanceBefore, address(this).balance);
         // trigger compose with insufficient gas
-        stargateReceiver.lzCompose{ gas: 99_000 }(ethPool, bytes32(0), message, address(0), "");
+        lzReceiver.lzCompose{ gas: 99_000 }(ethPool, bytes32(0), message, address(0), "");
         // confirm funds have been returned to this address
         assertEq(balanceBefore, address(this).balance);
     }
@@ -120,10 +120,10 @@ contract BridgeTest is Test {
 
         // transfer funds
         vm.startPrank(usdcPool);
-        IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
+        IERC20(usdc).transfer(address(lzReceiver), USDC_AMOUNT);
         vm.stopPrank();
         // trigger compose
-        stargateReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
+        lzReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
         uint256 balanceAfter = IERC20(usdc).balanceOf(vitalik);
         assertEq(USDC_AMOUNT, balanceAfter - balanceBefore);
     }
@@ -140,10 +140,10 @@ contract BridgeTest is Test {
 
         // transfer funds
         vm.startPrank(usdcPool);
-        IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
+        IERC20(usdc).transfer(address(lzReceiver), USDC_AMOUNT);
         vm.stopPrank();
         // trigger compose with msg.value
-        stargateReceiver.lzCompose{ value: ETH_AMOUNT }(usdcPool, bytes32(0), message, address(0), "");
+        lzReceiver.lzCompose{ value: ETH_AMOUNT }(usdcPool, bytes32(0), message, address(0), "");
 
         uint256 usdcBalanceAfter = IERC20(usdc).balanceOf(vitalik);
         uint256 ethBalanceAfter = vitalik.balance;
@@ -163,14 +163,14 @@ contract BridgeTest is Test {
 
         // transfer funds
         vm.startPrank(usdcPool);
-        IERC20(usdc).transfer(address(stargateReceiver), USDC_AMOUNT);
+        IERC20(usdc).transfer(address(lzReceiver), USDC_AMOUNT);
         vm.stopPrank();
         // confirm funds have landed in the stargate receiver
-        assertGt(IERC20(usdc).balanceOf(address(stargateReceiver)), 0);
+        assertGt(IERC20(usdc).balanceOf(address(lzReceiver)), 0);
         // trigger compose
-        stargateReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
+        lzReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
         // confirm funds have left the stargate receiver
-        assertEq(IERC20(usdc).balanceOf(address(stargateReceiver)), 0);
+        assertEq(IERC20(usdc).balanceOf(address(lzReceiver)), 0);
         // confirm funds have been returned this address
         uint256 balanceAfter = IERC20(usdc).balanceOf(address(this));
         assertEq(USDC_AMOUNT, balanceAfter - balanceBefore);
@@ -181,12 +181,12 @@ contract BridgeTest is Test {
 
         // transfer funds
         weth.deposit{ value: ETH_AMOUNT }();
-        weth.transfer(address(stargateReceiver), ETH_AMOUNT);
-        (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        weth.transfer(address(lzReceiver), ETH_AMOUNT);
+        (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
         (success); // shh
 
-        uint256 ethOnReceiver = address(stargateReceiver).balance;
-        uint256 wethOnReceiver = weth.balanceOf(address(stargateReceiver));
+        uint256 ethOnReceiver = address(lzReceiver).balance;
+        uint256 wethOnReceiver = weth.balanceOf(address(lzReceiver));
 
         uint256 ethBalanceBefore = address(this).balance;
         uint256 wethBalanceBefore = weth.balanceOf(address(this));
@@ -195,7 +195,7 @@ contract BridgeTest is Test {
         address[] memory tokens = new address[](2);
         tokens[0] = eth;
         tokens[1] = address(weth);
-        stargateReceiver.sweep(tokens);
+        lzReceiver.sweep(tokens);
 
         uint256 ethBalanceAfter = address(this).balance;
         uint256 wethBalanceAfter = weth.balanceOf(address(this));
