@@ -8,7 +8,6 @@ import { IERC20, Withdrawable } from "../utils/Withdrawable.sol";
 import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
 import { IAccount, PackedUserOperation } from "account-abstraction/interfaces/IAccount.sol";
 
-import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
 import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
@@ -106,14 +105,10 @@ contract EnsoReceiver is
         // use standard ECDSA signatures.
         // If ECDSA recovery fails, fall back to ERC-1271 for traditional smart contract wallets.
         (address recovered, ECDSA.RecoverError errors,) = ECDSA.tryRecover(userOpHash, userOp.signature);
-        console2.log("*** signer", signer);
-        console2.log("*** recovered", recovered);
-        console2.log("*** errros", uint8(errors));
         if (errors == ECDSA.RecoverError.NoError && recovered == signer) {
             return SIG_VALIDATION_SUCCESS;
         }
         bool isValid = SignatureChecker.isValidERC1271SignatureNow(signer, userOpHash, userOp.signature);
-        console2.log("*** isValid", isValid);
         return isValid ? SIG_VALIDATION_SUCCESS : SIG_VALIDATION_FAILED;
     }
 
