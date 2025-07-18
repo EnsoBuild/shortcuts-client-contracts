@@ -2,14 +2,14 @@
 pragma solidity ^0.8.28;
 
 import { TokenAddressesEthereum } from "../utils/TokenAddresses.sol";
-import { ShortcutDataTypes } from "./ShortcutDataTypes.sol";
+import { RoutingStrategy, Shortcut } from "./ShortcutDataTypes.sol";
 
 library ShortcutsEthereum {
     /**
      * @dev wraps 1 ETH (minus 0.01 ETH) to WETH (0.99 WETH) and sends it to receiver
      */
-    function getShortcut1() public pure returns (ShortcutDataTypes.Shortcut memory shortcut) {
-        shortcut.routingStrategy = ShortcutDataTypes.RoutingStrategy.DELEGATE;
+    function getShortcut1() public pure returns (Shortcut memory shortcut) {
+        shortcut.routingStrategy = RoutingStrategy.DELEGATE;
 
         shortcut.from = 0x0905ab61D02f48bC4736e1fE5eaFA86557aA37F1; // NOTE: not relevant
         shortcut.receiver = 0xE150e171dDf7ef6785e2c6fBBbE9eCd0f2f63682;
