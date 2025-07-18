@@ -1,0 +1,37 @@
+// SignaturePaymaster::AddStake
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     └── it should increase stake balance
+
+// SignaturePaymaster::DepositTo
+// └── it should increment deposit
+
+// SignaturePaymaster::SetSigner
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     ├── when signer is already set
+//     │   └── it should revert
+//     └── when signer is not set
+//         ├── it should map isValid
+//         └── it should emit SignerAdded event
+
+
+// SignaturePaymaster::UnlockStake
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     └── it should unlock stake
+
+// SignaturePaymaster::WithdrawStake
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     └── it should withdraw stake
+
+// SignaturePaymaster::WithdrawTo
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     └── it should withdraw amount

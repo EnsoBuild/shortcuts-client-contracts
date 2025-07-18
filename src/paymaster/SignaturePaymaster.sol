@@ -14,7 +14,7 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
     address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     IEntryPoint public entryPoint;
-    mapping(address signer => bool isValid) validSigners;
+    mapping(address signer => bool isValid) public validSigners;
 
     event SignerSet(address signer, bool isValid);
 
