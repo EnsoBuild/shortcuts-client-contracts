@@ -5,7 +5,6 @@ import { UserOperationLib } from "account-abstraction/core/UserOperationLib.sol"
 import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
 import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
-
 import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
@@ -28,7 +27,7 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
     uint256 private constant PAYMASTER_DATA_OFFSET = UserOperationLib.PAYMASTER_DATA_OFFSET;
     uint256 private constant VALID_UNTIL_OFFSET = PAYMASTER_DATA_OFFSET;
     uint256 private constant VALID_AFTER_OFFSET = VALID_UNTIL_OFFSET + 6; // uint48 = bytes6
-    uint256 private constant SIGNATURE_OFFSET = VALID_AFTER_OFFSET + 6; // uint256 = bytes32
+    uint256 private constant SIGNATURE_OFFSET = VALID_AFTER_OFFSET + 6; // uint48 = bytes6
 
     modifier onlyEntryPoint() {
         if (msg.sender != address(entryPoint)) revert InvalidEntryPoint(msg.sender);
@@ -167,9 +166,7 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
     }
 
     function setSigner(address signer, bool isValid) external onlyOwner {
-        if (validSigners[signer] == isValid) {
-            revert SignerIsAlreadySet(signer, isValid);
-        }
+        if (validSigners[signer] == isValid) revert SignerIsAlreadySet(signer, isValid);
         validSigners[signer] = isValid;
         emit SignerSet(signer, isValid);
     }
