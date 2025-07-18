@@ -163,8 +163,6 @@ contract Alpha_SmartWallet_EntryPointV8_Fork_Test is Test {
      * - Bundler execution costs are refunded.
      */
     function test_successful_shortcut() public {
-        vm.skip(true); // NOTE: skipped until signing for safe works
-
         // *** Arrange ***
         // --- Shortcut ---
         Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
@@ -280,7 +278,7 @@ contract Alpha_SmartWallet_EntryPointV8_Fork_Test is Test {
         // vm.prank(address(s_safe));
         // s_safe.setFallbackHandler(address(SIGN_MESSAGE_LIB));
         // bytes32 safeUserOpHash = SignMessageLib(address(s_safe)).getMessageHash(abi.encode(userOpHash));
-        bytes32 safeMessageHash = keccak256(abi.encode(keccak256("SafeMessage(bytes message)"), userOpHash));
+        bytes32 safeMessageHash = keccak256(abi.encode(keccak256("SafeMessage(bytes message)"), keccak256(abi.encode(userOpHash))));
         bytes32 safeDomainSeparator = s_safe.domainSeparator();
         bytes32 safeUserOpHash =
             keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), safeDomainSeparator, safeMessageHash));
@@ -291,12 +289,12 @@ contract Alpha_SmartWallet_EntryPointV8_Fork_Test is Test {
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(uint256(EOA_2_PK), safeUserOpHash);
         bytes memory signature2 = abi.encodePacked(r2, s2, v2);
 
-        bytes memory safeSignature = bytes.concat(signature1, signature2);
+        bytes memory safeSignature = bytes.concat(signature2, signature1);
 
         userOp.signature = safeSignature;
 
         // NOTE: reverts wit revertWithError("GS026")
-        bytes4 isValid = ERC1271(address(s_safe)).isValidSignature(safeUserOpHash, safeSignature);
+        bytes4 isValid = ERC1271(address(s_safe)).isValidSignature(userOpHash, safeSignature);
         console2.logBytes4(isValid);
         assertEq(isValid == 0x1626ba7e, true);
 
