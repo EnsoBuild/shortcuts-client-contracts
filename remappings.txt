@@ -29,6 +29,7 @@ devtools-0.0.1/=dependencies/devtools-0.0.1/
 enso-weiroll-1.4.1/=dependencies/enso-weiroll-1.4.1/contracts/
 forge-std-1.9.7/=dependencies/forge-std-1.9.7/src/
 layerzero-v2-2.0.2/=dependencies/layerzero-v2-2.0.2/
+safe-smart-account-1.5.0/=dependencies/safe-smart-account-1.5.0/contracts/
 safe-tools-0.2.0/=dependencies/safe-tools-0.2.0/src/
 solady-0.1.22/=dependencies/solady-0.1.22/src/
 v4-core-4.0.0/=dependencies/v4-core-4.0.0/src/
