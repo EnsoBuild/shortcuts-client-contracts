@@ -1,0 +1,77 @@
+SignaturePaymaster::AcceptOwnership
+├── when caller is not pending owner
+│   └── it should revert
+└── when caller is pending owner
+    └── it should transfer ownership
+
+SignaturePaymaster::AddStake
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should increase stake balance
+
+SignaturePaymaster::DepositTo
+└── it should increment deposit
+
+// SignaturePaymaster::EntryPoint
+
+// SignaturePaymaster::GetHash
+
+// SignaturePaymaster::ParsePaymasterAndData
+
+SignaturePaymaster::PostOp
+├── when caller is not entryPoint
+│   └── it should revert
+└── when caller is entryPoint
+    └── it should noop
+
+SignaturePaymaster::RenounceOwnership
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should transfer ownership to zero address
+
+SignaturePaymaster::SetSigner
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    ├── when signer is already set
+    │   └── it should revert
+    └── when signer is not set
+        ├── it should map isValid
+        └── it should emit SignerAdded event
+
+SignaturePaymaster::TransferOwnership
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should start ownership transfer
+
+SignaturePaymaster::UnlockStake
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should unlock stake
+
+SignaturePaymaster::ValidatePaymasterUserOp
+├── when caller is not entryPoint
+│   └── it should revert
+└── when caller is entryPoint
+    ├── when recovered address is not valid signer
+    │   └── it should return failure validation data
+    └── when recovered address is valid signer
+        └── it should return success validation data
+
+// SignaturePaymaster::ValidSigners
+
+SignaturePaymaster::WithdrawStake
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should withdraw stake
+
+SignaturePaymaster::WithdrawTo
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should withdraw amount
