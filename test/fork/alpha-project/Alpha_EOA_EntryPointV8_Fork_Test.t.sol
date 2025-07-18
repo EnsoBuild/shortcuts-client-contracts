@@ -97,7 +97,7 @@ contract Alpha_EOA_EntryPointV8_Fork_Test is Test {
     function test_successful_shortcut() public {
         // *** Arrange ***
         // --- Shortcut ---
-        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1(EOA_1);
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -274,7 +274,7 @@ contract Alpha_EOA_EntryPointV8_Fork_Test is Test {
     function test_unsuccessful_shortcut() public {
         // *** Arrange ***
         // --- Shortcut ---
-        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1(EOA_1);
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -449,7 +449,7 @@ contract Alpha_EOA_EntryPointV8_Fork_Test is Test {
     function test_unsuccessful_shortcut_invalid_paymentdata_validafter() public {
         // *** Arrange ***
         // --- Shortcut ---
-        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1(EOA_1);
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
@@ -533,7 +533,7 @@ contract Alpha_EOA_EntryPointV8_Fork_Test is Test {
     function test_unsuccessful_shortcut_invalid_paymentdata_validuntil() public {
         // *** Arrange ***
         // --- Shortcut ---
-        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1();
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut1(EOA_1);
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;
