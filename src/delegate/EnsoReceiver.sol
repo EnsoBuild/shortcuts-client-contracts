@@ -100,6 +100,9 @@ contract EnsoReceiver is
         view
         returns (uint256)
     {
+        // First attempt ECDSA recovery to support EOAs and EIP-7702 accounts, which may have contract code but still
+        // use standard ECDSA signatures.
+        // If ECDSA recovery fails, fall back to ERC-1271 for traditional smart contract wallets.
         (address recovered, ECDSA.RecoverError errors,) = ECDSA.tryRecover(userOpHash, userOp.signature);
         if (errors == ECDSA.RecoverError.NoError && recovered == signer) {
             return SIG_VALIDATION_SUCCESS;

@@ -52,6 +52,9 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
             parsePaymasterAndData(userOp.paymasterAndData);
         bytes32 messageHash = getHash(userOp, validUntil, validAfter);
         bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(messageHash);
+        // We skip checking the ECDSA.RecoverError here because an invalid signature will
+        // result in a zero address or an incorrect signer, both of which are rejected by
+        // the `validSigners` lookup. This keeps the logic simple without sacrificing correctness.
         (address recovered,,) = ECDSA.tryRecover(ethSignedMessageHash, signature);
         if (!validSigners[recovered]) {
             return ("", _packValidationData(true, validUntil, validAfter));
