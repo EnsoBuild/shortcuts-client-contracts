@@ -264,13 +264,13 @@ contract SignaturePaymaster_Fork_Test is Test {
         _assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -2_005_185_035_416_077,
+            -2_007_367_757_400_798,
             "EntryPoint Paymaster balance (ETH)"
         );
         _assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -2_005_185_035_416_077,
+            -2_007_367_757_400_798,
             "EntryPoint TokenIn (ETH)"
         );
         _assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
@@ -641,13 +641,13 @@ contract SignaturePaymaster_Fork_Test is Test {
         _assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -1_767_604_552_981_335,
+            -1_768_746_612_895_101,
             "EntryPoint Paymaster balance (ETH)"
         );
         _assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -1_767_604_552_981_335,
+            -1_768_746_612_895_101,
             "EntryPoint TokenIn (ETH)"
         );
         _assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
