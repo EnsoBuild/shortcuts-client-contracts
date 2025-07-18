@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { EnsoReceiver } from "../src/delegate/EnsoReceiver.sol";
-import { ERC4337CloneFactory } from "../src/factory/ERC4337CloneFactory.sol";
+import { ERC4337CloneFactory, LibClone } from "../src/factory/ERC4337CloneFactory.sol";
 import { IERC4337CloneInitializer } from "../src/factory/interfaces/IERC4337CloneInitializer.sol";
 import { TestPaymaster } from "./mocks/TestPaymaster.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
