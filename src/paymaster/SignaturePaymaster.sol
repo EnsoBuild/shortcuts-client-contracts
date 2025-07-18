@@ -5,6 +5,7 @@ import { UserOperationLib } from "account-abstraction/core/UserOperationLib.sol"
 import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
 import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
+
 import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
@@ -14,7 +15,7 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
     address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     IEntryPoint public entryPoint;
-    mapping(address signer => bool isValid) validSigners;
+    mapping(address signer => bool isValid) public validSigners;
 
     event SignerSet(address signer, bool isValid);
 
@@ -59,7 +60,6 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
         if (!validSigners[recovered]) {
             return ("", _packValidationData(true, validUntil, validAfter));
         }
-
         return ("", _packValidationData(false, validUntil, validAfter));
     }
 
@@ -70,7 +70,6 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
         uint256 // actualUserOpFeePerGas
     )
         external
-        view
         onlyEntryPoint
     { }
 
