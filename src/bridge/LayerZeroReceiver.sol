@@ -30,6 +30,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     event RegistrarAdded(address account);
     event RegistrarRemoved(address account);
     event ReserveGasUpdated(uint256 amount);
+    event FundsCollected(address token, uint256 amount);
 
     error InsufficientGas(bytes32 guid);
     error NotEndpoint(address sender);
@@ -155,6 +156,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         address receiver = owner();
         for (uint256 i = 0; i < tokens.length; ++i) {
             _transfer(tokens[i], receiver, amounts[i]);
+            emit FundsCollected(tokens[i], amounts[i]);
         }
     }
 
