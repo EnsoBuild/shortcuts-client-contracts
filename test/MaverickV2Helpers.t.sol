@@ -21,7 +21,7 @@ contract MaverickV2HelpersTest is Test {
     uint256 _plumeFork;
 
     uint256 public constant USDCE_AMOUNT = 10 ** 9;
-    uint256 public constant PUSD_AMOUNT = 1.4 * 10 ** 9;
+    uint256 public constant PUSD_AMOUNT = 10 ** 10;
 
     function setUp() public {
         _plumeFork = vm.createFork(_rpcURL);

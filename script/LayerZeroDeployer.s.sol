@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/bridge/StargateV2Receiver.sol";
+import "../src/bridge/LayerZeroReceiver.sol";
 import "forge-std/Script.sol";
 
 contract StargateDeployer is Script {
@@ -27,7 +27,7 @@ contract StargateDeployer is Script {
     }
     */
 
-    function run() public returns (address stargateReceiver, address endpoint, address router) {
+    function run() public returns (address lzReceiver, address endpoint, address router) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployerPrivateKey);
@@ -60,8 +60,7 @@ contract StargateDeployer is Script {
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         }
 
-        stargateReceiver =
-            address(new StargateV2Receiver{ salt: "StargateV2Receiver" }(endpoint, router, deployer, 100_000));
+        lzReceiver = address(new LayerZeroReceiver{ salt: "LayerZeroReceiver" }(endpoint, router, deployer, 100_000));
 
         vm.stopBroadcast();
     }
