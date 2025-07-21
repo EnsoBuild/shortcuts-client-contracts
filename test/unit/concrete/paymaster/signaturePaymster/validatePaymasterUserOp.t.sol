@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
 
 import { SignaturePaymaster_Unit_Concrete_Test } from "./SignaturePaymaster.t.sol";
+
+import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
 import { PackedUserOperation } from "account-abstraction/interfaces/IEntryPoint.sol";
 import { console2 } from "forge-std-1.9.7/Test.sol";
 import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
