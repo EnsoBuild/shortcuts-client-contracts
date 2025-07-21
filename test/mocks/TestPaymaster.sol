@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
-import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
-import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
+import { IEntryPoint } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { IPaymaster } from "account-abstraction-v7/interfaces/IPaymaster.sol";
+import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 contract TestPaymaster is IPaymaster {
     IEntryPoint public entryPoint;

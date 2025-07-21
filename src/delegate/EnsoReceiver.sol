@@ -5,8 +5,8 @@ import { AbstractEnsoShortcuts } from "../AbstractEnsoShortcuts.sol";
 import { AbstractMultiSend } from "../AbstractMultiSend.sol";
 import { IERC4337CloneInitializer } from "../factory/interfaces/IERC4337CloneInitializer.sol";
 import { IERC20, Withdrawable } from "../utils/Withdrawable.sol";
-import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
-import { IAccount, PackedUserOperation } from "account-abstraction/interfaces/IAccount.sol";
+import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction-v7/core/Helpers.sol";
+import { IAccount, PackedUserOperation } from "account-abstraction-v7/interfaces/IAccount.sol";
 
 import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";

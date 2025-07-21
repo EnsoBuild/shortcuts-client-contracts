@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
-import { UserOperationLib } from "account-abstraction/core/UserOperationLib.sol";
-import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
-import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
-import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "account-abstraction-v7/core/UserOperationLib.sol";
+import { IEntryPoint } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { IPaymaster } from "account-abstraction-v7/interfaces/IPaymaster.sol";
+import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";

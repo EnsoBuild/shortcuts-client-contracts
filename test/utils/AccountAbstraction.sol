@@ -9,7 +9,7 @@ library PackedUserOperationLib {
         address signer
     )
         internal
-        view
+        pure
         returns (bytes memory initCode)
     {
         bytes memory initCalldata = abi.encodeWithSelector(accountFactory.deploy.selector, signer);

@@ -5,10 +5,10 @@ git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git"
 rev = "acd4ff74de833399287ed6b31b4debf6b2b35527"
 
 [[dependencies]]
-name = "account-abstraction"
-version = "0.8.0"
+name = "account-abstraction-v7"
+version = "0.7.0"
 git = "https://github.com/eth-infinitism/account-abstraction.git"
-rev = "4cbc06072cdc19fd60f285c5997f4f7f57a588de"
+rev = "7af70c8993a6f42973f520ae0752386a5032abe7"
 
 [[dependencies]]
 name = "devtools"

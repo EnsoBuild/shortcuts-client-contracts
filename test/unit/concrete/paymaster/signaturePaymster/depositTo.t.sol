@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
 import { SignaturePaymaster_Unit_Concrete_Test } from "./SignaturePaymaster.t.sol";
-import { IStakeManager } from "account-abstraction/interfaces/IStakeManager.sol";
+import { IStakeManager } from "account-abstraction-v7/interfaces/IStakeManager.sol";
 import { console2 } from "forge-std-1.9.7/Test.sol";
 
 contract SignaturePaymaster_DepositTo_Unit_Concrete_Test is SignaturePaymaster_Unit_Concrete_Test {
