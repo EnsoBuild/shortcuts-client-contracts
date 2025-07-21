@@ -12,10 +12,9 @@ abstract contract Withdrawable is ERC721Holder, ERC1155Holder {
 
     IERC20 private constant _NATIVE_ASSET = IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
 
-    error OnlyOwner(address sender);
     error WithdrawFailed();
 
-    // @notice Withdraw native asset from this contract to the receiver
+    // @notice Withdraw native asset from this contract to the owner
     function withdrawNative() external {
         _checkOwner();
         _withdrawNative(address(this).balance);
