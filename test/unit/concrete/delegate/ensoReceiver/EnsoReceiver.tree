@@ -1,0 +1,114 @@
+// EnsoReceiver::ExecuteMultiSend - TODO
+// ├── when reentrant
+// │   └── it should revert
+// └── when non reentrant
+//     └── it should execute multiSend
+
+// EnsoReceiver::ExecuteShortcut - TODO
+// ├── when reentrant
+// │   └── it should revert
+// └── when non reentrant
+//     └── it should execute shortcut
+
+// EnsoReceiver::Initialize
+// ├── when already initialized
+// │   └── it should revert
+// └── when not initialized
+//     ├── it should set owner
+//     ├── it should set signer
+//     └── it should set entryPoint
+
+// EnsoReceiver::Owner
+// └── it should return owner
+
+// EnsoReceiver::SafeExecute - TODO
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     ├── when shortcut is not successful
+//     │   ├── it should emit shortcutExecutionFailed
+//     │   ├── when token is native token
+//     │   │   ├── when call is not successful
+//     │   │   │   └── it should revert
+//     │   │   └── when call is successful
+//     │   │       └── it should send amount to owner
+//     │   └── when token is not native token
+//     │       ├── when transfer is not successful
+//     │       │   └── it should revert
+//     │       └── when transfer is successful
+//     │           └── it should transfer amount to owner
+//     └── when shortcut is successful
+//         └── it should emit shortcutExecutionSuccessful
+
+// EnsoReceiver::SetEntryPoint
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     ├── it should set entryPoint
+//     └── it should set newEntryPoint
+
+// EnsoReceiver::SetSigner
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     ├── it should set signer
+//     └── it should emit newSigner
+
+// EnsoReceiver::ValidateUserOp
+// ├── when caller is not entryPoint
+// │   └── it should revert
+// └── when caller is entryPoint
+//     ├── when signer is EOA
+//     │   ├── when nonce is not valid1
+//     │   │   └── it should revert
+//     │   └── when nonce is valid1
+//     │       └── it should return sigValidationSuccess
+//     ├── when signer is EOA7702
+//     │   ├── when nonce is not valid2
+//     │   │   └── it should revert
+//     │   └── when nonce is valid2
+//     │       └── it should return sigValidationSuccess
+//     ├── when signer is not ERC1271
+//     │   └── it should return sigValidationFailed
+//     └── when signer is ERC1271
+//         ├── when nonce is not valid3
+//         │   └── it should revert
+//         └── when nonce is valid3
+//             └── it should return sigValidationSuccess
+
+// EnsoReceiver::WithdrawERC20s - TODO
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     ├── when transfer is not successful
+//     │   └── it should revert
+//     └── when transfer is successful
+//         └── it should transfer amount to owner
+
+// EnsoReceiver::WithdrawERC721s - TODO
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     ├── when transfer is not successful
+//     │   └── it should revert
+//     └── when transfer is successful
+//         └── it should transfer token to owner
+
+// NOTE: weak test, explore reentrancy
+// EnsoReceiver::WithdrawERC1155s - TODO
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     ├── when transfer is not successful
+//     │   └── it should revert
+//     └── when transfer is successful
+//         └── it should transfer token to owner
+
+// EnsoReceiver::WithdrawNative - TODO
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     ├── when call is not successful
+//     │   └── it should revert
+//     └── when call is successful
+//         └── it should transfer amount to owner
