@@ -5,8 +5,8 @@ import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymas
 
 import { SignaturePaymaster_Unit_Concrete_Test } from "./SignaturePaymaster.t.sol";
 
-import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction/core/Helpers.sol";
-import { PackedUserOperation } from "account-abstraction/interfaces/IEntryPoint.sol";
+import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction-v7/core/Helpers.sol";
+import { PackedUserOperation } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { console2 } from "forge-std-1.9.7/Test.sol";
 import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 
@@ -71,6 +71,7 @@ contract SignaturePaymaster_ValidatePaymasterUserOp_Unit_Concrete_Test is Signat
 
     function _getUserOpWithPaymasterAndDataSignedBy(bytes32 signerPk)
         internal
+        view
         returns (PackedUserOperation memory userOp)
     {
         // --- UserOp Essential parameters ---

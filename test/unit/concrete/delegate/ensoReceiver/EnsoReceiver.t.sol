@@ -4,8 +4,8 @@ pragma solidity ^0.8.20;
 import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
 import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
 import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
-import { EntryPoint } from "account-abstraction/core/EntryPoint.sol";
-import { IEntryPoint } from "account-abstraction/interfaces/IEntryPoint.sol";
+import { EntryPoint } from "account-abstraction-v7/core/EntryPoint.sol";
+import { IEntryPoint } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Test } from "forge-std-1.9.7/Test.sol";
 
 abstract contract EnsoReceiver_Unit_Concrete_Test is Test {

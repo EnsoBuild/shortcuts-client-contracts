@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
 import { SignaturePaymaster_Unit_Concrete_Test } from "./SignaturePaymaster.t.sol";
-import { IPaymaster } from "account-abstraction/interfaces/IPaymaster.sol";
+import { IPaymaster } from "account-abstraction-v7/interfaces/IPaymaster.sol";
 
 import { Vm, console2 } from "forge-std-1.9.7/Test.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable2Step.sol";

@@ -6,13 +6,13 @@ import { ERC4337CloneFactory } from "../../../src/factory/ERC4337CloneFactory.so
 import { SignaturePaymaster } from "../../../src/paymaster/SignaturePaymaster.sol";
 import { Shortcut } from "../../shortcuts/ShortcutDataTypes.sol";
 import { ShortcutsEthereum } from "../../shortcuts/ShortcutsEthereum.sol";
-import { EntryPoint } from "account-abstraction/core/EntryPoint.sol";
-import { IEntryPoint, PackedUserOperation } from "account-abstraction/interfaces/IEntryPoint.sol";
+import { EntryPoint } from "account-abstraction-v7/core/EntryPoint.sol";
+import { IEntryPoint, PackedUserOperation } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 
-contract Alpha_EOA_EntryPointV8_Fork_Test is Test {
+contract Checkout_EOA_EntryPointV7_Fork_Test is Test {
     using SafeERC20 for IERC20;
 
     address private constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;

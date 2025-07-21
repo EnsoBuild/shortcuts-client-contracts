@@ -156,6 +156,7 @@ contract BridgeTest is Test {
         weth.deposit{ value: ETH_AMOUNT }();
         weth.transfer(address(stargateReceiver), ETH_AMOUNT);
         (bool success,) = address(stargateReceiver).call{ value: ETH_AMOUNT }("");
+        (success); // shh
 
         uint256 ethOnReceiver = address(stargateReceiver).balance;
         uint256 wethOnReceiver = weth.balanceOf(address(stargateReceiver));
@@ -264,7 +265,7 @@ contract BridgeTest is Test {
         uint256 amount
     )
         internal
-        view
+        pure
         returns (bytes32[] memory commands, bytes[] memory state)
     {
         // Setup script to transfer token
