@@ -4,6 +4,9 @@ pragma solidity ^0.8.20;
 import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
 import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
 import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
+
+import { EnsoShortcutsHelpers } from "../../../../../src/helpers/EnsoShortcutsHelpers.sol";
+import { WETH9 } from "../../../../mocks/WETH9.sol";
 import { EntryPoint } from "account-abstraction-v7/core/EntryPoint.sol";
 import { IEntryPoint } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Test } from "forge-std-1.9.7/Test.sol";
@@ -20,6 +23,8 @@ abstract contract EnsoReceiver_Unit_Concrete_Test is Test {
     bytes32 internal s_signerPk;
     EntryPoint internal s_entryPoint;
     EnsoReceiver internal s_ensoReceiver;
+    EnsoShortcutsHelpers internal s_ensoShortcutsHelpers;
+    WETH9 internal s_weth;
 
     function setUp() public virtual {
         s_signer = EOA_1;
@@ -49,6 +54,12 @@ abstract contract EnsoReceiver_Unit_Concrete_Test is Test {
         s_ensoReceiver = new EnsoReceiver();
         s_ensoReceiver.initialize(s_owner, s_signer, address(s_entryPoint));
         vm.label(address(s_ensoReceiver), "EnsoReceiver");
+
+        s_weth = new WETH9();
+        vm.label(address(s_weth), "WETH9");
+
+        s_ensoShortcutsHelpers = new EnsoShortcutsHelpers();
+        vm.label(address(s_ensoShortcutsHelpers), "EnsoShortcutsHelpers");
         vm.stopPrank();
     }
 }

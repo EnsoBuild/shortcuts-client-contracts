@@ -61,10 +61,6 @@ contract EnsoReceiver_ExecuteShortcut_Unit_Concrete_Test is EnsoReceiver_Unit_Co
         shortcut.from = address(s_ensoReceiver);
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0]);
 
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
-
         // it should emit ShortcutExecuted
         vm.expectEmit(address(s_ensoReceiver));
         emit AbstractEnsoShortcuts.ShortcutExecuted(bytes32(0), keccak256(bytes("0123456789ABCDEF")));
@@ -99,10 +95,6 @@ contract EnsoReceiver_ExecuteShortcut_Unit_Concrete_Test is EnsoReceiver_Unit_Co
         Shortcut memory shortcut = ShortcutsEthereum.getShortcut1(s_owner);
         shortcut.from = address(s_ensoReceiver);
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0]);
-
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
 
         // it should emit ShortcutExecuted
         vm.expectEmit(address(s_ensoReceiver));

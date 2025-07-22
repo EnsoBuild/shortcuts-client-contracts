@@ -34,24 +34,47 @@
 // EnsoReceiver::Owner
 // └── it should return owner
 
-// EnsoReceiver::SafeExecute - TODO
-// ├── when caller is not owner
+// EnsoReceiver::SafeExecute_SenderIsEntryPoint
+// ├── when caller is not EntryPoint nor Owner
+// │   └── it should revert
+// └── when caller is EntryPoint
+//     ├── when shortcut execution succeeded
+//     │   ├── it should emit ShortcutExecutionSuccessful
+//     │   └── it apply shortcut state changes
+//     └── when shortcut execution failed
+//         ├── when tokenIn is native token
+//         │   ├── when withdraw call is unsuccessful
+//         │   │   └── it should revert
+//         │   └── when withdraw call is successful
+//         │       ├── it should emit ShortcutExecutionFailed
+//         │       └── it should send native token amount to owner
+//         └── when tokenIn is not native token
+//             ├── when withdraw safe transfer is unsuccessful
+//             │   └── it should revert
+//             └── when withdraw safe transfer is successful
+//                 ├── it should emit ShortcutExecutionFailed
+//                 └── it should transfer token amount to owner
+
+// EnsoReceiver::SafeExecute_SenderIsOwner
+// ├── when caller is not EntryPoint nor Owner
 // │   └── it should revert
 // └── when caller is owner
-//     ├── when shortcut is not successful
-//     │   ├── it should emit shortcutExecutionFailed
-//     │   ├── when token is native token
-//     │   │   ├── when call is not successful
-//     │   │   │   └── it should revert
-//     │   │   └── when call is successful
-//     │   │       └── it should send amount to owner
-//     │   └── when token is not native token
-//     │       ├── when transfer is not successful
-//     │       │   └── it should revert
-//     │       └── when transfer is successful
-//     │           └── it should transfer amount to owner
-//     └── when shortcut is successful
-//         └── it should emit shortcutExecutionSuccessful
+//     ├── when shortcut execution succeeded
+//     │   ├── it should emit ShortcutExecutionSuccessful
+//     │   └── it apply shortcut state changes
+//     └── when shortcut execution failed
+//         ├── when tokenIn is native token
+//         │   ├── when withdraw call is unsuccessful
+//         │   │   └── it should revert
+//         │   └── when withdraw call is successful
+//         │       ├── it should emit ShortcutExecutionFailed
+//         │       └── it should send native token amount to owner
+//         └── when tokenIn is not native token
+//             ├── when withdraw safe transfer is unsuccessful
+//             │   └── it should revert
+//             └── when withdraw safe transfer is successful
+//                 ├── it should emit ShortcutExecutionFailed
+//                 └── it should transfer token amount to owner
 
 // EnsoReceiver::SetEntryPoint
 // ├── when caller is not owner
