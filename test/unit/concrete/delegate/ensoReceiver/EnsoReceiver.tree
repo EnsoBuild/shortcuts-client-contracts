@@ -4,11 +4,24 @@
 // └── when non reentrant
 //     └── it should execute multiSend
 
-// EnsoReceiver::ExecuteShortcut - TODO
+// EnsoReceiver::ExecuteShortcut
 // ├── when reentrant
 // │   └── it should revert
 // └── when non reentrant
-//     └── it should execute shortcut
+//     ├── when caller is not EnsoReceiver or owner
+//     │   └── it should revert
+//     ├── when caller is EnsoReceiver
+//     │   ├── when shortcut execution failed 1
+//     │   │   └── it should revert
+//     │   └── when shortcut execution is successful 1
+//     │       ├── it should apply shortcut state changes
+//     │       └── it should emit ShortcutExecuted
+//     └── when caller is owner
+//         ├── when shortcut execution failed 2
+//         │   └── it should revert
+//         └── when shortcut execution is successful 2
+//             ├── it should apply shortcut state changes
+//             └── it should emit ShortcutExecuted
 
 // EnsoReceiver::Initialize
 // ├── when already initialized
