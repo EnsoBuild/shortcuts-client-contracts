@@ -15,14 +15,14 @@ abstract contract Withdrawable is ERC721Holder, ERC1155Holder {
     error ArrayLengthMismatch(uint256 array1Length, uint256 array2Length);
     error WithdrawFailed();
 
-    // @notice Withdraw native asset from this contract to the owner
+    /// @notice Withdraw native asset from this contract to the owner
     function withdrawNative(uint256 amount) external {
         _checkOwner();
         _withdrawNative(amount);
     }
 
-    // @notice Withdraw ERC20s
-    // @param erc20s An array of erc20 addresses
+    /// @notice Withdraw ERC20s
+    /// @param erc20s An array of erc20 addresses
     function withdrawERC20s(IERC20[] calldata erc20s, uint256[] calldata amounts) external {
         _checkOwner();
         if (erc20s.length != amounts.length) revert ArrayLengthMismatch(erc20s.length, amounts.length);
@@ -31,18 +31,18 @@ abstract contract Withdrawable is ERC721Holder, ERC1155Holder {
         }
     }
 
-    // @notice Withdraw multiple ERC721 ids for a single ERC721 contract
-    // @param erc721 The address of the ERC721 contract
-    // @param ids An array of ids that are to be withdrawn
+    /// @notice Withdraw multiple ERC721 ids for a single ERC721 contract
+    /// @param erc721 The address of the ERC721 contract
+    /// @param ids An array of ids that are to be withdrawn
     function withdrawERC721s(IERC721 erc721, uint256[] calldata ids) external {
         _checkOwner();
         _withdrawERC721s(erc721, ids);
     }
 
-    // @notice Withdraw multiple ERC1155 ids for a single ERC1155 contract
-    // @param erc1155 The address of the ERC155 contract
-    // @param ids An array of ids that are to be withdrawn
-    // @param amounts An array of amounts per id
+    /// @notice Withdraw multiple ERC1155 ids for a single ERC1155 contract
+    /// @param erc1155 The address of the ERC155 contract
+    /// @param ids An array of ids that are to be withdrawn
+    /// @param amounts An array of amounts per id
     function withdrawERC1155s(IERC1155 erc1155, uint256[] calldata ids, uint256[] calldata amounts) external {
         _checkOwner();
         // _withdrawERC1155s will validate the array lengths
