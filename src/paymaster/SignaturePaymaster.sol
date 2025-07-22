@@ -13,6 +13,7 @@ import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/Mess
 
 contract SignaturePaymaster is IPaymaster, Ownable2Step {
     address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    string public constant VERSION = "1.0.0";
 
     IEntryPoint public entryPoint;
     mapping(address signer => bool isValid) public validSigners;

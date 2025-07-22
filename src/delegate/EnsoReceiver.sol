@@ -22,6 +22,7 @@ contract EnsoReceiver is
     Initializable,
     ReentrancyGuardTransient
 {
+    string public constant VERSION = "1.0.0";
     address private _owner;
     address public signer;
     address public entryPoint;

@@ -64,6 +64,9 @@ SignaturePaymaster::ValidatePaymasterUserOp
 
 // SignaturePaymaster::ValidSigners
 
+SignaturePaymaster::Version
+└── it should return version
+
 SignaturePaymaster::WithdrawStake
 ├── when caller is not owner
 │   └── it should revert
