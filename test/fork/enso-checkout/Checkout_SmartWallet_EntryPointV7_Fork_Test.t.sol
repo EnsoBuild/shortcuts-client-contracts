@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import { AbstractEnsoShortcuts } from "../../../src/AbstractEnsoShortcuts.sol";
 import { EnsoReceiver } from "../../../src/delegate/EnsoReceiver.sol";
 import { ERC4337CloneFactory } from "../../../src/factory/ERC4337CloneFactory.sol";
 import { SignaturePaymaster } from "../../../src/paymaster/SignaturePaymaster.sol";
@@ -279,6 +280,11 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         // *** Act & Assert ***
         vm.prank(BUNDLER_1);
         vm.expectEmit(address(account));
+        emit AbstractEnsoShortcuts.ShortcutExecuted(
+            0xad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a5, // accountId
+            0x0b1a3b6069274a5e8cc0b1435a25fc8130313233343536373839414243444546 // requestId
+        );
+        vm.expectEmit(address(account));
         emit EnsoReceiver.ShortcutExecutionSuccessful();
         s_entryPoint.handleOps(userOps, BUNDLER_1);
 
@@ -339,13 +345,13 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -2_080_224_775_824_786,
+            -2_080_395_551_138_994,
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -2_080_224_775_824_786,
+            -2_080_395_551_138_994,
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
