@@ -33,7 +33,7 @@ abstract contract SignaturePaymaster_Unit_Concrete_Test is Test {
 
         vm.startPrank(s_deployer);
         s_entryPoint = new EntryPoint();
-        vm.label(address(s_entryPoint), "EntryPoint_0_8");
+        vm.label(address(s_entryPoint), "EntryPoint_0_7");
 
         s_signaturePaymaster = new SignaturePaymaster(IEntryPoint(address(s_entryPoint)), s_owner);
         vm.label(address(s_signaturePaymaster), "SignaturePaymaster");

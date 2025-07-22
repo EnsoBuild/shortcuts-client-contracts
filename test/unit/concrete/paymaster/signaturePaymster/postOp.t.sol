@@ -43,7 +43,7 @@ contract SignaturePaymaster_PostOp_Unit_Concrete_Test is SignaturePaymaster_Unit
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         // it should noop
-        (success);
+        assertTrue(success);
         assertEq(result, "");
         assertEq(gasPre - gasPost, 5432);
         assertEq(records.length, 1);

@@ -79,6 +79,9 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         emit EnsoReceiver.ShortcutExecutionSuccessful();
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
+        assertTrue(success);
+        (response);
+
         // Get balances after execution
         Balances memory post;
         post.receiverTokenIn = balance(shortcut.tokensIn[0], shortcut.receiver);
@@ -141,6 +144,7 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
         assertTrue(success); // TODO!: how?
+        (response);
     }
 
     function test_WhenWithdrawCallIsSuccessful()
@@ -179,6 +183,7 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
         assertTrue(success);
+        (response);
 
         // Get balances after execution
         Balances memory post;
@@ -235,6 +240,7 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
         assertFalse(success);
+        (response);
     }
 
     function test_WhenWithdrawSafeTransferIsSuccessful()
@@ -275,6 +281,7 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
         assertTrue(success);
+        (response);
 
         // Get balances after execution
         Balances memory post;
@@ -365,6 +372,9 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         emit EnsoReceiver.ShortcutExecutionSuccessful();
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
+        assertTrue(success);
+        (response);
+
         // Get balances after execution
         Balances memory post;
         post.receiverTokenIn = balance(shortcut.tokensIn[0], shortcut.receiver);
@@ -427,6 +437,7 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
         assertTrue(success); // TODO!: how?
+        (response);
     }
 
     function test_WhenWithdrawCallIsSuccessful()
@@ -465,6 +476,7 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
         assertTrue(success);
+        (response);
 
         // Get balances after execution
         Balances memory post;
@@ -521,6 +533,7 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
         assertFalse(success);
+        (response);
     }
 
     function test_WhenWithdrawSafeTransferIsSuccessful()
@@ -561,6 +574,7 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
 
         assertTrue(success);
+        (response);
 
         // Get balances after execution
         Balances memory post;

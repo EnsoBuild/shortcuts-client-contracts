@@ -49,7 +49,7 @@ abstract contract EnsoReceiver_Unit_Concrete_Test is Test {
 
         vm.startPrank(s_deployer);
         s_entryPoint = new EntryPoint();
-        vm.label(address(s_entryPoint), "EntryPoint_0_8");
+        vm.label(address(s_entryPoint), "EntryPoint_0_7");
 
         s_ensoReceiver = new EnsoReceiver();
         s_ensoReceiver.initialize(s_owner, s_signer, address(s_entryPoint));
