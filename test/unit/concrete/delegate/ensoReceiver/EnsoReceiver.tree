@@ -76,6 +76,9 @@
 //         └── when nonce is valid3
 //             └── it should return sigValidationSuccess
 
+// SignaturePaymaster::Version
+// └── it should return version
+
 // EnsoReceiver::WithdrawERC20s - TODO
 // ├── when caller is not owner
 // │   └── it should revert
