@@ -34,7 +34,7 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
     address payable private constant ENSO_DEPLOYER = payable(0x826e0BB2276271eFdF2a500597f37b94f6c153bA);
     address payable private constant ENSO_FEE_RECEIVER = payable(0x6AA68C46eD86161eB318b1396F7b79E386e88676);
 
-    address payable private constant ENTRY_POINT_0_8 = payable(0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108);
+    address payable private constant ENTRY_POINT_0_7 = payable(0x0000000071727De22E5E9d8BAf0edAc6f37da032);
     SignMessageLib private constant SIGN_MESSAGE_LIB = SignMessageLib(0xd53cd0aB83D845Ac265BE939c57F53AD838012c9);
 
     address payable private constant ENSO_BACKEND = payable(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266); // Anvil 0
@@ -64,7 +64,7 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         vm.label(ENSO_ACCOUNT, "ENSO_ACCOUNT");
         vm.label(ENSO_DEPLOYER, "ENSO_DEPLOYER");
         vm.label(ENSO_FEE_RECEIVER, "ENSO_FEE_RECEIVER");
-        vm.label(ENTRY_POINT_0_8, "EntryPoint_0_8");
+        vm.label(ENTRY_POINT_0_7, "EntryPoint_0_7");
 
         vm.label(ENSO_BACKEND, "ENSO_BACKEND");
         vm.label(EOA_1, "EOA_1");
@@ -77,11 +77,11 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         vm.deal(EOA_2, 1000 ether);
         vm.deal(BUNDLER_1, 1000 ether);
 
-        s_entryPoint = EntryPoint(ENTRY_POINT_0_8);
+        s_entryPoint = EntryPoint(ENTRY_POINT_0_7);
 
         // Deploy SignaturePaymaster
         vm.startPrank(ENSO_DEPLOYER);
-        s_paymaster = new SignaturePaymaster(IEntryPoint(ENTRY_POINT_0_8), ENSO_DEPLOYER);
+        s_paymaster = new SignaturePaymaster(IEntryPoint(ENTRY_POINT_0_7), ENSO_DEPLOYER);
         vm.label(address(s_paymaster), "SignaturePaymaster");
         s_paymaster.deposit{ value: 10 ether }();
         s_paymaster.setSigner(ENSO_BACKEND, true);
@@ -95,7 +95,7 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         // Deploy ERC4337CloneFactory
         vm.startPrank(ENSO_DEPLOYER);
         s_accountFactory =
-            new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(address(s_accountImpl), ENTRY_POINT_0_8);
+            new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(address(s_accountImpl), ENTRY_POINT_0_7);
         vm.label(address(s_accountFactory), "ERC4337CloneFactory");
         vm.stopPrank();
 
@@ -271,8 +271,8 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
 
         uint256 balancePreEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
 
-        uint256 balancePreEntryPointTokenIn = balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
-        uint256 balancePreEntryPointTokenOut = balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
+        uint256 balancePreEntryPointTokenIn = balance(shortcut.tokensIn[0], ENTRY_POINT_0_7);
+        uint256 balancePreEntryPointTokenOut = balance(shortcut.tokensOut[0], ENTRY_POINT_0_7);
 
         uint256 balancePreBundler1TokenIn = balance(shortcut.tokensIn[0], BUNDLER_1);
         uint256 balancePreBundler1TokenOut = balance(shortcut.tokensOut[0], BUNDLER_1);
@@ -303,8 +303,8 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
 
         uint256 balancePostEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
 
-        uint256 balancePostEntryPointTokenIn = balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
-        uint256 balancePostEntryPointTokenOut = balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
+        uint256 balancePostEntryPointTokenIn = balance(shortcut.tokensIn[0], ENTRY_POINT_0_7);
+        uint256 balancePostEntryPointTokenOut = balance(shortcut.tokensOut[0], ENTRY_POINT_0_7);
 
         uint256 balancePostBundler1TokenIn = balance(shortcut.tokensIn[0], BUNDLER_1);
         uint256 balancePostBundler1TokenOut = balance(shortcut.tokensOut[0], BUNDLER_1);

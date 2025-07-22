@@ -7,7 +7,7 @@ import "../src/paymaster/SignaturePaymaster.sol";
 import "forge-std/Script.sol";
 
 contract EnsoReceiverDeployer is Script {
-    address ENTRY_POINT_V8 = 0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108;
+    address ENTRY_POINT_V8 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address ENTRY_POINT_V7 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
     address OWNER = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA; // TODO: set multisig as owner for production deployment
