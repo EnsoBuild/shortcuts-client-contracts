@@ -6,23 +6,24 @@ import { ERC4337CloneFactory } from "../../../src/factory/ERC4337CloneFactory.so
 import { SignaturePaymaster } from "../../../src/paymaster/SignaturePaymaster.sol";
 import { Shortcut } from "../../shortcuts/ShortcutDataTypes.sol";
 import { ShortcutsEthereum } from "../../shortcuts/ShortcutsEthereum.sol";
+
+import { TokenBalanceHelper } from "../../utils/TokenBalanceHelper.sol";
 import { EntryPoint } from "account-abstraction-v7/core/EntryPoint.sol";
 import { IEntryPoint, PackedUserOperation } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
-import { StdStorage, Test, console2, stdStorage } from "forge-std-1.9.7/Test.sol";
+import { Test, console2 } from "forge-std-1.9.7/Test.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 import { Safe } from "safe-smart-account-1.5.0/Safe.sol";
-
 import { ExtensibleFallbackHandler } from "safe-smart-account-1.5.0/handler/ExtensibleFallbackHandler.sol";
 import { ERC1271 } from "safe-smart-account-1.5.0/handler/extensible/SignatureVerifierMuxer.sol";
-import { ISignatureValidator } from "safe-smart-account-1.5.0/interfaces/ISignatureValidator.sol";
 
 import { SignMessageLib } from "safe-smart-account-1.5.0/libraries/SignMessageLib.sol";
 import { SafeProxy } from "safe-smart-account-1.5.0/proxies/SafeProxy.sol";
 import { SafeProxyFactory } from "safe-smart-account-1.5.0/proxies/SafeProxyFactory.sol";
-import { sortPKsByComputedAddress } from "safe-tools-0.2.0/SafeTestTools.sol";
 
-contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test {
+import { PackedUserOperationLib } from "../../utils/AccountAbstraction.sol";
+
+contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
     using SafeERC20 for IERC20;
 
     address private constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -181,7 +182,7 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test {
         (success); // shh
 
         // UserOp.initCode - Setup initCode
-        userOp.initCode = _initCode(address(s_safe));
+        userOp.initCode = PackedUserOperationLib.generateInitCode(s_accountFactory, address(s_safe));
 
         // UserOp.nonce - Get nonce for the account
         uint192 laneId = 0;
@@ -196,10 +197,10 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test {
 
         // UserOp.accountGasLimits
         uint256 verificationGasLimit = 200_000;
-        userOp.accountGasLimits = _accountGasLimits(shortcut.txGas, verificationGasLimit);
+        userOp.accountGasLimits = PackedUserOperationLib.calculateAccountGasLimits(shortcut.txGas, verificationGasLimit);
 
         // UserOp.gasFees
-        userOp.gasFees = _gasFees();
+        userOp.gasFees = PackedUserOperationLib.calculateGasFees();
 
         // UserOp.preVerificationGas
         userOp.preVerificationGas = 100_000;
@@ -255,25 +256,25 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test {
         userOps[0] = userOp;
 
         // --- Get balances before execution ---
-        uint256 balancePreReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.receiver);
-        uint256 balancePreReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.receiver);
+        uint256 balancePreReceiverTokenIn = balance(shortcut.tokensIn[0], shortcut.receiver);
+        uint256 balancePreReceiverTokenOut = balance(shortcut.tokensOut[0], shortcut.receiver);
 
-        uint256 balancePreFeeReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.feeReceiver);
-        uint256 balancePreFeeReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.feeReceiver);
+        uint256 balancePreFeeReceiverTokenIn = balance(shortcut.tokensIn[0], shortcut.feeReceiver);
+        uint256 balancePreFeeReceiverTokenOut = balance(shortcut.tokensOut[0], shortcut.feeReceiver);
 
-        uint256 balancePreEnsoReceiverTokenIn = _balance(shortcut.tokensIn[0], address(account));
-        uint256 balancePreEnsoReceiverTokenOut = _balance(shortcut.tokensOut[0], address(account));
+        uint256 balancePreEnsoReceiverTokenIn = balance(shortcut.tokensIn[0], address(account));
+        uint256 balancePreEnsoReceiverTokenOut = balance(shortcut.tokensOut[0], address(account));
 
-        uint256 balancePrePaymasterTokenIn = _balance(shortcut.tokensIn[0], address(s_paymaster));
-        uint256 balancePrePaymasterTokenOut = _balance(shortcut.tokensOut[0], address(s_paymaster));
+        uint256 balancePrePaymasterTokenIn = balance(shortcut.tokensIn[0], address(s_paymaster));
+        uint256 balancePrePaymasterTokenOut = balance(shortcut.tokensOut[0], address(s_paymaster));
 
         uint256 balancePreEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
 
-        uint256 balancePreEntryPointTokenIn = _balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
-        uint256 balancePreEntryPointTokenOut = _balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
+        uint256 balancePreEntryPointTokenIn = balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
+        uint256 balancePreEntryPointTokenOut = balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
 
-        uint256 balancePreBundler1TokenIn = _balance(shortcut.tokensIn[0], BUNDLER_1);
-        uint256 balancePreBundler1TokenOut = _balance(shortcut.tokensOut[0], BUNDLER_1);
+        uint256 balancePreBundler1TokenIn = balance(shortcut.tokensIn[0], BUNDLER_1);
+        uint256 balancePreBundler1TokenOut = balance(shortcut.tokensOut[0], BUNDLER_1);
 
         // *** Act & Assert ***
         vm.prank(BUNDLER_1);
@@ -282,114 +283,75 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test {
         s_entryPoint.handleOps(userOps, BUNDLER_1);
 
         // --- Get balances after execution ---
-        uint256 balancePostReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.receiver);
-        uint256 balancePostReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.receiver);
+        uint256 balancePostReceiverTokenIn = balance(shortcut.tokensIn[0], shortcut.receiver);
+        uint256 balancePostReceiverTokenOut = balance(shortcut.tokensOut[0], shortcut.receiver);
 
-        uint256 balancePostFeeReceiverTokenIn = _balance(shortcut.tokensIn[0], shortcut.feeReceiver);
-        uint256 balancePostFeeReceiverTokenOut = _balance(shortcut.tokensOut[0], shortcut.feeReceiver);
+        uint256 balancePostFeeReceiverTokenIn = balance(shortcut.tokensIn[0], shortcut.feeReceiver);
+        uint256 balancePostFeeReceiverTokenOut = balance(shortcut.tokensOut[0], shortcut.feeReceiver);
 
-        uint256 balancePostEnsoReceiverTokenIn = _balance(shortcut.tokensIn[0], address(account));
-        uint256 balancePostEnsoReceiverTokenOut = _balance(shortcut.tokensOut[0], address(account));
+        uint256 balancePostEnsoReceiverTokenIn = balance(shortcut.tokensIn[0], address(account));
+        uint256 balancePostEnsoReceiverTokenOut = balance(shortcut.tokensOut[0], address(account));
 
-        uint256 balancePostPaymasterTokenIn = _balance(shortcut.tokensIn[0], address(s_paymaster));
-        uint256 balancePostPaymasterTokenOut = _balance(shortcut.tokensOut[0], address(s_paymaster));
+        uint256 balancePostPaymasterTokenIn = balance(shortcut.tokensIn[0], address(s_paymaster));
+        uint256 balancePostPaymasterTokenOut = balance(shortcut.tokensOut[0], address(s_paymaster));
 
         uint256 balancePostEntryPointPaymaster = s_entryPoint.balanceOf(address(s_paymaster));
 
-        uint256 balancePostEntryPointTokenIn = _balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
-        uint256 balancePostEntryPointTokenOut = _balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
+        uint256 balancePostEntryPointTokenIn = balance(shortcut.tokensIn[0], ENTRY_POINT_0_8);
+        uint256 balancePostEntryPointTokenOut = balance(shortcut.tokensOut[0], ENTRY_POINT_0_8);
 
-        uint256 balancePostBundler1TokenIn = _balance(shortcut.tokensIn[0], BUNDLER_1);
-        uint256 balancePostBundler1TokenOut = _balance(shortcut.tokensOut[0], BUNDLER_1);
+        uint256 balancePostBundler1TokenIn = balance(shortcut.tokensIn[0], BUNDLER_1);
+        uint256 balancePostBundler1TokenOut = balance(shortcut.tokensOut[0], BUNDLER_1);
 
         // Assert balances
-        _assertBalanceDiff(balancePreReceiverTokenIn, balancePostReceiverTokenIn, 0, "Receiver TokenIn (ETH)");
-        _assertBalanceDiff(
+        assertBalanceDiff(balancePreReceiverTokenIn, balancePostReceiverTokenIn, 0, "Receiver TokenIn (ETH)");
+        assertBalanceDiff(
             balancePreReceiverTokenOut,
             balancePostReceiverTokenOut,
             int256(shortcut.amountsIn[0] - shortcut.fee),
             "Receiver TokenOut (WETH)"
         );
 
-        _assertBalanceDiff(
+        assertBalanceDiff(
             balancePreFeeReceiverTokenIn,
             balancePostFeeReceiverTokenIn,
             int256(shortcut.fee),
             "FeeReceiver TokenIn (ETH)"
         );
-        _assertBalanceDiff(
+        assertBalanceDiff(
             balancePreFeeReceiverTokenOut, balancePostFeeReceiverTokenOut, 0, "FeeReceiver TokenOut (WETH)"
         );
 
-        _assertBalanceDiff(
+        assertBalanceDiff(
             balancePreEnsoReceiverTokenIn,
             balancePostEnsoReceiverTokenIn,
             -int256(shortcut.amountsIn[0]),
             "EnsoReceiver TokenIn (ETH)"
         );
 
-        _assertBalanceDiff(
+        assertBalanceDiff(
             balancePreEnsoReceiverTokenOut, balancePostEnsoReceiverTokenOut, 0, "EnsoReceiver TokenOut (WETH)"
         );
 
-        _assertBalanceDiff(balancePrePaymasterTokenIn, balancePostPaymasterTokenIn, 0, "Paymaster TokenIn (ETH)");
-        _assertBalanceDiff(balancePrePaymasterTokenOut, balancePostPaymasterTokenOut, 0, "Paymaster TokenOut (WETH)");
+        assertBalanceDiff(balancePrePaymasterTokenIn, balancePostPaymasterTokenIn, 0, "Paymaster TokenIn (ETH)");
+        assertBalanceDiff(balancePrePaymasterTokenOut, balancePostPaymasterTokenOut, 0, "Paymaster TokenOut (WETH)");
 
-        _assertBalanceDiff(
+        assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
             -2_080_224_775_824_786,
             "EntryPoint Paymaster balance (ETH)"
         );
-        _assertBalanceDiff(
+        assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
             -2_080_224_775_824_786,
             "EntryPoint TokenIn (ETH)"
         );
-        _assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
+        assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
 
-        _assertBalanceDiff(balancePreBundler1TokenIn, balancePostBundler1TokenIn, 0, "Bundler1 TokenIn (ETH)");
-        _assertBalanceDiff(balancePreBundler1TokenOut, balancePostBundler1TokenOut, 0, "Bundler1 TokenOut (WETH)");
-    }
-
-    function _assertBalanceDiff(
-        uint256 balancePre,
-        uint256 balancePost,
-        int256 expectedDiff,
-        string memory label
-    )
-        internal
-        pure
-    {
-        int256 actualDiff = int256(balancePost) - int256(balancePre);
-        assertEq(actualDiff, expectedDiff, string(abi.encodePacked("Balance diff mismatch: ", label)));
-    }
-
-    function _balance(address token, address account) internal view returns (uint256 balance) {
-        balance = token == NATIVE_ASSET ? account.balance : IERC20(token).balanceOf(account);
-    }
-
-    function _initCode(address signer) internal view returns (bytes memory initCode) {
-        bytes memory initCalldata = abi.encodeWithSelector(s_accountFactory.deploy.selector, signer);
-        initCode = abi.encodePacked(address(s_accountFactory), initCalldata);
-    }
-
-    function _gasFees() internal view returns (bytes32 gasFees) {
-        uint128 maxPriorityFeePerGas = 1 gwei;
-        uint128 maxFeePerGas = uint128(block.basefee) + maxPriorityFeePerGas;
-        gasFees = bytes32((uint256(maxPriorityFeePerGas) << 128) | uint256(maxFeePerGas));
-    }
-
-    function _accountGasLimits(
-        uint256 shortcutTxGas,
-        uint256 verificationGasLimit // verifcation gas limit includes deployment costs
-    )
-        internal
-        pure
-        returns (bytes32 accountGasLimits)
-    {
-        accountGasLimits = bytes32(uint256(verificationGasLimit) << 128 | uint256(shortcutTxGas));
+        assertBalanceDiff(balancePreBundler1TokenIn, balancePostBundler1TokenIn, 0, "Bundler1 TokenIn (ETH)");
+        assertBalanceDiff(balancePreBundler1TokenOut, balancePostBundler1TokenOut, 0, "Bundler1 TokenOut (WETH)");
     }
 
     /// @notice Assumes the private keys are already sorted by their computed addresses.
