@@ -68,6 +68,6 @@ contract EnsoReceiver_WithdrawERC721s_Unit_Concrete_Test is EnsoReceiver_Unit_Co
         assertBalanceDiff(
             ensoReceiverBalanceNftPre, ensoReceiverBalanceNftPost, -int256(ids.length), "EnsoReceiver NFTA"
         );
-        assertBalanceDiff(ownerBalanceNftPre, ownerBalanceNftPost, int256(ids.length), "EnsoReceiver NFTA");
+        assertBalanceDiff(ownerBalanceNftPre, ownerBalanceNftPost, int256(ids.length), "Owner NFTA");
     }
 }
