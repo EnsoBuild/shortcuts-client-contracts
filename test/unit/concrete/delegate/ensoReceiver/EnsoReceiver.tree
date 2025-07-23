@@ -143,15 +143,17 @@
 //     └── when safe transfer is successful
 //         └── it should transfer token to owner
 
-// NOTE: weak test, explore reentrancy
-// EnsoReceiver_WithdrawERC1155s - TODO
+// EnsoReceiver_WithdrawERC1155s
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
-//     ├── when transfer is not successful
+//     ├── when array lengths are not equal
 //     │   └── it should revert
-//     └── when transfer is successful
-//         └── it should transfer token to owner
+//     └── when array lengths are equal
+//         ├── when safe batch transfer is not successful
+//         │   └── it should revert
+//         └── when safe batch transfer is successful
+//             └── it should transfer amount to owner
 
 // EnsoReceiver_WithdrawNative
 // ├── when caller is not owner
