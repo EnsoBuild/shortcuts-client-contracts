@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { ERC4337CloneFactory } from "../../../../../src/factory/ERC4337CloneFactory.sol";
+import { ERC4337CloneFactory } from "../../src/factory/ERC4337CloneFactory.sol";
 
 library PackedUserOperationLib {
     function generateInitCode(
