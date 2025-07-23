@@ -257,13 +257,13 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -2_007_538_532_715_006,
+            -2062165286347290,
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -2_007_538_532_715_006,
+            -2062165286347290,
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
@@ -435,13 +435,13 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -1_768_746_612_895_101,
+            -1818890514529425,
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -1_768_746_612_895_101,
+            -1818890514529425,
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
@@ -498,7 +498,7 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
 
         // UserOp.paymasterAndData - Encode the paymaster and data
         uint48 validUntil = uint48(block.timestamp + 5 seconds);
-        uint48 validAfter = uint48(block.timestamp); // NOTE: revert cause
+        uint48 validAfter = uint48(block.timestamp + 1); // NOTE: revert cause
         uint128 paymasterVerificationGas = 100_000;
         uint128 paymasterPostOp = 100_000;
         // NOTE: signature will be added later

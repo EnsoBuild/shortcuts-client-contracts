@@ -45,7 +45,7 @@ contract SignaturePaymaster_PostOp_Unit_Concrete_Test is SignaturePaymaster_Unit
         // it should noop
         assertTrue(success);
         assertEq(result, "");
-        assertEq(gasPre - gasPost, 5432);
+        assertEq(gasPre - gasPost, 5430);
         assertEq(records.length, 1);
         assertEq(records[0].storageAccesses.length, 1); // NOTE: `onlyEntryPoint` modifier accesses `entryPoint`
         assertEq(records[0].storageAccesses[0].isWrite, false);

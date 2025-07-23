@@ -27,7 +27,7 @@ contract EnsoReceiver_WithdrawNative_Unit_Concrete_Test is EnsoReceiver_Unit_Con
 
         // it should revert
         vm.expectRevert(abi.encodeWithSelector(Withdrawable.WithdrawFailed.selector));
-        s_ensoReceiver.withdrawNative(amount - 1);
+        s_ensoReceiver.withdrawNative(amount + 1);
     }
 
     function test_WhenCallIsSuccessful() external whenCallerIsOwner {

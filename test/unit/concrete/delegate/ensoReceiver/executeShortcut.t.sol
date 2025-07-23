@@ -32,7 +32,7 @@ contract EnsoReceiver_ExecuteShortcut_SenderIsEnsoReceiver_Unit_Concrete_Test is
         vm.startPrank(address(s_ensoReceiver));
         vm.expectRevert(
             abi.encodeWithSelector(
-                WeirollVM.ExecutionFailed.selector, 0, keccak256(bytes("ReentrancyGuardReentrantCall")), "Unknown"
+                WeirollVM.ExecutionFailed.selector, 0, address(s_ensoReceiver), "Unknown"
             )
         );
         s_ensoReceiver.executeShortcut(
@@ -164,14 +164,14 @@ contract EnsoReceiver_ExecuteShortcut_SenderIsOwner_Unit_Concrete_Test is
 
     function test_RevertWhen_Reentrant() external {
         // Get shortcut
-        Shortcut memory shortcut = ShortcutsEthereum.getShortcut3(address(s_owner));
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut3(address(s_ensoReceiver));
         ExecuteShortcutParams memory executeShortcutParams = ShortcutsEthereum.decodeShortcutTxData(shortcut.txData);
 
         // it should revert
         vm.startPrank(address(s_owner));
         vm.expectRevert(
             abi.encodeWithSelector(
-                WeirollVM.ExecutionFailed.selector, 0, keccak256(bytes("ReentrancyGuardReentrantCall")), "Unknown"
+                WeirollVM.ExecutionFailed.selector, 0, address(s_ensoReceiver), "Unknown"
             )
         );
         s_ensoReceiver.executeShortcut(
