@@ -150,11 +150,11 @@
 //     └── when transfer is successful
 //         └── it should transfer token to owner
 
-// EnsoReceiver::WithdrawNative - TODO
+// EnsoReceiver::WithdrawNative
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
 //     ├── when call is not successful
 //     │   └── it should revert
 //     └── when call is successful
-//         └── it should transfer amount to owner
+//         └── it should send native token amount to owner
