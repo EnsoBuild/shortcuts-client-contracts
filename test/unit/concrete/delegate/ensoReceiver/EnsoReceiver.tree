@@ -4,24 +4,31 @@
 // └── when non reentrant
 //     └── it should execute multiSend
 
-// EnsoReceiver::ExecuteShortcut - TODO
+// EnsoReceiver::ExecuteShortcut_SenderIsEnsoReceiver
 // ├── when reentrant
 // │   └── it should revert
 // └── when non reentrant
-//     ├── when caller is not EnsoReceiver or owner
+//     ├── when caller is not EnsoReceiver nor owner
 //     │   └── it should revert
-//     ├── when caller is EnsoReceiver
-//     │   ├── when shortcut execution failed 1
-//     │   │   └── it should revert
-//     │   └── when shortcut execution is successful 1
-//     │       ├── it should apply shortcut state changes
-//     │       └── it should emit ShortcutExecuted
-//     └── when caller is owner
-//         ├── when shortcut execution failed 2
+//     └── when caller is EnsoReceiver
+//         ├── when shortcut execution failed
 //         │   └── it should revert
-//         └── when shortcut execution is successful 2
-//             ├── it should apply shortcut state changes
-//             └── it should emit ShortcutExecuted
+//         └── when shortcut execution succeeded
+//             ├── it should emit ShortcutExecuted
+//             └── it should apply shortcut state changes
+
+// EnsoReceiver::ExecuteShortcut_SenderIsOwner
+// ├── when reentrant
+// │   └── it should revert
+// └── when non reentrant
+//     ├── when caller is not EnsoReceiver nor owner
+//     │   └── it should revert
+//     └── when caller is owner
+//         ├── when shortcut execution failed
+//         │   └── it should revert
+//         └── when shortcut execution succeeded
+//             ├── it should emit ShortcutExecuted
+//             └── it should apply shortcut state changes
 
 // EnsoReceiver::Initialize
 // ├── when already initialized
@@ -35,7 +42,7 @@
 // └── it should return owner
 
 // EnsoReceiver::SafeExecute_SenderIsEntryPoint
-// ├── when caller is not EntryPoint nor Owner
+// ├── when caller is not EntryPoint nor owner
 // │   └── it should revert
 // └── when caller is EntryPoint
 //     ├── when shortcut execution succeeded
@@ -56,7 +63,7 @@
 //                 └── it should transfer token amount to owner
 
 // EnsoReceiver::SafeExecute_SenderIsOwner
-// ├── when caller is not EntryPoint nor Owner
+// ├── when caller is not EntryPoint nor owner
 // │   └── it should revert
 // └── when caller is owner
 //     ├── when shortcut execution succeeded

@@ -2,21 +2,17 @@
 pragma solidity ^0.8.28;
 
 import { AbstractEnsoShortcuts } from "../../../../../src/AbstractEnsoShortcuts.sol";
-import { EIP7702EnsoShortcuts } from "../../../../../src/delegate/EIP7702EnsoShortcuts.sol";
 import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
 import { Withdrawable } from "../../../../../src/utils/Withdrawable.sol";
 import { TokenBalanceHelper } from "../../../../utils/TokenBalanceHelper.sol";
 
 import { Shortcut } from "../../../../shortcuts/ShortcutDataTypes.sol";
-import { ShortcutsEthereum } from "../../../../shortcuts/ShortcutsEthereum.sol";
+import { ExecuteShortcutParams, ShortcutsEthereum } from "../../../../shortcuts/ShortcutsEthereum.sol";
 
 import { ShortcutsEthereum } from "../../../../shortcuts/ShortcutsEthereum.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
-import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction-v7/core/Helpers.sol";
-import { PackedUserOperation } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { Vm, console2 } from "forge-std-1.9.7/Test.sol";
-import { Ownable } from "openzeppelin-contracts/access/Ownable2Step.sol";
-import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
     EnsoReceiver_Unit_Concrete_Test,
@@ -53,9 +49,9 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0]);
 
         // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
+        // bytes memory callData = abi.encodeCall(
+        //     EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
+        // );
 
         // Get balances before execution
         Balances memory pre;
@@ -77,10 +73,11 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         // it should emit ShortcutExecutionSuccessful
         vm.expectEmit(address(s_ensoReceiver));
         emit EnsoReceiver.ShortcutExecutionSuccessful();
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
+        // (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
 
-        assertTrue(success);
-        (response);
+        // assertTrue(success);
+        // (response);
 
         // Get balances after execution
         Balances memory post;
