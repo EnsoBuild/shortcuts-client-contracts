@@ -5,7 +5,7 @@ import { Test } from "forge-std-1.9.7/Test.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract TokenBalanceHelper is Test {
-    address private constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address internal constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     function assertBalanceDiff(
         uint256 balancePre,

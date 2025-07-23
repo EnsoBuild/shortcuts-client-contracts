@@ -20,7 +20,6 @@ import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/Mess
 contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
     using SafeERC20 for IERC20;
 
-    address private constant NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     IERC20 private constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     address payable private constant ENSO_ACCOUNT = payable(0x93621DCA56fE26Cdee86e4F6B18E116e9758Ff11);
