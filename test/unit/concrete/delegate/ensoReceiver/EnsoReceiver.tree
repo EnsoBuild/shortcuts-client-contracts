@@ -134,13 +134,13 @@
 //         └── when safe transfer is successful
 //             └── it should transfer amount to owner
 
-// EnsoReceiver_WithdrawERC721s - TODO
+// EnsoReceiver_WithdrawERC721s
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
-//     ├── when transfer is not successful
+//     ├── when safe transfer is not successful
 //     │   └── it should revert
-//     └── when transfer is successful
+//     └── when safe transfer is successful
 //         └── it should transfer token to owner
 
 // NOTE: weak test, explore reentrancy
