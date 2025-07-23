@@ -1,10 +1,10 @@
-// EnsoReceiver::ExecuteMultiSend - TODO
+// EnsoReceiver_ExecuteMultiSend - TODO
 // ├── when reentrant
 // │   └── it should revert
 // └── when non reentrant
 //     └── it should execute multiSend
 
-// EnsoReceiver::ExecuteShortcut_SenderIsEnsoReceiver
+// EnsoReceiver_ExecuteShortcut_SenderIsEnsoReceiver
 // ├── when reentrant
 // │   └── it should revert
 // └── when non reentrant
@@ -17,7 +17,7 @@
 //             ├── it should emit ShortcutExecuted
 //             └── it should apply shortcut state changes
 
-// EnsoReceiver::ExecuteShortcut_SenderIsOwner
+// EnsoReceiver_ExecuteShortcut_SenderIsOwner
 // ├── when reentrant
 // │   └── it should revert
 // └── when non reentrant
@@ -30,7 +30,7 @@
 //             ├── it should emit ShortcutExecuted
 //             └── it should apply shortcut state changes
 
-// EnsoReceiver::Initialize
+// EnsoReceiver_Initialize
 // ├── when already initialized
 // │   └── it should revert
 // └── when not initialized
@@ -38,10 +38,10 @@
 //     ├── it should set signer
 //     └── it should set entryPoint
 
-// EnsoReceiver::Owner
+// EnsoReceiver_Owner
 // └── it should return owner
 
-// EnsoReceiver::SafeExecute_SenderIsEntryPoint
+// EnsoReceiver_SafeExecute_SenderIsEntryPoint
 // ├── when caller is not EntryPoint nor owner
 // │   └── it should revert
 // └── when caller is EntryPoint
@@ -62,7 +62,7 @@
 //                 ├── it should emit ShortcutExecutionFailed
 //                 └── it should transfer token amount to owner
 
-// EnsoReceiver::SafeExecute_SenderIsOwner
+// EnsoReceiver_SafeExecute_SenderIsOwner
 // ├── when caller is not EntryPoint nor owner
 // │   └── it should revert
 // └── when caller is owner
@@ -83,21 +83,21 @@
 //                 ├── it should emit ShortcutExecutionFailed
 //                 └── it should transfer token amount to owner
 
-// EnsoReceiver::SetEntryPoint
+// EnsoReceiver_SetEntryPoint
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
 //     ├── it should set entryPoint
 //     └── it should set newEntryPoint
 
-// EnsoReceiver::SetSigner
+// EnsoReceiver_SetSigner
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
 //     ├── it should set signer
 //     └── it should emit newSigner
 
-// EnsoReceiver::ValidateUserOp
+// EnsoReceiver_ValidateUserOp
 // ├── when caller is not entryPoint
 // │   └── it should revert
 // └── when caller is entryPoint
@@ -119,19 +119,22 @@
 //         └── when nonce is valid3
 //             └── it should return sigValidationSuccess
 
-// SignaturePaymaster::Version
+// SignaturePaymaster_Version
 // └── it should return version
 
-// EnsoReceiver::WithdrawERC20s - TODO
+// EnsoReceiver_WithdrawERC20s
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
-//     ├── when transfer is not successful
+//     ├── when array lengths are not equal
 //     │   └── it should revert
-//     └── when transfer is successful
-//         └── it should transfer amount to owner
+//     └── when array lengths are equal
+//         ├── when safe transfer is not successful
+//         │   └── it should revert
+//         └── when safe transfer is successful
+//             └── it should transfer amount to owner
 
-// EnsoReceiver::WithdrawERC721s - TODO
+// EnsoReceiver_WithdrawERC721s - TODO
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
@@ -141,7 +144,7 @@
 //         └── it should transfer token to owner
 
 // NOTE: weak test, explore reentrancy
-// EnsoReceiver::WithdrawERC1155s - TODO
+// EnsoReceiver_WithdrawERC1155s - TODO
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
@@ -150,7 +153,7 @@
 //     └── when transfer is successful
 //         └── it should transfer token to owner
 
-// EnsoReceiver::WithdrawNative
+// EnsoReceiver_WithdrawNative
 // ├── when caller is not owner
 // │   └── it should revert
 // └── when caller is owner
