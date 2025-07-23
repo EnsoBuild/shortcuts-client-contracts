@@ -174,11 +174,11 @@ contract BridgeTest is Test {
         vm.startPrank(usdcPool);
         IERC20(usdc).transfer(address(lzReceiver), USDC_AMOUNT);
         vm.stopPrank();
-        // confirm funds have landed in the stargate receiver
+        // confirm funds have landed in the layer zero receiver
         assertGt(IERC20(usdc).balanceOf(address(lzReceiver)), 0);
         // trigger compose
         lzReceiver.lzCompose(usdcPool, bytes32(0), message, address(0), "");
-        // confirm funds have left the stargate receiver
+        // confirm funds have left the layer zero receiver
         assertEq(IERC20(usdc).balanceOf(address(lzReceiver)), 0);
         // confirm funds have been returned this address
         uint256 balanceAfter = IERC20(usdc).balanceOf(address(this));
