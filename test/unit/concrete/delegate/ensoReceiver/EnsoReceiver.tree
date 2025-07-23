@@ -1,4 +1,35 @@
-// EnsoReceiver_ExecuteMultiSend - TODO
+// EnsoReceiver_ExecuteMultiSend_SenderIsEnsoReceiver
+// ├── when reentrant
+// │   └── it should revert
+// └── when non reentrant
+//     ├── when caller is not EnsoReceiver nor owner
+//     │   └── it should revert
+//     └── when caller is EnsoReceiver
+//         ├── when transaction is delegatecall
+//         │   └── it should revert
+//         └── when transaction is call
+//             ├── when call failed
+//             │   └── it should revert
+//             └── when call succeeded
+//                 ├── it should emit MultiSendExecuted
+//                 └── it should apply state changes
+
+// EnsoReceiver_ExecuteMultiSend_SenderIsOwner
+// ├── when reentrant
+// │   └── it should revert
+// └── when non reentrant
+//     ├── when caller is not EnsoReceiver nor owner
+//     │   └── it should revert
+//     └── when caller is owner
+//         ├── when transaction is delegatecall
+//         │   └── it should revert
+//         └── when transaction is call
+//             ├── when call failed
+//             │   └── it should revert
+//             └── when call succeeded
+//                 ├── it should emit MultiSendExecuted
+//                 └── it should apply state changes
+
 // ├── when reentrant
 // │   └── it should revert
 // └── when non reentrant

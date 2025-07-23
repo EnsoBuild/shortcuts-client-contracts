@@ -50,7 +50,12 @@ abstract contract AbstractMultiSend {
                 case 0 { success := call(gas(), to, value, data, dataLength, 0, 0) }
                 // This version does not allow delegatecalls
                 case 1 { revert(0, 0) }
-                if eq(success, 0) { revert(0, 0) }
+                if eq(success, 0) {
+                    let size := returndatasize()
+                    returndatacopy(0, 0, size)
+                    revert(0, size)
+                }
+
                 // Next entry starts at 85 byte + data length
                 i := add(i, add(0x55, dataLength))
             }
