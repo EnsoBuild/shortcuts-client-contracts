@@ -9,7 +9,8 @@ broadcast=${args[2]}
 verifier=${args[3]}
 network_upper="${network^^}"
 rpc="${network_upper}_RPC_URL"
-blockscan_key="${network_upper}_BLOCKSCAN_KEY"
+#blockscan_key="${network_upper}_BLOCKSCAN_KEY"
+blockscan_key="ETHEREUM_BLOCKSCAN_KEY"
 
 source .env
 params=()
@@ -26,17 +27,17 @@ if [ $broadcast == "broadcast" ]; then
         params+=(--verify)
         params+=(--verifier "${verifier}")
         if [ $verifier == "etherscan" ]; then
-            if [ $network_upper == "BERACHAIN" ]; then
-                params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan")
-                params+=(--etherscan-api-key "verifyContract")
-            elif [ -n "$blockscan_key" ]; then
-                params+=(--etherscan-api-key ${!blockscan_key})
-            fi
+            params+=(--etherscan-api-key ${!blockscan_key})
+        elif [ $verifier == "routescan" ]; then
+            params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan")
+            params+=(--etherscan-api-key "verifyContract")
         elif [ $verifier == "blockscout" ]; then
             if [ $network_upper == "INK"]; then
                 params+=(--verifier-url "https://explorer.inkonchain.com/api")
             elif [ $network_upper == "PLUME"]; then
                 params+=(--verifier-url "https://explorer.plume.org/api")
+            elif [ $network_upper == "KATANA"]; then
+                params+=(--verifier-url "https://explorer.katanarpc.com/api")
             else
                 params+=(--verifier-url "https://${network}.blockscout.com/api")
             fi

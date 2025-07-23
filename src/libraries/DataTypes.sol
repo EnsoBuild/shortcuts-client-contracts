@@ -20,5 +20,6 @@ library ChainId {
     uint256 public constant LINEA = 59_144;
     uint256 public constant BERACHAIN = 80_094;
     uint256 public constant PLUME = 98_866;
+    uint256 public constant KATANA = 747_474;
     uint256 public constant SEPOLIA = 11_155_111;
 }
