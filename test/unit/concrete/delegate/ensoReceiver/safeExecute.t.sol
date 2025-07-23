@@ -45,13 +45,9 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         // Get shortcut
         Shortcut memory shortcut =
             ShortcutsEthereum.getShortcut1(address(s_weth), address(s_ensoShortcutsHelpers), s_owner);
+        ExecuteShortcutParams memory executeShortcutParams = ShortcutsEthereum.decodeShortcutTxData(shortcut.txData);
 
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0]);
-
-        // Encode `executeShortcut` call for `safeExecute`
-        // bytes memory callData = abi.encodeCall(
-        //     EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        // );
 
         // Get balances before execution
         Balances memory pre;
@@ -66,18 +62,11 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
 
         // NOTE: it should emit ShortcutExecuted
         vm.expectEmit(address(s_ensoReceiver));
-        emit AbstractEnsoShortcuts.ShortcutExecuted(
-            0xad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a5,
-            0x0b1a3b6069274a5e8cc0b1435a25fc8130313233343536373839414243444546
-        );
+        emit AbstractEnsoShortcuts.ShortcutExecuted(executeShortcutParams.accountId, executeShortcutParams.requestId);
         // it should emit ShortcutExecutionSuccessful
         vm.expectEmit(address(s_ensoReceiver));
         emit EnsoReceiver.ShortcutExecutionSuccessful();
-        // (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
         s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
-
-        // assertTrue(success);
-        // (response);
 
         // Get balances after execution
         Balances memory post;
@@ -131,17 +120,9 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
 
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0] - 1); // NOTE: force withdraw failure
 
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
-
         // it should revert
         vm.expectRevert(abi.encodeWithSelector(Withdrawable.WithdrawFailed.selector));
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertTrue(success); // TODO!: how?
-        (response);
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
     }
 
     function test_WhenWithdrawCallIsSuccessful()
@@ -155,11 +136,6 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         Shortcut memory shortcut = ShortcutsEthereum.getShortcut1(address(s_weth), address(0), s_owner);
 
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0]);
-
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
 
         // Get balances before execution
         Balances memory pre;
@@ -177,10 +153,7 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         emit EnsoReceiver.ShortcutExecutionFailed(
             hex"08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000284f6e6c79206f6e652072657475726e2076616c7565207065726d6974746564202873746174696329000000000000000000000000000000000000000000000000"
         );
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertTrue(success);
-        (response);
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
 
         // Get balances after execution
         Balances memory post;
@@ -227,17 +200,9 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         s_weth.deposit{ value: shortcut.amountsIn[0] }(); // NOTE: as EntryPoint
         s_weth.transfer(address(s_ensoReceiver), shortcut.amountsIn[0] - 1);
 
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
-
         // it should revert
-        vm.expectRevert(bytes4(hex"00000000"), address(s_owner)); // NOTE: weak check
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertFalse(success);
-        (response);
+        vm.expectRevert(bytes(""), address(s_weth));
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
     }
 
     function test_WhenWithdrawSafeTransferIsSuccessful()
@@ -253,11 +218,6 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         // Top-up EnsoReceiver with WETH (as EntryPoint)
         s_weth.deposit{ value: shortcut.amountsIn[0] }(); // NOTE: as EntryPoint
         s_weth.transfer(address(s_ensoReceiver), shortcut.amountsIn[0]);
-
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
 
         // Get balances before execution
         Balances memory pre;
@@ -275,10 +235,7 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         emit EnsoReceiver.ShortcutExecutionFailed(
             hex"08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000284f6e6c79206f6e652072657475726e2076616c7565207065726d6974746564202873746174696329000000000000000000000000000000000000000000000000"
         );
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertTrue(success);
-        (response);
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
 
         // Get balances after execution
         Balances memory post;
@@ -339,13 +296,9 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         // Get shortcut
         Shortcut memory shortcut =
             ShortcutsEthereum.getShortcut1(address(s_weth), address(s_ensoShortcutsHelpers), s_owner);
+        ExecuteShortcutParams memory executeShortcutParams = ShortcutsEthereum.decodeShortcutTxData(shortcut.txData);
 
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0]);
-
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
 
         // Get balances before execution
         Balances memory pre;
@@ -360,17 +313,11 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
 
         // NOTE: it should emit ShortcutExecuted
         vm.expectEmit(address(s_ensoReceiver));
-        emit AbstractEnsoShortcuts.ShortcutExecuted(
-            0xad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a5,
-            0x0b1a3b6069274a5e8cc0b1435a25fc8130313233343536373839414243444546
-        );
+        emit AbstractEnsoShortcuts.ShortcutExecuted(executeShortcutParams.accountId, executeShortcutParams.requestId);
         // it should emit ShortcutExecutionSuccessful
         vm.expectEmit(address(s_ensoReceiver));
         emit EnsoReceiver.ShortcutExecutionSuccessful();
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertTrue(success);
-        (response);
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
 
         // Get balances after execution
         Balances memory post;
@@ -424,17 +371,9 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
 
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0] - 1); // NOTE: force withdraw failure
 
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
-
         // it should revert
         vm.expectRevert(abi.encodeWithSelector(Withdrawable.WithdrawFailed.selector));
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertTrue(success); // TODO!: how?
-        (response);
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
     }
 
     function test_WhenWithdrawCallIsSuccessful()
@@ -448,11 +387,6 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         Shortcut memory shortcut = ShortcutsEthereum.getShortcut1(address(s_weth), address(0), s_owner);
 
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0]);
-
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
 
         // Get balances before execution
         Balances memory pre;
@@ -470,10 +404,7 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         emit EnsoReceiver.ShortcutExecutionFailed(
             hex"08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000284f6e6c79206f6e652072657475726e2076616c7565207065726d6974746564202873746174696329000000000000000000000000000000000000000000000000"
         );
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertTrue(success);
-        (response);
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
 
         // Get balances after execution
         Balances memory post;
@@ -520,17 +451,9 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         s_weth.deposit{ value: shortcut.amountsIn[0] }(); // NOTE: as owner
         s_weth.transfer(address(s_ensoReceiver), shortcut.amountsIn[0] - 1);
 
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
-
         // it should revert
-        vm.expectRevert(bytes4(hex"00000000"), address(s_owner)); // NOTE: weak check
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertFalse(success);
-        (response);
+        vm.expectRevert(bytes(""), address(s_weth));
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
     }
 
     function test_WhenWithdrawSafeTransferIsSuccessful()
@@ -546,11 +469,6 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         // Top-up EnsoReceiver with WETH (as owner)
         s_weth.deposit{ value: shortcut.amountsIn[0] }(); // NOTE: as owner
         s_weth.transfer(address(s_ensoReceiver), shortcut.amountsIn[0]);
-
-        // Encode `executeShortcut` call for `safeExecute`
-        bytes memory callData = abi.encodeCall(
-            EnsoReceiver.safeExecute, (IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData)
-        );
 
         // Get balances before execution
         Balances memory pre;
@@ -568,10 +486,7 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         emit EnsoReceiver.ShortcutExecutionFailed(
             hex"08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000284f6e6c79206f6e652072657475726e2076616c7565207065726d6974746564202873746174696329000000000000000000000000000000000000000000000000"
         );
-        (bool success, bytes memory response) = address(s_ensoReceiver).call(callData);
-
-        assertTrue(success);
-        (response);
+        s_ensoReceiver.safeExecute(IERC20(shortcut.tokensIn[0]), shortcut.amountsIn[0], shortcut.txData);
 
         // Get balances after execution
         Balances memory post;
