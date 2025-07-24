@@ -14,6 +14,11 @@ node_modules/
 # Deprecated submodule folder
 lib/
 
+# Certora Gambit & mutation tests runner
+gambit_out/
+tempBackup/
+testLogs/
+
 # Dotenv file
 .env
 
@@ -24,3 +29,4 @@ lib/
 
 # Cache files
 .prettiercache
+

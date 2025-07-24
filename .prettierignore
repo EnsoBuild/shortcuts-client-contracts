@@ -13,10 +13,13 @@ dependencies/
 dist/
 foundry-cache/
 foundry-out/
+gambit_out/
 lib/
 node_modules/
 out/
 outputs/
+tempBackup/
+testLogs/
 
 # files
 *.env

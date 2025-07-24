@@ -1,0 +1,24 @@
+[
+  {
+    "filename": "src/delegate/EnsoReceiver.sol",
+    "sourceroot": "src/",
+    "solc_remappings": [
+      "account-abstraction-v7/=dependencies/account-abstraction-v7-0.7.0/contracts/",
+      "enso-weiroll/=dependencies/enso-weiroll-1.4.1/contracts/",
+      "openzeppelin-contracts/=dependencies/@openzeppelin-contracts-5.2.0/contracts/"
+    ]
+  },
+  {
+    "filename": "src/factory/ERC4337CloneFactory.sol",
+    "sourceroot": "src/",
+    "solc_remappings": ["solady/=dependencies/solady-0.1.22/src/"]
+  },
+  {
+    "filename": "src/paymaster/SignaturePaymaster.sol",
+    "sourceroot": "src/",
+    "solc_remappings": [
+      "account-abstraction-v7/=dependencies/account-abstraction-v7-0.7.0/contracts/",
+      "openzeppelin-contracts/=dependencies/@openzeppelin-contracts-5.2.0/contracts/"
+    ]
+  }
+]
