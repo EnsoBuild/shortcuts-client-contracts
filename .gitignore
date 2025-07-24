@@ -8,8 +8,19 @@ zkout/
 /broadcast/*/31337/
 /broadcast/**/dry-run/
 
+# Dependencies
+node_modules/
+
 # Deprecated submodule folder
 lib/
 
 # Dotenv file
 .env
+
+# OS & IDE
+.vscode
+.idea
+.DS_Store
+
+# Cache files
+.prettiercache

@@ -1,0 +1,30 @@
+{
+  "name": "shortcuts-client-contracts",
+  "version": "1.0.0",
+  "description": "Client contracts for running Enso Shortcuts",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "husky",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "format:fix:sol": "forge fmt",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.11.0",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.2",
+    "prettier": "^3.6.2"
+  },
+  "lint-staged": {
+    "*.{md,json,toml,yml,yaml}": [
+      "prettier --write"
+    ],
+    "*.sol": [
+      "forge fmt"
+    ]
+  }
+}
