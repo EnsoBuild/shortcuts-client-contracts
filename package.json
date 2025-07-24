@@ -4,6 +4,7 @@
   "description": "Client contracts for running Enso Shortcuts",
   "main": "index.js",
   "scripts": {
+    "foundry:update": "foundryup && forge soldeer update && forge remappings",
     "prepare": "husky",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
@@ -16,9 +17,9 @@
   "license": "ISC",
   "packageManager": "pnpm@10.11.0",
   "devDependencies": {
-    "husky": "^9.1.7",
-    "lint-staged": "^16.1.2",
-    "prettier": "^3.6.2"
+    "husky": "9.1.7",
+    "lint-staged": "16.1.2",
+    "prettier": "3.6.2"
   },
   "lint-staged": {
     "*.{md,json,toml,yml,yaml}": [

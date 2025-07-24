@@ -8,6 +8,8 @@ Requires [Foundry](https://getfoundry.sh/).
 
 ```bash
 $ forge install
+$ pnpm install
+$ pnpm foundry:update
 $ forge build
 ```
 
