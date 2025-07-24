@@ -257,13 +257,13 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -2062165286347290,
+            -2_062_165_286_347_290,
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -2062165286347290,
+            -2_062_165_286_347_290,
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
@@ -435,13 +435,13 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -1818890514529425,
+            -1_818_890_514_529_425,
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -1818890514529425,
+            -1_818_890_514_529_425,
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");

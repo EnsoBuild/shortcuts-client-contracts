@@ -2,11 +2,9 @@
 pragma solidity ^0.8.28;
 
 import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
-import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
 
 import { console2 } from "forge-std-1.9.7/Test.sol";
-import { Ownable } from "openzeppelin-contracts/access/Ownable2Step.sol";
 import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 
 contract EnsoReceiver_Initialize_Unit_Concrete_Test is EnsoReceiver_Unit_Concrete_Test {
