@@ -1,196 +1,196 @@
-// EnsoReceiver_ExecuteMultiSend_SenderIsEnsoReceiver
-// ├── when reentrant
-// │   └── it should revert
-// └── when non reentrant
-//     ├── when caller is not EnsoReceiver nor owner
-//     │   └── it should revert
-//     └── when caller is EnsoReceiver
-//         ├── when transaction is delegatecall
-//         │   └── it should revert
-//         └── when transaction is call
-//             ├── when call failed
-//             │   └── it should revert
-//             └── when call succeeded
-//                 ├── it should emit MultiSendExecuted
-//                 └── it should apply state changes
+EnsoReceiver_ExecuteMultiSend_SenderIsEnsoReceiver
+├── when reentrant
+│   └── it should revert
+└── when non reentrant
+    ├── when caller is not EnsoReceiver nor owner
+    │   └── it should revert
+    └── when caller is EnsoReceiver
+        ├── when transaction is delegatecall
+        │   └── it should revert
+        └── when transaction is call
+            ├── when call failed
+            │   └── it should revert
+            └── when call succeeded
+                ├── it should emit MultiSendExecuted
+                └── it should apply state changes
 
-// EnsoReceiver_ExecuteMultiSend_SenderIsOwner
-// ├── when reentrant
-// │   └── it should revert
-// └── when non reentrant
-//     ├── when caller is not EnsoReceiver nor owner
-//     │   └── it should revert
-//     └── when caller is owner
-//         ├── when transaction is delegatecall
-//         │   └── it should revert
-//         └── when transaction is call
-//             ├── when call failed
-//             │   └── it should revert
-//             └── when call succeeded
-//                 ├── it should emit MultiSendExecuted
-//                 └── it should apply state changes
+EnsoReceiver_ExecuteMultiSend_SenderIsOwner
+├── when reentrant
+│   └── it should revert
+└── when non reentrant
+    ├── when caller is not EnsoReceiver nor owner
+    │   └── it should revert
+    └── when caller is owner
+        ├── when transaction is delegatecall
+        │   └── it should revert
+        └── when transaction is call
+            ├── when call failed
+            │   └── it should revert
+            └── when call succeeded
+                ├── it should emit MultiSendExecuted
+                └── it should apply state changes
 
-// ├── when reentrant
-// │   └── it should revert
-// └── when non reentrant
-//     └── it should execute multiSend
+├── when reentrant
+│   └── it should revert
+└── when non reentrant
+    └── it should execute multiSend
 
-// EnsoReceiver_ExecuteShortcut_SenderIsEnsoReceiver
-// ├── when reentrant
-// │   └── it should revert
-// └── when non reentrant
-//     ├── when caller is not EnsoReceiver nor owner
-//     │   └── it should revert
-//     └── when caller is EnsoReceiver
-//         ├── when shortcut execution failed
-//         │   └── it should revert
-//         └── when shortcut execution succeeded
-//             ├── it should emit ShortcutExecuted
-//             └── it should apply shortcut state changes
+EnsoReceiver_ExecuteShortcut_SenderIsEnsoReceiver
+├── when reentrant
+│   └── it should revert
+└── when non reentrant
+    ├── when caller is not EnsoReceiver nor owner
+    │   └── it should revert
+    └── when caller is EnsoReceiver
+        ├── when shortcut execution failed
+        │   └── it should revert
+        └── when shortcut execution succeeded
+            ├── it should emit ShortcutExecuted
+            └── it should apply shortcut state changes
 
-// EnsoReceiver_ExecuteShortcut_SenderIsOwner
-// ├── when reentrant
-// │   └── it should revert
-// └── when non reentrant
-//     ├── when caller is not EnsoReceiver nor owner
-//     │   └── it should revert
-//     └── when caller is owner
-//         ├── when shortcut execution failed
-//         │   └── it should revert
-//         └── when shortcut execution succeeded
-//             ├── it should emit ShortcutExecuted
-//             └── it should apply shortcut state changes
+EnsoReceiver_ExecuteShortcut_SenderIsOwner
+├── when reentrant
+│   └── it should revert
+└── when non reentrant
+    ├── when caller is not EnsoReceiver nor owner
+    │   └── it should revert
+    └── when caller is owner
+        ├── when shortcut execution failed
+        │   └── it should revert
+        └── when shortcut execution succeeded
+            ├── it should emit ShortcutExecuted
+            └── it should apply shortcut state changes
 
-// EnsoReceiver_Initialize
-// ├── when already initialized
-// │   └── it should revert
-// └── when not initialized
-//     ├── it should set owner
-//     ├── it should set signer
-//     └── it should set entryPoint
+EnsoReceiver_Initialize
+├── when already initialized
+│   └── it should revert
+└── when not initialized
+    ├── it should set owner
+    ├── it should set signer
+    └── it should set entryPoint
 
-// EnsoReceiver_Owner
-// └── it should return owner
+EnsoReceiver_Owner
+└── it should return owner
 
-// EnsoReceiver_SafeExecute_SenderIsEntryPoint
-// ├── when caller is not EntryPoint nor owner
-// │   └── it should revert
-// └── when caller is EntryPoint
-//     ├── when shortcut execution succeeded
-//     │   ├── it should emit ShortcutExecutionSuccessful
-//     │   └── it apply shortcut state changes
-//     └── when shortcut execution failed
-//         ├── when tokenIn is native token
-//         │   ├── when withdraw call is unsuccessful
-//         │   │   └── it should revert
-//         │   └── when withdraw call is successful
-//         │       ├── it should emit ShortcutExecutionFailed
-//         │       └── it should send native token amount to owner
-//         └── when tokenIn is not native token
-//             ├── when withdraw safe transfer is unsuccessful
-//             │   └── it should revert
-//             └── when withdraw safe transfer is successful
-//                 ├── it should emit ShortcutExecutionFailed
-//                 └── it should transfer token amount to owner
+EnsoReceiver_SafeExecute_SenderIsEntryPoint
+├── when caller is not EntryPoint nor owner
+│   └── it should revert
+└── when caller is EntryPoint
+    ├── when shortcut execution succeeded
+    │   ├── it should emit ShortcutExecutionSuccessful
+    │   └── it apply shortcut state changes
+    └── when shortcut execution failed
+        ├── when tokenIn is native token
+        │   ├── when withdraw call is unsuccessful
+        │   │   └── it should revert
+        │   └── when withdraw call is successful
+        │       ├── it should emit ShortcutExecutionFailed
+        │       └── it should send native token amount to owner
+        └── when tokenIn is not native token
+            ├── when withdraw safe transfer is unsuccessful
+            │   └── it should revert
+            └── when withdraw safe transfer is successful
+                ├── it should emit ShortcutExecutionFailed
+                └── it should transfer token amount to owner
 
-// EnsoReceiver_SafeExecute_SenderIsOwner
-// ├── when caller is not EntryPoint nor owner
-// │   └── it should revert
-// └── when caller is owner
-//     ├── when shortcut execution succeeded
-//     │   ├── it should emit ShortcutExecutionSuccessful
-//     │   └── it apply shortcut state changes
-//     └── when shortcut execution failed
-//         ├── when tokenIn is native token
-//         │   ├── when withdraw call is unsuccessful
-//         │   │   └── it should revert
-//         │   └── when withdraw call is successful
-//         │       ├── it should emit ShortcutExecutionFailed
-//         │       └── it should send native token amount to owner
-//         └── when tokenIn is not native token
-//             ├── when withdraw safe transfer is unsuccessful
-//             │   └── it should revert
-//             └── when withdraw safe transfer is successful
-//                 ├── it should emit ShortcutExecutionFailed
-//                 └── it should transfer token amount to owner
+EnsoReceiver_SafeExecute_SenderIsOwner
+├── when caller is not EntryPoint nor owner
+│   └── it should revert
+└── when caller is owner
+    ├── when shortcut execution succeeded
+    │   ├── it should emit ShortcutExecutionSuccessful
+    │   └── it apply shortcut state changes
+    └── when shortcut execution failed
+        ├── when tokenIn is native token
+        │   ├── when withdraw call is unsuccessful
+        │   │   └── it should revert
+        │   └── when withdraw call is successful
+        │       ├── it should emit ShortcutExecutionFailed
+        │       └── it should send native token amount to owner
+        └── when tokenIn is not native token
+            ├── when withdraw safe transfer is unsuccessful
+            │   └── it should revert
+            └── when withdraw safe transfer is successful
+                ├── it should emit ShortcutExecutionFailed
+                └── it should transfer token amount to owner
 
-// EnsoReceiver_SetEntryPoint
-// ├── when caller is not owner
-// │   └── it should revert
-// └── when caller is owner
-//     ├── it should set entryPoint
-//     └── it should set newEntryPoint
+EnsoReceiver_SetEntryPoint
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    ├── it should set entryPoint
+    └── it should set newEntryPoint
 
-// EnsoReceiver_SetSigner
-// ├── when caller is not owner
-// │   └── it should revert
-// └── when caller is owner
-//     ├── it should set signer
-//     └── it should emit newSigner
+EnsoReceiver_SetSigner
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    ├── it should set signer
+    └── it should emit newSigner
 
-// EnsoReceiver_ValidateUserOp
-// ├── when caller is not entryPoint
-// │   └── it should revert
-// └── when caller is entryPoint
-//     ├── when signer is EOA
-//     │   ├── when nonce is not valid1
-//     │   │   └── it should revert
-//     │   └── when nonce is valid1
-//     │       └── it should return sigValidationSuccess
-//     ├── when signer is EOA7702
-//     │   ├── when nonce is not valid2
-//     │   │   └── it should revert
-//     │   └── when nonce is valid2
-//     │       └── it should return sigValidationSuccess
-//     ├── when signer is not ERC1271
-//     │   └── it should return sigValidationFailed
-//     └── when signer is ERC1271
-//         ├── when nonce is not valid3
-//         │   └── it should revert
-//         └── when nonce is valid3
-//             └── it should return sigValidationSuccess
+EnsoReceiver_ValidateUserOp
+├── when caller is not entryPoint
+│   └── it should revert
+└── when caller is entryPoint
+    ├── when signer is EOA
+    │   ├── when nonce is not valid1
+    │   │   └── it should revert
+    │   └── when nonce is valid1
+    │       └── it should return sigValidationSuccess
+    ├── when signer is EOA7702
+    │   ├── when nonce is not valid2
+    │   │   └── it should revert
+    │   └── when nonce is valid2
+    │       └── it should return sigValidationSuccess
+    ├── when signer is not ERC1271
+    │   └── it should return sigValidationFailed
+    └── when signer is ERC1271
+        ├── when nonce is not valid3
+        │   └── it should revert
+        └── when nonce is valid3
+            └── it should return sigValidationSuccess
 
-// SignaturePaymaster_Version
-// └── it should return version
+SignaturePaymaster_Version
+└── it should return version
 
-// EnsoReceiver_WithdrawERC20s
-// ├── when caller is not owner
-// │   └── it should revert
-// └── when caller is owner
-//     ├── when array lengths are not equal
-//     │   └── it should revert
-//     └── when array lengths are equal
-//         ├── when safe transfer is not successful
-//         │   └── it should revert
-//         └── when safe transfer is successful
-//             └── it should transfer amount to owner
+EnsoReceiver_WithdrawERC20s
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    ├── when array lengths are not equal
+    │   └── it should revert
+    └── when array lengths are equal
+        ├── when safe transfer is not successful
+        │   └── it should revert
+        └── when safe transfer is successful
+            └── it should transfer amount to owner
 
-// EnsoReceiver_WithdrawERC721s
-// ├── when caller is not owner
-// │   └── it should revert
-// └── when caller is owner
-//     ├── when safe transfer is not successful
-//     │   └── it should revert
-//     └── when safe transfer is successful
-//         └── it should transfer token to owner
+EnsoReceiver_WithdrawERC721s
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    ├── when safe transfer is not successful
+    │   └── it should revert
+    └── when safe transfer is successful
+        └── it should transfer token to owner
 
-// EnsoReceiver_WithdrawERC1155s
-// ├── when caller is not owner
-// │   └── it should revert
-// └── when caller is owner
-//     ├── when array lengths are not equal
-//     │   └── it should revert
-//     └── when array lengths are equal
-//         ├── when safe batch transfer is not successful
-//         │   └── it should revert
-//         └── when safe batch transfer is successful
-//             └── it should transfer amount to owner
+EnsoReceiver_WithdrawERC1155s
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    ├── when array lengths are not equal
+    │   └── it should revert
+    └── when array lengths are equal
+        ├── when safe batch transfer is not successful
+        │   └── it should revert
+        └── when safe batch transfer is successful
+            └── it should transfer amount to owner
 
-// EnsoReceiver_WithdrawNative
-// ├── when caller is not owner
-// │   └── it should revert
-// └── when caller is owner
-//     ├── when call is not successful
-//     │   └── it should revert
-//     └── when call is successful
-//         └── it should send native token amount to owner
+EnsoReceiver_WithdrawNative
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    ├── when call is not successful
+    │   └── it should revert
+    └── when call is successful
+        └── it should send native token amount to owner

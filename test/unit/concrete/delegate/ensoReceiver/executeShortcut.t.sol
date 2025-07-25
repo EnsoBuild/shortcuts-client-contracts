@@ -31,9 +31,7 @@ contract EnsoReceiver_ExecuteShortcut_SenderIsEnsoReceiver_Unit_Concrete_Test is
         // it should revert
         vm.startPrank(address(s_ensoReceiver));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                WeirollVM.ExecutionFailed.selector, 0, address(s_ensoReceiver), "Unknown"
-            )
+            abi.encodeWithSelector(WeirollVM.ExecutionFailed.selector, 0, address(s_ensoReceiver), "Unknown")
         );
         s_ensoReceiver.executeShortcut(
             executeShortcutParams.accountId,
@@ -170,9 +168,7 @@ contract EnsoReceiver_ExecuteShortcut_SenderIsOwner_Unit_Concrete_Test is
         // it should revert
         vm.startPrank(address(s_owner));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                WeirollVM.ExecutionFailed.selector, 0, address(s_ensoReceiver), "Unknown"
-            )
+            abi.encodeWithSelector(WeirollVM.ExecutionFailed.selector, 0, address(s_ensoReceiver), "Unknown")
         );
         s_ensoReceiver.executeShortcut(
             executeShortcutParams.accountId,
