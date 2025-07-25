@@ -191,6 +191,9 @@ Some useful options include:
 
 #### **Best Practices & Troubleshooting**
 
+- **Do not stage or commit mutated files during or after an interrupted test
+  run**. Always ensure the original contract files are restored before
+  committing.
 - **Always use a regex for `--matchContract`** if you want to match multiple
   contracts.  
   Example: `--matchContract 'EnsoReceiver_.*_Unit_Concrete_Test'`
@@ -202,31 +205,13 @@ Some useful options include:
   [#Path Issues](#path-issues) below).
 - **Check your test coverage**: Surviving mutants indicate untested or weakly
   tested code paths.
-
-#### **Path Issues**
-
-If you reorganize your contracts, ensure the mutation script is updated to look
-for source files in the correct location (e.g.,
-`src/delegate/EnsoReceiver.sol`).
-
-#### **Example Command Table**
-
-| What you want to do               | Command Example                                                                                           |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Run all mutants against all tests | `node ./mutationTest.mjs`                                                                                 |
-| Only test EnsoReceiver mutants    | `node ./mutationTest.mjs --matchMutant EnsoReceiver`                                                      |
-| Only run specific test contracts  | `node ./mutationTest.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test'`                            |
-| Combine both filters              | `node ./mutationTest.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test' --matchMutant EnsoReceiver` |
+- If you reorganize or rename your contracts, ensure the mutation config and
+  script is updated accordingly.
 
 ---
 
 **For more details and advanced script options, see the
 [gambit-mutation-testing script documentation](https://github.com/ibourn/gambit-mutation-testing?tab=readme-ov-file#script-options-to-refine-test-execution).**
-
----
-
-Let me know if you want this inserted directly, or if you want a more
-concise/advanced version!
 
 ## Deployment
 
