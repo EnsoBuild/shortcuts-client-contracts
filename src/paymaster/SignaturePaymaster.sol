@@ -7,12 +7,10 @@ import { IPaymaster } from "account-abstraction-v7/interfaces/IPaymaster.sol";
 import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
-import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract SignaturePaymaster is IPaymaster, Ownable2Step {
-    address private constant _NATIVE_ASSET = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     string public constant VERSION = "1.0.0";
 
     IEntryPoint public entryPoint;
@@ -172,15 +170,6 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
         if (validSigners[signer] == isValid) revert SignerIsAlreadySet(signer, isValid);
         validSigners[signer] = isValid;
         emit SignerSet(signer, isValid);
-    }
-
-    /**
-     * Helper to get the balance of an ERC20 token or native asset
-     * @param token - The address of the token (using a special default for native)
-     * @param account - The address of the account that will be queried
-     */
-    function _balance(address token, address account) internal view returns (uint256 balance) {
-        balance = token == _NATIVE_ASSET ? account.balance : IERC20(token).balanceOf(account);
     }
 
     /**
