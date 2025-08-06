@@ -19,6 +19,7 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
     event SignerSet(address signer, bool isValid);
 
     error InvalidEntryPoint(address sender);
+    error InvalidSigner(address signer);
     error InsufficientFeeReceived(uint256 amount);
     error SignerIsAlreadySet(address signer, bool isValid);
 
@@ -167,6 +168,7 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
     }
 
     function setSigner(address signer, bool isValid) external onlyOwner {
+        if (signer == address(0)) revert InvalidSigner(signer);
         if (validSigners[signer] == isValid) revert SignerIsAlreadySet(signer, isValid);
         validSigners[signer] = isValid;
         emit SignerSet(signer, isValid);

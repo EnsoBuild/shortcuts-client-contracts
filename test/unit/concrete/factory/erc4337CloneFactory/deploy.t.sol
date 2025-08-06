@@ -26,11 +26,11 @@ contract ERC4337CloneFactory_Deploy_Unit_Concrete_Test is ERC4337CloneFactory_Un
     }
 
     function test_WhenEnsoReceiverAlreadyExists() external {
-        address payable clonePredicted = payable(s_cloneFactory.deploy(s_owner));
-
         address payable clone = payable(s_cloneFactory.deploy(s_owner));
 
+        address payable newClone = payable(s_cloneFactory.deploy(s_owner));
+
         // it should return clone
-        assertEq(clonePredicted, clone);
+        assertEq(newClone, clone);
     }
 }
