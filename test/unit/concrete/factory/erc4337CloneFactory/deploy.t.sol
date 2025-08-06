@@ -5,7 +5,6 @@ import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
 import { ERC4337CloneFactory } from "../../../../../src/factory/ERC4337CloneFactory.sol";
 import { ERC4337CloneFactory_Unit_Concrete_Test } from "./ERC4337CloneFactory.t.sol";
 import { console2 } from "forge-std-1.9.7/Test.sol";
-import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 
 contract ERC4337CloneFactory_Deploy_Unit_Concrete_Test is ERC4337CloneFactory_Unit_Concrete_Test {
     function test_WhenEnsoReceiverDoesNotExist() external {
@@ -26,11 +25,12 @@ contract ERC4337CloneFactory_Deploy_Unit_Concrete_Test is ERC4337CloneFactory_Un
         assertTrue(EnsoReceiver(clone).entryPoint() == s_entryPoint);
     }
 
-    function test_RevertWhen_EnsoReceiverAlreadyExists() external {
+    function test_WhenEnsoReceiverAlreadyExists() external {
+        address payable clonePredicted = payable(s_cloneFactory.deploy(s_owner));
+
         address payable clone = payable(s_cloneFactory.deploy(s_owner));
 
-        // it should revert
-        vm.expectRevert(abi.encodeWithSelector(Initializable.InvalidInitialization.selector));
-        EnsoReceiver(clone).initialize(s_owner, s_owner, s_entryPoint);
+        // it should return clone
+        assertEq(clonePredicted, clone);
     }
 }

@@ -18,17 +18,11 @@ contract ERC4337CloneFactory {
     }
 
     function deploy(address account) external returns (address clone) {
-        bytes32 salt = _getSalt(account, account);
-        clone = implementation.cloneDeterministic(salt);
-        IERC4337CloneInitializer(clone).initialize(account, account, entryPoint);
-        emit CloneDeployed(clone, account, account);
+        return _deploy(account, account);
     }
 
     function delegateDeploy(address account, address signer) external returns (address clone) {
-        bytes32 salt = _getSalt(account, signer);
-        clone = implementation.cloneDeterministic(salt);
-        IERC4337CloneInitializer(clone).initialize(account, signer, entryPoint);
-        emit CloneDeployed(clone, account, signer);
+        return _deploy(account, signer);
     }
 
     function getAddress(address account) external view returns (address) {
@@ -46,5 +40,16 @@ contract ERC4337CloneFactory {
 
     function _getSalt(address account, address signer) internal pure returns (bytes32) {
         return keccak256(abi.encode(account, signer));
+    }
+
+    function _deploy(address account, address signer) private returns (address clone) {
+        bytes32 salt = _getSalt(account, signer);
+        address clonePredicted = implementation.predictDeterministicAddress(salt, address(this));
+        if (clonePredicted.code.length > 0) {
+            return clonePredicted;
+        }
+        clone = implementation.cloneDeterministic(salt);
+        IERC4337CloneInitializer(clone).initialize(account, signer, entryPoint);
+        emit CloneDeployed(clone, account, signer);
     }
 }
