@@ -8,6 +8,8 @@ import { console2 } from "forge-std-1.9.7/Test.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable2Step.sol";
 
 contract SignaturePaymaster_SetSigner_Unit_Concrete_Test is SignaturePaymaster_Unit_Concrete_Test {
+    address private s_signer;
+
     function test_RevertWhen_CallerIsNotOwner() external {
         // it should revert
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, s_account3));
@@ -21,10 +23,22 @@ contract SignaturePaymaster_SetSigner_Unit_Concrete_Test is SignaturePaymaster_U
         vm.stopPrank();
     }
 
-    function test_RevertWhen_SignerIsAlreadySet() external whenCallerIsOwner {
+    function test_RevertWhen_SignerIsZeroAddress() external whenCallerIsOwner {
         // it should revert
-        vm.expectRevert(abi.encodeWithSelector(SignaturePaymaster.SignerIsAlreadySet.selector, address(0), false));
-        s_signaturePaymaster.setSigner(address(0), false);
+        vm.expectRevert(abi.encodeWithSelector(SignaturePaymaster.InvalidSigner.selector, address(0)));
+        s_signaturePaymaster.setSigner(address(0), true);
+    }
+
+    modifier whenSignerIsNotZeroAddress() {
+        s_signer = s_account4;
+        s_signaturePaymaster.setSigner(s_account4, true);
+        _;
+    }
+
+    function test_RevertWhen_SignerIsAlreadySet() external whenCallerIsOwner whenSignerIsNotZeroAddress {
+        // it should revert
+        vm.expectRevert(abi.encodeWithSelector(SignaturePaymaster.SignerIsAlreadySet.selector, s_signer, true));
+        s_signaturePaymaster.setSigner(s_signer, true);
     }
 
     function test_WhenSignerIsNotSet() external whenCallerIsOwner {

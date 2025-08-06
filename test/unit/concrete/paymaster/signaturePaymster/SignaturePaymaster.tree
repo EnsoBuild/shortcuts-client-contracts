@@ -35,11 +35,14 @@ SignaturePaymaster::SetSigner
 ├── when caller is not owner
 │   └── it should revert
 └── when caller is owner
-    ├── when signer is already set
+    ├── when signer is zero address
     │   └── it should revert
-    └── when signer is not set
-        ├── it should map isValid
-        └── it should emit SignerAdded event
+    └── when signer is not zero address
+        ├── when signer is already set
+        │   └── it should revert
+        └── when signer is not set
+            ├── it should map isValid
+            └── it should emit SignerAdded event
 
 SignaturePaymaster::TransferOwnership
 ├── when caller is not owner

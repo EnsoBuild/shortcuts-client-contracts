@@ -4,7 +4,7 @@ ERC4337CloneFactory_Deploy
 │   ├── it should deploy clone
 │   └── it should initialize clone
 └── when EnsoReceiver already exists
-    └── it should revert
+    └── it should return clone
 
 ERC4337CloneFactory_DelegateDeploy
 ├── when EnsoReceiver does not exist
@@ -12,7 +12,7 @@ ERC4337CloneFactory_DelegateDeploy
 │   ├── it should deploy clone
 │   └── it should initialize clone
 └── when EnsoReceiver already exists
-    └── it should revert
+    └── it should return clone
 
 ERC4337CloneFactory_GetAddress
 └── it should return counterfactual EnsoReceiver address
