@@ -21,6 +21,9 @@ fi
 if [[ $network_upper == "LINEA" ]]; then
     params+=(--evm-version "london")
 fi
+if [[ $network_upper == "POLYGON" ]]; then
+    params+=(--gas-estimate-multiplier 300)
+fi
 if [ $broadcast == "broadcast" ]; then
     params+=(--broadcast)
     if [ -n "$verifier" ]; then
