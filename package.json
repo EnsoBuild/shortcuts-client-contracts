@@ -4,6 +4,8 @@
   "description": "Client contracts for running Enso Shortcuts",
   "main": "index.js",
   "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
     "foundry:update": "foundryup && forge soldeer update && forge remappings",
     "prepare": "husky",
     "format": "prettier --check .",
@@ -11,18 +13,31 @@
     "format:fix:sol": "forge fmt",
     "test:enso_checkout:fork": "forge test --match-path 'test/fork/enso-checkout/*.t.sol'",
     "test:enso_checkout:unit": "forge test --match-path 'test/unit/concrete/{delegate/ensoReceiver,factory/erc4337CloneFactory,paymaster/signaturePaymaster}/*.t.sol'",
-    "test:enso_checkout:mutation": "node scripts/runEnsoCheckoutMutationTests.mjs"
+    "test:enso_checkout:mutation": "node scripts/runEnsoCheckoutMutationTests.mjs",
+    "anvil:start": "dotenv -e .env -- sh -c 'anvil --port \"$ANVIL_PORT\" --fork-url \"$ANVIL_FORK_URL\" --fork-block-number \"$ANVIL_FORK_BLOCK_NUMBER\" --fork-chain-id \"$ANVIL_FORK_CHAIN_ID\"'",
+    "simulator:enso_checkout:start": "tsx test/simulators/enso-checkout/server.ts",
+    "simulator:enso_checkout:start:dev": "tsx watch test/simulators/enso-checkout/server.ts",
+    "simulator:enso_checkout:start:with_anvil": "concurrently \"pnpm anvil:start\" \"wait-on tcp:8545 && pnpm simulator:enso_checkout:start\"",
+    "simulator:enso_checkout:start:dev:with_anvil": "concurrently \"pnpm anvil:start\" \"wait-on tcp:8545 && pnpm simulator:enso_checkout:start:dev\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.11.0",
   "devDependencies": {
+    "@types/node": "^24.2.1",
     "colors": "^1.4.0",
+    "concurrently": "^9.2.0",
+    "dotenv-cli": "^10.0.0",
+    "fastify": "5.5.0",
     "fs-extra": "^11.3.0",
     "husky": "9.1.7",
     "lint-staged": "16.1.2",
+    "pino-pretty": "^13.1.1",
     "prettier": "3.6.2",
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2",
+    "wait-on": "^8.0.4",
     "yargs": "^18.0.0"
   },
   "lint-staged": {
