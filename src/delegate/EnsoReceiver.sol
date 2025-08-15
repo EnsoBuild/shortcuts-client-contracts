@@ -7,10 +7,10 @@ import { IERC4337CloneInitializer } from "../factory/interfaces/IERC4337CloneIni
 import { IERC20, Withdrawable } from "../utils/Withdrawable.sol";
 import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstraction-v7/core/Helpers.sol";
 import { IAccount, PackedUserOperation } from "account-abstraction-v7/interfaces/IAccount.sol";
-
 import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 import { SignatureChecker } from "openzeppelin-contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EnsoReceiver is
@@ -105,7 +105,8 @@ contract EnsoReceiver is
         // First attempt ECDSA recovery to support EOAs and EIP-7702 accounts, which may have contract code but still
         // use standard ECDSA signatures.
         // If ECDSA recovery fails, fall back to ERC-1271 for traditional smart contract wallets.
-        (address recovered, ECDSA.RecoverError errors,) = ECDSA.tryRecover(userOpHash, userOp.signature);
+        bytes32 ethSignedMessageHash = MessageHashUtils.toEthSignedMessageHash(userOpHash);
+        (address recovered, ECDSA.RecoverError errors,) = ECDSA.tryRecover(ethSignedMessageHash, userOp.signature);
         if (errors == ECDSA.RecoverError.NoError && recovered == signer) {
             return SIG_VALIDATION_SUCCESS;
         }

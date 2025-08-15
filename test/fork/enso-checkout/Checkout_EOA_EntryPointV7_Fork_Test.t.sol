@@ -7,9 +7,7 @@ import { ERC4337CloneFactory } from "../../../src/factory/ERC4337CloneFactory.so
 import { SignaturePaymaster } from "../../../src/paymaster/SignaturePaymaster.sol";
 import { Shortcut } from "../../shortcuts/ShortcutDataTypes.sol";
 import { ShortcutsEthereum } from "../../shortcuts/ShortcutsEthereum.sol";
-
 import { PackedUserOperationLib } from "../../utils/AccountAbstraction.sol";
-
 import { TokenBalanceHelper } from "../../utils/TokenBalanceHelper.sol";
 import { EntryPoint } from "account-abstraction-v7/core/EntryPoint.sol";
 import { IEntryPoint, PackedUserOperation } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -161,7 +159,8 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
 
         // UserOp.signature - Sign the userOpHash with EOA_1's private key
         bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), userOpHash);
+        bytes32 ethSignedUserOpHash = MessageHashUtils.toEthSignedMessageHash(userOpHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), ethSignedUserOpHash);
         bytes memory signature = abi.encodePacked(r, s, v);
         userOp.signature = signature;
 
@@ -257,13 +256,13 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -2_064_097_182_089_268,
+            -2_064_454_742_903_391,
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -2_064_097_182_089_268,
+            -2_064_454_742_903_391,
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
@@ -345,7 +344,8 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
 
         // UserOp.signature - Sign the userOpHash with EOA_1's private key
         bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), userOpHash);
+        bytes32 ethSignedUserOpHash = MessageHashUtils.toEthSignedMessageHash(userOpHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), ethSignedUserOpHash);
         bytes memory signature = abi.encodePacked(r, s, v);
         userOp.signature = signature;
 
@@ -435,13 +435,13 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -1_820_822_410_271_403,
+            -1_821_179_971_085_526,
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -1_820_822_410_271_403,
+            -1_821_179_971_085_526,
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
@@ -518,7 +518,8 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
 
         // UserOp.signature - Sign the userOpHash with EOA_1's private key
         bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), userOpHash);
+        bytes32 ethSignedUserOpHash = MessageHashUtils.toEthSignedMessageHash(userOpHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), ethSignedUserOpHash);
         bytes memory signature = abi.encodePacked(r, s, v);
         userOp.signature = signature;
 
@@ -602,7 +603,8 @@ contract Checkout_EOA_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
 
         // UserOp.signature - Sign the userOpHash with EOA_1's private key
         bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), userOpHash);
+        bytes32 ethSignedUserOpHash = MessageHashUtils.toEthSignedMessageHash(userOpHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(EOA_1_PK), ethSignedUserOpHash);
         bytes memory signature = abi.encodePacked(r, s, v);
         userOp.signature = signature;
 

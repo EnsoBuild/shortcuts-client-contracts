@@ -8,6 +8,7 @@ import { SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS } from "account-abstracti
 import { PackedUserOperation } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { console2 } from "forge-std-1.9.7/Test.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable2Step.sol";
+import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract MinimalERC1271 {
     bytes4 internal constant EIP1271_MAGIC_VALUE = 0x1626ba7e;
@@ -162,8 +163,8 @@ contract EnsoReceiver_ValidateUserOp_Unit_Concrete_Test is EnsoReceiver_Unit_Con
         userOp.nonce = isUnorderedNonce ? type(uint64).max : 0;
 
         bytes32 userOpHash = s_entryPoint.getUserOpHash(userOp);
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(signerPk), userOpHash);
+        bytes32 ethSignedUserOpHash = MessageHashUtils.toEthSignedMessageHash(userOpHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(signerPk), ethSignedUserOpHash);
         bytes memory signature = abi.encodePacked(r, s, v);
         userOp.signature = signature;
 
