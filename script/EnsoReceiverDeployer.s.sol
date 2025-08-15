@@ -7,12 +7,11 @@ import "../src/paymaster/SignaturePaymaster.sol";
 import "forge-std/Script.sol";
 
 contract EnsoReceiverDeployer is Script {
-    address ENTRY_POINT_V8 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
+    //address ENTRY_POINT_V8 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address ENTRY_POINT_V7 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
-    address OWNER = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA; // TODO: set multisig as owner for production deployment
-    address BACKEND_SIGNER = 0xFE503EE14863F6aCEE10BCdc66aC5e2301b3A946; // TODO: in production the signer will have to
-        // set via the multisig
+    address OWNER = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA;
+    address BACKEND_SIGNER = 0xFE503EE14863F6aCEE10BCdc66aC5e2301b3A946;
 
     function run()
         public
@@ -28,6 +27,7 @@ contract EnsoReceiverDeployer is Script {
         factory = new ERC4337CloneFactory{ salt: "ERC4337CloneFactory" }(address(implementation), entryPoint);
         paymaster = new SignaturePaymaster{ salt: "SignaturePaymaster" }(IEntryPoint(entryPoint), OWNER);
         paymaster.setSigner(BACKEND_SIGNER, true);
+        // TODO: update owner with multisig
 
         vm.stopBroadcast();
     }
