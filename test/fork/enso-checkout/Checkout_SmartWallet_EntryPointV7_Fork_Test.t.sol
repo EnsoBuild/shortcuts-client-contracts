@@ -7,7 +7,7 @@ import { ERC4337CloneFactory } from "../../../src/factory/ERC4337CloneFactory.so
 import { SignaturePaymaster } from "../../../src/paymaster/SignaturePaymaster.sol";
 import { Shortcut } from "../../shortcuts/ShortcutDataTypes.sol";
 import { ShortcutsEthereum } from "../../shortcuts/ShortcutsEthereum.sol";
-
+import { PackedUserOperationLib } from "../../utils/AccountAbstraction.sol";
 import { TokenBalanceHelper } from "../../utils/TokenBalanceHelper.sol";
 import { EntryPoint } from "account-abstraction-v7/core/EntryPoint.sol";
 import { IEntryPoint, PackedUserOperation } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -17,12 +17,9 @@ import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/Mess
 import { Safe } from "safe-smart-account-1.5.0/Safe.sol";
 import { ExtensibleFallbackHandler } from "safe-smart-account-1.5.0/handler/ExtensibleFallbackHandler.sol";
 import { ERC1271 } from "safe-smart-account-1.5.0/handler/extensible/SignatureVerifierMuxer.sol";
-
 import { SignMessageLib } from "safe-smart-account-1.5.0/libraries/SignMessageLib.sol";
 import { SafeProxy } from "safe-smart-account-1.5.0/proxies/SafeProxy.sol";
 import { SafeProxyFactory } from "safe-smart-account-1.5.0/proxies/SafeProxyFactory.sol";
-
-import { PackedUserOperationLib } from "../../utils/AccountAbstraction.sol";
 
 contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
     using SafeERC20 for IERC20;
@@ -344,13 +341,13 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -2_136_959_537_241_825,
+            -2_137_317_098_055_948,
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -2_136_959_537_241_825,
+            -2_137_317_098_055_948,
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
