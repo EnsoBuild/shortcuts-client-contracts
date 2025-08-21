@@ -1,5 +1,6 @@
 # Compiler files
 cache/
+dist/
 out/
 zkout/
 
