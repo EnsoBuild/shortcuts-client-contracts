@@ -41,6 +41,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     error EndpointNotSet();
     error RouterNotSet();
     error InvalidArrayLength();
+    error InvalidMsgValue(uint256 actual, uint256 expected);
 
     constructor(address _endpoint, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
         if (_endpoint == address(0)) revert EndpointNotSet();
@@ -71,7 +72,8 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
 
         uint256 amount = _message.amountLD();
         bytes memory composeMsg = _message.composeMsg();
-        (address receiver, bytes memory shortcutData) = abi.decode(composeMsg, (address, bytes));
+        (address receiver, uint256 nativeDrop, bytes memory shortcutData) = abi.decode(composeMsg, (address, uint256, bytes));
+        if (msg.value != nativeDrop) revert InvalidMsgValue(msg.value, nativeDrop);
 
         uint256 availableGas = gasleft();
         if (availableGas < reserveGas) revert InsufficientGas(_guid);
