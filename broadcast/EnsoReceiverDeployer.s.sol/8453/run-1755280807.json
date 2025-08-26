@@ -1,7 +1,30 @@
 {
   "transactions": [
     {
-      "hash": "0x384a5f72e2d1021f03c0e59ea30d6d9023d87470ca1cbf4254a474a36bfead35",
+      "hash": "0x1feb3c0d86a2fd8aa4f31b64eb5330cbdd518169a0f6e8d797bf8c9ae206d6fa",
+      "transactionType": "CALL",
+      "contractName": null,
+      "contractAddress": "0xdde9d7e5665954c77faa50a1476b65c8e6fdeccd",
+      "function": "initialize(address,address,address)",
+      "arguments": [
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "transaction": {
+        "from": "0x826e0bb2276271efdf2a500597f37b94f6c153ba",
+        "to": "0xdde9d7e5665954c77faa50a1476b65c8e6fdeccd",
+        "gas": "0x11e4a",
+        "value": "0x0",
+        "input": "0xc0c53b8b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "nonce": "0x99",
+        "chainId": "0x2105"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    },
+    {
+      "hash": null,
       "transactionType": "CREATE2",
       "contractName": "ERC4337CloneFactory",
       "contractAddress": "0x1a59347d28f64091079fa04a2cbd03da63dff154",
@@ -23,43 +46,22 @@
       "isFixedGasLimit": false
     }
   ],
-  "receipts": [
-    {
-      "status": "0x1",
-      "cumulativeGasUsed": "0x15779e1",
-      "logs": [],
-      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "type": "0x2",
-      "transactionHash": "0x384a5f72e2d1021f03c0e59ea30d6d9023d87470ca1cbf4254a474a36bfead35",
-      "transactionIndex": "0x88",
-      "blockHash": "0x7f411e5b25c73f3f2bedb3cbec5a9f5c839d32b592d7622a71fff4e9edd05ce9",
-      "blockNumber": "0x20a8c75",
-      "gasUsed": "0x48dcf",
-      "effectiveGasPrice": "0x37bb1c",
-      "from": "0x826e0bb2276271efdf2a500597f37b94f6c153ba",
-      "to": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-      "contractAddress": "0x1a59347d28f64091079fa04a2cbd03da63dff154",
-      "l1BaseFeeScalar": "0x8dd",
-      "l1BlobBaseFee": "0x1",
-      "l1BlobBaseFeeScalar": "0x101c12",
-      "l1Fee": "0x45dc2e355",
-      "l1GasPrice": "0x25401efe",
-      "l1GasUsed": "0x33a8"
-    }
-  ],
+  "receipts": [],
   "libraries": [],
-  "pending": [],
+  "pending": [
+    "0x1feb3c0d86a2fd8aa4f31b64eb5330cbdd518169a0f6e8d797bf8c9ae206d6fa"
+  ],
   "returns": {
-    "implementation": {
-      "internal_type": "contract EnsoReceiver",
-      "value": "0xdde9d7E5665954C77fAA50a1476B65C8e6FdECCd"
-    },
     "factory": {
       "internal_type": "contract ERC4337CloneFactory",
       "value": "0x1A59347D28f64091079Fa04A2cbD03dA63DFf154"
+    },
+    "implementation": {
+      "internal_type": "contract EnsoReceiver",
+      "value": "0xdde9d7E5665954C77fAA50a1476B65C8e6FdECCd"
     }
   },
-  "timestamp": 1755280867,
+  "timestamp": 1755280807,
   "chain": 8453,
   "commit": "2a49590"
 }
