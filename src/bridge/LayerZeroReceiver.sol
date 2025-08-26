@@ -48,6 +48,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         endpoint = _endpoint;
         router = IEnsoRouter(_router);
         validRegistrar[_owner] = true;
+        emit RegistrarAdded(_owner);
         reserveGas = _reserveGas;
         emit ReserveGasUpdated(_reserveGas);
     }
