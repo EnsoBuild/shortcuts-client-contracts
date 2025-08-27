@@ -60,7 +60,7 @@ contract BridgeTest is Test {
         uint256 balanceBefore = weth.balanceOf(address(this));
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, commands, state);
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
@@ -78,7 +78,7 @@ contract BridgeTest is Test {
 
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT * 100);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, commands, state);
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
@@ -95,7 +95,7 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, commands, state);
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
@@ -109,7 +109,7 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, commands, state);
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
@@ -125,7 +125,7 @@ contract BridgeTest is Test {
         uint256 balanceBefore = IERC20(usdc).balanceOf(vitalik);
 
         (bytes32[] memory commands, bytes[] memory state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, 0, commands, state);
 
         // transfer funds
         vm.startPrank(usdcPool);
@@ -145,7 +145,7 @@ contract BridgeTest is Test {
 
         (bytes32[] memory commands, bytes[] memory state) =
             _buildTokenAndValueTransfer(usdc, vitalik, USDC_AMOUNT, ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, ETH_AMOUNT, commands, state);
 
         // transfer funds
         vm.startPrank(usdcPool);
@@ -168,7 +168,7 @@ contract BridgeTest is Test {
 
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
         (bytes32[] memory commands, bytes[] memory state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT * 100);
-        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, 0, commands, state);
 
         // transfer funds
         vm.startPrank(usdcPool);
@@ -201,13 +201,8 @@ contract BridgeTest is Test {
         uint256 wethBalanceBefore = weth.balanceOf(address(this));
 
         // sweep
-        address[] memory tokens = new address[](2);
-        tokens[0] = eth;
-        tokens[1] = address(weth);
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = address(lzReceiver).balance;
-        amounts[1] = weth.balanceOf(address(lzReceiver));
-        lzReceiver.sweep(tokens, amounts);
+        lzReceiver.sweep(bytes32(uint256(1)), eth, address(lzReceiver).balance);
+        lzReceiver.sweep(bytes32(uint256(2)), address(weth), weth.balanceOf(address(lzReceiver)));
 
         uint256 ethBalanceAfter = address(this).balance;
         uint256 wethBalanceAfter = weth.balanceOf(address(this));
@@ -219,6 +214,7 @@ contract BridgeTest is Test {
 
     function _buildLzComposeMessage(
         uint256 amount,
+        uint256 nativeDrop,
         bytes32[] memory commands,
         bytes[] memory state
     )
@@ -230,7 +226,7 @@ contract BridgeTest is Test {
         bytes memory shortcutData =
             abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
         // encode callback data
-        bytes memory callbackData = abi.encode(address(this), shortcutData);
+        bytes memory callbackData = abi.encode(address(this), nativeDrop, shortcutData);
         // encode message
         message = OFTComposeMsgCodec.encode(
             uint64(0),
