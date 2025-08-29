@@ -46,7 +46,7 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
         router = new EnsoRouter();
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
-        lzReceiver = new LayerZeroReceiver(address(this), address(router), address(this), 100_000);
+        lzReceiver = new LayerZeroReceiver(address(this), address(router), address(this));
 
         address[] memory ofts = new address[](2);
         ofts[0] = ethPool;
@@ -60,7 +60,7 @@ contract BridgeTest is Test {
         uint256 balanceBefore = weth.balanceOf(address(this));
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, 0, commands, state);
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
@@ -78,7 +78,7 @@ contract BridgeTest is Test {
 
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT * 100);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, commands, state);
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, 0, commands, state);
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
@@ -91,32 +91,21 @@ contract BridgeTest is Test {
         assertEq(balanceBefore, address(this).balance);
     }
 
-    function testEthBridgeWithShortcutOutOfGas() public {
+    function testEthBridgeWithLessThanEstimateGas() public {
         vm.selectFork(_ethereumFork);
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, commands, state);
+        // exact gas amount needed for execution
+        uint256 estimatedGas = 94_910;
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, estimatedGas, commands, state); 
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
         if (!success) revert TransferFailed();
         // trigger compose with insufficient gas
-        vm.expectRevert();
-        lzReceiver.lzCompose{ gas: 108_000 }(ethPool, bytes32(0), message, address(0), "");
-    }
-
-    function testEthBridgeWithLessThanReserveGas() public {
-        vm.selectFork(_ethereumFork);
-
-        (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, commands, state);
-
-        // transfer funds
-        (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
-        if (!success) revert TransferFailed();
-        // trigger compose with insufficient gas
-        vm.expectRevert();
-        lzReceiver.lzCompose{ gas: 99_000 }(ethPool, bytes32(0), message, address(0), "");
+        vm.expectRevert(abi.encodeWithSelector(LayerZeroReceiver.InsufficientGas.selector, bytes32(0), estimatedGas, estimatedGas - 1));
+        // exactly 1 less gas than needed for lz compose
+        lzReceiver.lzCompose{ gas: 105_317 }(ethPool, bytes32(0), message, address(0), ""); 
     }
 
     function testUsdcBridge() public {
@@ -125,7 +114,7 @@ contract BridgeTest is Test {
         uint256 balanceBefore = IERC20(usdc).balanceOf(vitalik);
 
         (bytes32[] memory commands, bytes[] memory state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, 0, commands, state);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, 0, 0, commands, state);
 
         // transfer funds
         vm.startPrank(usdcPool);
@@ -145,7 +134,7 @@ contract BridgeTest is Test {
 
         (bytes32[] memory commands, bytes[] memory state) =
             _buildTokenAndValueTransfer(usdc, vitalik, USDC_AMOUNT, ETH_AMOUNT);
-        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, ETH_AMOUNT, commands, state);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, ETH_AMOUNT, 0, commands, state);
 
         // transfer funds
         vm.startPrank(usdcPool);
@@ -168,7 +157,7 @@ contract BridgeTest is Test {
 
         // TOO MUCH VALUE ATTEMPTED TO TRANSFER
         (bytes32[] memory commands, bytes[] memory state) = _buildTransfer(usdc, vitalik, USDC_AMOUNT * 100);
-        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, 0, commands, state);
+        bytes memory message = _buildLzComposeMessage(USDC_AMOUNT, 0, 0, commands, state);
 
         // transfer funds
         vm.startPrank(usdcPool);
@@ -215,6 +204,7 @@ contract BridgeTest is Test {
     function _buildLzComposeMessage(
         uint256 amount,
         uint256 nativeDrop,
+        uint256 estimatedGas,
         bytes32[] memory commands,
         bytes[] memory state
     )
@@ -226,7 +216,7 @@ contract BridgeTest is Test {
         bytes memory shortcutData =
             abi.encodeWithSelector(shortcuts.executeShortcut.selector, bytes32(0), bytes32(0), commands, state);
         // encode callback data
-        bytes memory callbackData = abi.encode(address(this), nativeDrop, shortcutData);
+        bytes memory callbackData = abi.encode(address(this), nativeDrop, estimatedGas, shortcutData);
         // encode message
         message = OFTComposeMsgCodec.encode(
             uint64(0),

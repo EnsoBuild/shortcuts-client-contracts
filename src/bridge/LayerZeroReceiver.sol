@@ -13,12 +13,9 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     using SafeERC20 for IERC20;
 
     address private constant _NATIVE_ASSET = address(0);
-    uint256 private constant _TRY_CATCH_GAS = 2000;
 
     address public immutable endpoint;
     IEnsoRouter public immutable router;
-
-    uint256 public reserveGas;
 
     mapping(address => bool) public validOFT;
     mapping(address => bool) public validRegistrar;
@@ -33,7 +30,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     event ReserveGasUpdated(uint256 amount);
     event FundsCollected(address token, uint256 amount);
 
-    error InsufficientGas(bytes32 guid);
+    error InsufficientGas(bytes32 guid, uint256 estimatedGas, uint256 availableGas);
     error NotEndpoint(address sender);
     error NotRegistrar(address sender);
     error NotSelf();
@@ -45,15 +42,13 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     error InvalidMsgValue(uint256 actual, uint256 expected);
     error MessageExecuted(bytes32 key);
 
-    constructor(address _endpoint, address _router, address _owner, uint256 _reserveGas) Ownable(_owner) {
+    constructor(address _endpoint, address _router, address _owner) Ownable(_owner) {
         if (_endpoint == address(0)) revert EndpointNotSet();
         if (_router == address(0)) revert RouterNotSet();
         endpoint = _endpoint;
         router = IEnsoRouter(_router);
         validRegistrar[_owner] = true;
         emit RegistrarAdded(_owner);
-        reserveGas = _reserveGas;
-        emit ReserveGasUpdated(_reserveGas);
     }
 
     // layer zero callback
@@ -76,20 +71,16 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
 
         uint256 amount = _message.amountLD();
         bytes memory composeMsg = _message.composeMsg();
-        (address receiver, uint256 nativeDrop, bytes memory shortcutData) = abi.decode(composeMsg, (address, uint256, bytes));
+        (address receiver, uint256 nativeDrop, uint256 estimatedGas, bytes memory shortcutData) =
+            abi.decode(composeMsg, (address, uint256, uint256, bytes));
         if (msg.value != nativeDrop) revert InvalidMsgValue(msg.value, nativeDrop);
-
         uint256 availableGas = gasleft();
-        if (availableGas < reserveGas) revert InsufficientGas(_guid);
+        if (availableGas < estimatedGas) revert InsufficientGas(_guid, estimatedGas, availableGas);
+
         // try to execute shortcut
-        try this.execute{ gas: availableGas - reserveGas }(token, amount, shortcutData, msg.value) {
+        try this.execute(token, amount, shortcutData, msg.value) {
             emit ShortcutExecutionSuccessful(_guid);
         } catch (bytes memory err) {
-            if (err.length == 0 && gasleft() < reserveGas - _TRY_CATCH_GAS) {
-                // assume that the shortcut failed due to an out of gas error,
-                // to discourage griefing we will revert instead of transferring funds.
-                revert InsufficientGas(_guid);
-            }
             // if shortcut fails send funds to receiver
             emit ShortcutExecutionFailed(_guid, err);
             _transfer(token, receiver, amount);
@@ -153,17 +144,8 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         emit RegistrarRemoved(account);
     }
 
-    function setReserveGas(uint256 amount) external onlyOwner {
-        reserveGas = amount;
-        emit ReserveGasUpdated(amount);
-    }
-
     // sweep funds to the contract owner in order to refund user
-    function sweep(
-        bytes32 messageKey,
-        address token,
-        uint256 amount
-    ) external onlyOwner {
+    function sweep(bytes32 messageKey, address token, uint256 amount) external onlyOwner {
         // message key is passed to block subsequent calls to lzCompose in case a failing message becomes executable.
         // internal message data is not validated in case the message itself is malformed or incorrect
         // (e.g. oft returns incorrect token)
@@ -174,11 +156,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         emit FundsCollected(token, amount);
     }
 
-    function getMessageKey(
-        address from,
-        bytes32 guid,
-        bytes calldata message
-    ) public pure returns (bytes32) {
+    function getMessageKey(address from, bytes32 guid, bytes calldata message) public pure returns (bytes32) {
         return keccak256(abi.encode(from, guid, message));
     }
 
