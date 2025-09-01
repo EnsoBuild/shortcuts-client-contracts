@@ -49,6 +49,13 @@ contract SignaturePaymaster is IPaymaster, Ownable2Step {
         onlyEntryPoint
         returns (bytes memory context, uint256 validationData)
     {
+        // ---------- CRITICAL FIX: check length before slicing ----------
+        if (userOp.paymasterAndData.length < SIGNATURE_OFFSET) {
+            // If input too short, fail validation safely
+            return ("", _packValidationData(true, 0, 0));
+        }
+        // ----------------------------------------------------------------
+
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) =
             parsePaymasterAndData(userOp.paymasterAndData);
         bytes32 messageHash = getHash(userOp, validUntil, validAfter);
