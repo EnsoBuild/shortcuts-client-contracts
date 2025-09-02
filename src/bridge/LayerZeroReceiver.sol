@@ -73,7 +73,7 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         bytes memory composeMsg = _message.composeMsg();
         (address receiver, uint256 nativeDrop, uint256 estimatedGas, bytes memory shortcutData) =
             abi.decode(composeMsg, (address, uint256, uint256, bytes));
-        if (msg.value != nativeDrop) revert InvalidMsgValue(msg.value, nativeDrop);
+        if (msg.value < nativeDrop) revert InvalidMsgValue(msg.value, nativeDrop);
         uint256 availableGas = gasleft();
         if (availableGas < estimatedGas) revert InsufficientGas(_guid, estimatedGas, availableGas);
 
