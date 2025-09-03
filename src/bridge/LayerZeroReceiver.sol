@@ -88,7 +88,6 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
                 _transfer(_NATIVE_ASSET, receiver, msg.value);
             }
         }
-        messageExecuted[key] = true;
     }
 
     // execute shortcut using router
@@ -149,7 +148,6 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
         // message key is passed to block subsequent calls to lzCompose in case a failing message becomes executable.
         // internal message data is not validated in case the message itself is malformed or incorrect
         // (e.g. oft returns incorrect token)
-        if (messageExecuted[messageKey]) revert MessageExecuted(messageKey);
         messageExecuted[messageKey] = true;
 
         _transfer(token, owner(), amount);

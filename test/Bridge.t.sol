@@ -96,7 +96,7 @@ contract BridgeTest is Test {
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
         // exact gas amount needed for execution
-        uint256 estimatedGas = 94_910;
+        uint256 estimatedGas = 75_272;
         bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, estimatedGas, commands, state); 
 
         // transfer funds
@@ -105,7 +105,7 @@ contract BridgeTest is Test {
         // trigger compose with insufficient gas
         vm.expectRevert(abi.encodeWithSelector(LayerZeroReceiver.InsufficientGas.selector, bytes32(0), estimatedGas, estimatedGas - 1));
         // exactly 1 less gas than needed for lz compose
-        lzReceiver.lzCompose{ gas: 105_317 }(ethPool, bytes32(0), message, address(0), ""); 
+        lzReceiver.lzCompose{ gas: 85_663 }(ethPool, bytes32(0), message, address(0), ""); 
     }
 
     function testUsdcBridge() public {
