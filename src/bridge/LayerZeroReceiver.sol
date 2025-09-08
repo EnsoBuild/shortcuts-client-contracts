@@ -27,7 +27,6 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     event OFTRemoved(address oft);
     event RegistrarAdded(address account);
     event RegistrarRemoved(address account);
-    event ReserveGasUpdated(uint256 amount);
     event FundsCollected(address token, uint256 amount);
 
     error InsufficientGas(bytes32 guid, uint256 estimatedGas, uint256 availableGas);
@@ -38,7 +37,6 @@ contract LayerZeroReceiver is Ownable, ILayerZeroComposer {
     error InvalidOFT(address oft);
     error EndpointNotSet();
     error RouterNotSet();
-    error InvalidArrayLength();
     error InvalidMsgValue(uint256 actual, uint256 expected);
     error MessageExecuted(bytes32 key);
 
