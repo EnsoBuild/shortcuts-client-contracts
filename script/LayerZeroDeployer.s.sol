@@ -45,7 +45,7 @@ contract LayerZeroDeployer is Script {
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         }
 
-        lzReceiver = address(new LayerZeroReceiver{ salt: "LayerZeroReceiver" }(endpoint, router, deployer, 100_000));
+        lzReceiver = address(new LayerZeroReceiver{ salt: "LayerZeroReceiver" }(endpoint, router, deployer));
 
         vm.stopBroadcast();
     }
