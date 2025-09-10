@@ -18,12 +18,12 @@
   "license": "ISC",
   "packageManager": "pnpm@10.11.0",
   "devDependencies": {
-    "colors": "^1.4.0",
-    "fs-extra": "^11.3.0",
+    "colors": "1.4.0",
+    "fs-extra": "11.3.0",
     "husky": "9.1.7",
     "lint-staged": "16.1.2",
     "prettier": "3.6.2",
-    "yargs": "^18.0.0"
+    "yargs": "18.0.0"
   },
   "lint-staged": {
     "*.{md,mjs,json,toml,yml,yaml}": [
