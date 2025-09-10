@@ -34,6 +34,7 @@ contract EnsoReceiver is
 
     error InvalidSender(address sender);
     error UnorderedNonceNotSupported();
+    error InitializeExecuteFailed();
 
     // for readability we use the same modifiers as the Ownable contract but this contract
     // does not allow the transferring of ownership, since the address is determinstically
@@ -57,6 +58,26 @@ contract EnsoReceiver is
         _owner = owner_;
         signer = signer_;
         entryPoint = entryPoint_;
+    }
+
+    function initializeAndExecuteShortcut(
+        address owner_,
+        address signer_,
+        address entryPoint_,
+        bytes calldata data
+    )
+        external
+        payable
+        initializer
+    {
+        _owner = owner_;
+        signer = signer_;
+        entryPoint = entryPoint_;
+
+        (bool success,) = address(this).call(data);
+        if (!success) {
+            revert InitializeExecuteFailed();
+        }
     }
 
     function safeExecute(IERC20 token, uint256 amount, bytes calldata data) external onlyOwnerOrEntryPoint {
