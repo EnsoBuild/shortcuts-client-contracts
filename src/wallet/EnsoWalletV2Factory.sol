@@ -25,11 +25,18 @@ contract EnsoWalletV2Factory {
         implementation = implementation_;
     }
 
-    function deploy(address account) external returns (address) {
+    function deploy(address account) external returns (address wallet) {
         return _deploy(account);
     }
 
-    function deployAndExecute(Token calldata tokenIn, bytes calldata data) external payable returns (address, bool) {
+    function deployAndExecute(
+        Token calldata tokenIn,
+        bytes calldata data
+    )
+        external
+        payable
+        returns (address wallet, bytes memory response)
+    {
         return _deployAndExecute(tokenIn, data);
     }
 
@@ -43,13 +50,20 @@ contract EnsoWalletV2Factory {
         bytes calldata data
     )
         private
-        returns (address wallet, bool success)
+        returns (address wallet, bytes memory response)
     {
         // strictly only msg.sender can deploy and execute
         wallet = _deploy(msg.sender);
         bool isNativeAsset = _transfer(tokenIn, wallet);
         if (!isNativeAsset && msg.value != 0) revert WrongMsgValue(msg.value, 0);
-        (success,) = wallet.call{ value: msg.value }(data);
+
+        bool success;
+        (success, response) = wallet.call{ value: msg.value }(data);
+        if (!success) {
+            assembly {
+                revert(add(response, 32), mload(response))
+            }
+        }
     }
 
     function _deploy(address account) private returns (address wallet) {
