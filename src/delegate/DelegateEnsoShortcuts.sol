@@ -9,6 +9,6 @@ contract DelegateEnsoShortcuts is AbstractEnsoShortcuts {
     error OnlyDelegateCall();
 
     function _checkMsgSender() internal view override {
-        if (msg.sender == __self) revert OnlyDelegateCall();
+        if (address(this) == __self) revert OnlyDelegateCall();
     }
 }
