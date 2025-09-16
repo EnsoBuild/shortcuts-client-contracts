@@ -95,4 +95,21 @@ contract DelegateEnsoShortcutsTest is Test, SafeTestTools {
         assertEq(weth.balanceOf(address(safeInstance.safe)), 10 ether);
         assertEq(safeBalanceBefore - 10 ether, address(safeInstance.safe).balance);
     }
+
+    function testToDirectlyCallDelegateContract() public {
+        bytes32[] memory commands = new bytes32[](1);
+        commands[0] = WeirollPlanner.buildCommand(
+            weth.deposit.selector,
+            0x03, // call with value
+            0x00ffffffffff, // 1 input
+            0xff, // no output
+            address(weth)
+        );
+
+        bytes[] memory state = new bytes[](1);
+        state[0] = abi.encode(10 ether);
+
+        vm.expectRevert(DelegateEnsoShortcuts.OnlyDelegateCall.selector);
+        shortcuts.executeShortcut(bytes32(0), bytes32(0), commands, state);
+    }
 }
