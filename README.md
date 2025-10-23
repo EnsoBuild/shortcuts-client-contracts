@@ -24,8 +24,7 @@ $ forge test
 ### Unit & Integration Testing - Write BTTs with Bulloak
 
 _Bulloak_ is a Solidity test generator based on the **Branching Tree Technique
-(BTT)**.  
-See the [Bulloak repo](https://github.com/alexfertel/bulloak) for full
+(BTT)**. See the [Bulloak repo](https://github.com/alexfertel/bulloak) for full
 documentation, examples, and advanced usage.
 
 #### **Requirements**
@@ -40,9 +39,8 @@ documentation, examples, and advanced usage.
 
 1. **Create a Tree File**
 
-   Create a `<ContractName>.tree` file (e.g., `ERC4337CloneFactory.tree`).  
-   Each tree describes the branching logic of a function or contract using ASCII
-   art.
+   Create a `<ContractName>.tree` file (e.g., `ERC4337CloneFactory.tree`). Each
+   tree describes the branching logic of a function or contract using ASCII art.
 
    **Example:**
 
@@ -59,9 +57,8 @@ documentation, examples, and advanced usage.
 2. **Convert to Tree Structure**
 
    Use ASCII tree tools or an LLM to convert your outline to a tree with `├`,
-   `└`, and `│` characters.  
-   You can group multiple trees in a single file, but only one can be scaffolded
-   at a time (comment out others).
+   `└`, and `│` characters. You can group multiple trees in a single file, but
+   only one can be scaffolded at a time (comment out others).
 
    **Example:**
 
@@ -97,7 +94,7 @@ documentation, examples, and advanced usage.
    - Set the correct SPDX license and pragma.
    - Add necessary imports.
    - Update the contract name and inheritance as needed.
-   - **Naming pattern suggestion:**  
+   - **Naming pattern suggestion:**
      `<ContractName>_<Method>[_When<Condition>][_As<Role>][_Unit|Int|Fork][_Concrete|Fuzz]_Test`
 
 ### Mutation Testing
@@ -116,9 +113,8 @@ catch them.
 
 1. **Create or update your Gambit config**
 
-   Make sure you have a `gambit.config.json` in your project root.  
-   See [Certora Gambit docs](https://github.com/Certora/gambit) for config
-   options.
+   Make sure you have a `gambit.config.json` in your project root. See
+   [Certora Gambit docs](https://github.com/Certora/gambit) for config options.
 
 2. **Generate Mutations**
 
@@ -150,22 +146,20 @@ catch them.
    This will run all test contracts matching the pattern against all mutants of
    `EnsoReceiver`.
 
-   > **Tip:** You can use more complex regexes to match multiple contracts,
-   > e.g.  
+   > **Tip:** You can use more complex regexes to match multiple contracts, e.g.
    > `--matchContract 'EnsoReceiver_.*_(Unit|Fork)_Concrete_Test'`
 
 4. **(Optional) Automate with a Script**
 
    For more complex or repeated runs, you can create a JS script in `scripts/`,
-   e.g.  
+   e.g.
    [`scripts/runEnsoCheckoutMutationTests.mjs`](./scripts/runEnsoCheckoutMutationTests.mjs).
 
 #### **Script Options and Advanced Usage**
 
 The `mutationTest.mjs` script is based on
-[ibourn/gambit-mutation-testing](https://github.com/ibourn/gambit-mutation-testing?tab=readme-ov-file#script-options-to-refine-test-execution).  
-**For
-a full list of available options and advanced usage, see the
+[ibourn/gambit-mutation-testing](https://github.com/ibourn/gambit-mutation-testing?tab=readme-ov-file#script-options-to-refine-test-execution).
+**For a full list of available options and advanced usage, see the
 [original script documentation](https://github.com/ibourn/gambit-mutation-testing?tab=readme-ov-file#script-options-to-refine-test-execution).**
 
 Some useful options include:
@@ -195,8 +189,7 @@ Some useful options include:
   run**. Always ensure the original contract files are restored before
   committing.
 - **Always use a regex for `--matchContract`** if you want to match multiple
-  contracts.  
-  Example: `--matchContract 'EnsoReceiver_.*_Unit_Concrete_Test'`
+  contracts. Example: `--matchContract 'EnsoReceiver_.*_Unit_Concrete_Test'`
 - **Do not stage or commit files in `gambit_out/` or `tempBackup/`**—these are
   generated and temporary.
 - If you see errors about missing files (e.g.,
@@ -235,6 +228,6 @@ forge verify-contract \
 0xDb5b96dC4CE3E0E44d30279583F926363eFaE29f \
 src/helpers/FeeSplitter.sol:FeeSplitter \
 --verifier etherscan \
---etherscan-api-key <string:etherscan-api-ke> \
+--etherscan-api-key <string:etherscan-api-key> \
 --constructor-args $(cast abi-encode "constructor(address,address[],uint16[])" "0x6AA68C46eD86161eB318b1396F7b79E386e88676" "[0xBfC330020E3267Cea008718f1712f1dA7F0d32A9,0x6AA68C46eD86161eB318b1396F7b79E386e88676]" "[1,1]")
 ```
