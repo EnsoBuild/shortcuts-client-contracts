@@ -8,13 +8,15 @@ contract HyperCoreHelpers {
 
     function encodeAction6(
         address _receiver,
-        uint64 _tokenIndex,
-        uint64 _amountInCoreWei
+        uint256 _tokenIndex,
+        uint256 _amountInCoreWei
     )
         external
         pure
         returns (bytes memory payload)
     {
-        payload = abi.encodePacked(ENCODING_VERSION, ACTION_6, abi.encode(_receiver, _tokenIndex, _amountInCoreWei));
+        payload = abi.encodePacked(
+            ENCODING_VERSION, ACTION_6, abi.encode(_receiver, uint64(_tokenIndex), uint64(_amountInCoreWei))
+        );
     }
 }
