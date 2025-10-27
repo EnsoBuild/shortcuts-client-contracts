@@ -36,6 +36,7 @@ remappings_location = "txt"
 
 [dependencies]
 account-abstraction-v7 = { version = "0.7.0", git = "https://github.com/eth-infinitism/account-abstraction.git", rev = "7af70c8993a6f42973f520ae0752386a5032abe7" }
+chainlink-ccip = { version = "1.6.2", git = "https://github.com/smartcontractkit/chainlink-ccip.git", rev = "0e3e0fc5c0f70f0d50dca66b139142ddf3009294"}
 devtools = { version = "0.0.1", git = "https://github.com/LayerZero-Labs/devtools.git", rev = "ac8912867862f6dd737b0febabd8d3cb8f142df7" }
 enso-weiroll = { version = "1.4.1", git = "https://github.com/EnsoBuild/enso-weiroll.git", rev = "900250114203727ff236d3f6313673c17c2d90dd" }
 forge-std = { version = "1.9.7", git = "https://github.com/foundry-rs/forge-std.git", tag = "v1.9.7" }
