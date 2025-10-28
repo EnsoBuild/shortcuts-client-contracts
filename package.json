@@ -6,9 +6,9 @@
   "scripts": {
     "foundry:update": "foundryup && forge soldeer update && forge remappings",
     "prepare": "husky",
-    "format": "prettier --check .",
-    "format:fix": "prettier --write .",
-    "format:fix:sol": "forge fmt",
+    "format": "prettier --check . && forge fmt --check",
+    "format:fix": "prettier --write . && forge fmt",
+    "lint:fix": "prettier --write . && ./.bash/forge-lint.sh",
     "test:enso_checkout:fork": "forge test --match-path 'test/fork/enso-checkout/*.t.sol'",
     "test:enso_checkout:unit": "forge test --match-path 'test/unit/concrete/{delegate/ensoReceiver,factory/erc4337CloneFactory,paymaster/signaturePaymaster}/*.t.sol'",
     "test:enso_checkout:mutation": "node scripts/runEnsoCheckoutMutationTests.mjs"

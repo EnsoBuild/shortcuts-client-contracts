@@ -17,6 +17,10 @@ via_ir = true
 [fmt]
 bracket_spacing = true
 contract_new_lines = false
+ignore = [
+    # --- Already audited contracts START ---
+    # --- Already audited contracts FINISH ---
+]
 int_types = "long"
 line_length = 120
 multiline_func_header = "all"
@@ -25,6 +29,14 @@ quote_style = "double"
 sort_imports = true
 tab_width = 4
 wrap_comments = true
+
+[lint]
+lint_on_build = false
+ignore = [
+    # --- Already audited contracts START ---
+    # --- Already audited contracts FINISH ---
+    'test/**/*.sol',
+]
 
 [soldeer]
 recursive_deps = true
