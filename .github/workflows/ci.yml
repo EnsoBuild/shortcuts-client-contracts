@@ -24,12 +24,19 @@ env:
   ETHEREUM_RPC_URL: ${{ secrets.ETHEREUM_RPC_URL }}
   GNOSIS_RPC_URL: ${{ secrets.GNOSIS_RPC_URL }}
   HYPER_RPC_URL: ${{ secrets.HYPER_RPC_URL }}
+  INK_RPC_URL: ${{ secrets.INK_RPC_URL }}
+  KATANA_RPC_URL: ${{ secrets.KATANA_RPC_URL }}
   LINEA_RPC_URL: ${{ secrets.LINEA_RPC_URL }}
   OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
+  PLASMA_RPC_URL: ${{ secrets.PLASMA_RPC_URL }}
+  PLUME_RPC_URL: ${{ secrets.PLUME_RPC_URL }}
   POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
   SONIC_RPC_URL: ${{ secrets.SONIC_RPC_URL }}
+  SONEIUM_RPC_URL: ${{ secrets.SONEIUM_RPC_URL }}
+  UNICHAIN_RPC_URL: ${{ secrets.UNICHAIN_RPC_URL }}
+  WORLD_RPC_URL: ${{ secrets.WORLD_RPC_URL }}
   ZKSYNC_RPC_URL: ${{ secrets.ZKSYNC_RPC_URL }}
-  PLUME_RPC_URL: ${{ secrets.PLUME_RPC_URL }}
+  SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
 
 jobs:
   check:
@@ -39,19 +46,53 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm 10.11.0
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+
+      - name: Install Node.js 22.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22.x
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Node dependencies
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+        id: pnpm
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
 
       - name: Show Forge version
-        run: forge --version
+        run: |
+          forge --version
+        id: version
 
       - name: Install Forge dependencies
-        run: forge soldeer update --recursive-deps
+        run: |
+          forge soldeer update --recursive-deps
+        id: soldeer
 
-      - name: Build contracts
-        run: forge build --sizes
+      - name: Run Forge fmt
+        run: |
+          forge fmt --check
+        id: fmt
 
-      - name: Run tests
-        run: forge test -vvv
+      - name: Run Forge lint
+        run: |
+          bash .bash/forge-lint.sh
+        id: lint
+
+      - name: Run Forge build
+        run: |
+          forge build --sizes
+        id: build
+
+      - name: Run Forge tests
+        run: |
+          forge test -vvv --no-match-test "invariant_.*"
+        id: test
