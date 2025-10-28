@@ -15,6 +15,7 @@ contract HyperCoreHelpers {
         pure
         returns (bytes memory payload)
     {
+        /// forge-lint: disable-next-item(unsafe-typecast)
         payload = abi.encodePacked(
             ENCODING_VERSION, ACTION_6, abi.encode(_receiver, uint64(_tokenIndex), uint64(_amountInCoreWei))
         );

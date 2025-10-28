@@ -30,8 +30,7 @@ contract TestPaymaster is IPaymaster {
         uint256, // actualGasCost
         uint256 // actualUserOpFeePerGas
     )
-        external
-    {
+        external {
         // allow all
     }
 
