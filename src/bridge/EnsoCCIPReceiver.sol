@@ -22,13 +22,19 @@ contract EnsoCCIPReceiver is Ownable2Step, CCIPReceiver, IEnsoCCIPReceiver {
     using SafeERC20 for IERC20;
 
     /// @dev Immutable Enso Router used to dispatch tokens + call Shortcuts.
+    /// forge-lint: disable-next-item(screaming-snake-case-immutable)
     IEnsoRouter private immutable i_ensoRouter;
 
     /// @dev Allowlist by source chain selector.
+    /// forge-lint: disable-next-item(mixed-case-variable)
     mapping(uint64 sourceChainSelector => bool isAllowed) private s_allowedSourceChain;
+
     /// @dev Allowlist of source senders per chain selector.
+    /// forge-lint: disable-next-item(mixed-case-variable)
     mapping(uint64 sourceChainSelector => mapping(address sender => bool isAllowed)) private s_allowedSender;
+
     /// @dev Replay protection: tracks CCIP message IDs that were executed successfully (or handled).
+    /// forge-lint: disable-next-item(mixed-case-variable)
     mapping(bytes32 messageId => bool wasExecuted) private s_executedMessage;
 
     /// @notice Initializes the receiver with the CCIP router and Enso Router.
