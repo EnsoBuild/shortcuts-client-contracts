@@ -6,6 +6,7 @@ import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 import { CCIPReceiver, Client } from "chainlink-ccip/applications/CCIPReceiver.sol";
 import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 
 /// @title EnsoCCIPReceiver
 /// @author Enso
@@ -18,7 +19,7 @@ import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/Safe
 ///      - Expects exactly one ERC-20 in `destTokenAmounts`; amount must be non-zero.
 ///      - Executes Shortcuts through a self-call pattern (`try this.execute(...)`) so we can
 ///        catch and handle reverts and sweep funds to a fallback receiver in the payload.
-contract EnsoCCIPReceiver is Ownable2Step, CCIPReceiver, IEnsoCCIPReceiver {
+contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
 
     /// @dev Immutable Enso Router used to dispatch tokens + call Shortcuts.
@@ -55,7 +56,7 @@ contract EnsoCCIPReceiver is Ownable2Step, CCIPReceiver, IEnsoCCIPReceiver {
     ///      5) Optional gas self-check (if `estimatedGas` > 0).
     ///      6) Mark executed, attempt `execute(...)` via self-call; on failure, sweep token to `receiver`.
     /// @param _message The CCIP Any2EVM message with metadata, payload, and delivered tokens.
-    function _ccipReceive(Client.Any2EVMMessage memory _message) internal override {
+    function _ccipReceive(Client.Any2EVMMessage memory _message) internal override whenNotPaused {
         bytes32 messageId = _message.messageId;
         if (s_executedMessage[messageId]) {
             revert IEnsoCCIPReceiver.EnsoCCIPReceiver_AlreadyExecuted(messageId);
@@ -118,6 +119,11 @@ contract EnsoCCIPReceiver is Ownable2Step, CCIPReceiver, IEnsoCCIPReceiver {
     }
 
     /// @inheritdoc IEnsoCCIPReceiver
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @inheritdoc IEnsoCCIPReceiver
     function setAllowedSender(uint64 _sourceChainSelector, address _sender, bool _isAllowed) external onlyOwner {
         s_allowedSender[_sourceChainSelector][_sender] = _isAllowed;
         emit IEnsoCCIPReceiver.AllowedSenderSet(_sourceChainSelector, _sender, _isAllowed);
@@ -127,6 +133,11 @@ contract EnsoCCIPReceiver is Ownable2Step, CCIPReceiver, IEnsoCCIPReceiver {
     function setAllowedSourceChain(uint64 _sourceChainSelector, bool _isAllowed) external onlyOwner {
         s_allowedSourceChain[_sourceChainSelector] = _isAllowed;
         emit IEnsoCCIPReceiver.AllowedSourceChainSet(_sourceChainSelector, _isAllowed);
+    }
+
+    /// @inheritdoc IEnsoCCIPReceiver
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     /// @inheritdoc IEnsoCCIPReceiver

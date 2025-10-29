@@ -82,6 +82,11 @@ interface IEnsoCCIPReceiver {
     /// @param shortcutData ABI-encoded call data for the Enso Shortcuts entrypoint.
     function execute(address token, uint256 amount, bytes calldata shortcutData) external;
 
+    /// @notice Pauses the CCIP receiver, disabling new incoming messages until unpaused.
+    /// @dev Only callable by the contract owner. While paused, `_ccipReceive` should
+    ///      revert or ignore messages to prevent execution.
+    function pause() external;
+
     /// @notice Adds or removes an allowed sender for a specific source chain.
     /// @dev Typically `onlyOwner`. Idempotent (setting an already-set value is allowed).
     /// @param sourceChainSelector Chain selector of the source network.
@@ -94,6 +99,10 @@ interface IEnsoCCIPReceiver {
     /// @param sourceChainSelector Chain selector of the source network.
     /// @param isAllowed True to allow, false to disallow.
     function setAllowedSourceChain(uint64 sourceChainSelector, bool isAllowed) external;
+
+    /// @notice Unpauses the CCIP receiver, re-enabling message processing.
+    /// @dev Only callable by the contract owner. Resumes normal operation after a pause.
+    function unpause() external;
 
     /// @notice Returns the Enso Router address used by this receiver.
     /// @return router Address of the Enso Router.
