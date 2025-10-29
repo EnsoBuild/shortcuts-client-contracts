@@ -30,9 +30,11 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
     /// forge-lint: disable-next-item(mixed-case-variable)
     mapping(uint64 sourceChainSelector => bool isAllowed) private s_allowedSourceChain;
 
-    /// @dev Allowlist of source senders per chain selector.
+    /// @dev Per-(chain selector, sender) allowlist.
+    ///      Key is computed as: keccak256(abi.encode(sourceChainSelector, sender)),
+    ///      where `sender` is the EVM address decoded from `Any2EVMMessage.sender` bytes.
     /// forge-lint: disable-next-item(mixed-case-variable)
-    mapping(uint64 sourceChainSelector => mapping(address sender => bool isAllowed)) private s_allowedSender;
+    mapping(bytes32 key => bool isAllowed) private s_allowedSender;
 
     /// @dev Replay protection: tracks CCIP message IDs that were executed successfully (or handled).
     /// forge-lint: disable-next-item(mixed-case-variable)
@@ -68,7 +70,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
         }
 
         address sender = abi.decode(_message.sender, (address));
-        if (!s_allowedSender[sourceChainSelector][sender]) {
+        if (!s_allowedSender[_getAllowedSenderKey(sourceChainSelector, sender)]) {
             revert IEnsoCCIPReceiver.EnsoCCIPReceiver_SenderNotAllowed(sourceChainSelector, sender);
         }
 
@@ -125,7 +127,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
 
     /// @inheritdoc IEnsoCCIPReceiver
     function setAllowedSender(uint64 _sourceChainSelector, address _sender, bool _isAllowed) external onlyOwner {
-        s_allowedSender[_sourceChainSelector][_sender] = _isAllowed;
+        s_allowedSender[_getAllowedSenderKey(_sourceChainSelector, _sender)] = _isAllowed;
         emit IEnsoCCIPReceiver.AllowedSenderSet(_sourceChainSelector, _sender, _isAllowed);
     }
 
@@ -147,7 +149,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
 
     /// @inheritdoc IEnsoCCIPReceiver
     function isSenderAllowed(uint64 _sourceChainSelector, address _sender) external view returns (bool) {
-        return s_allowedSender[_sourceChainSelector][_sender];
+        return s_allowedSender[_getAllowedSenderKey(_sourceChainSelector, _sender)];
     }
 
     /// @inheritdoc IEnsoCCIPReceiver
@@ -158,5 +160,30 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
     /// @inheritdoc IEnsoCCIPReceiver
     function wasMessageExecuted(bytes32 _messageId) external view returns (bool) {
         return s_executedMessage[_messageId];
+    }
+
+    /// @dev Computes the composite allowlist key for (chainSelector, sender).
+    ///      ABI-equivalent to:
+    ///          keccak256(abi.encode(chainSelector, sender))
+    ///      and implemented in Yul to avoid an extra temporary allocation.
+    ///      Semantics are identical to the high-level version.
+    ///
+    ///      Canonicality (no masking required):
+    ///      - `sender` is a canonical Solidity `address`, either decoded via
+    ///        `abi.decode(...,(address))` from `Any2EVMMessage.sender` or received
+    ///        as a public/external ABI parameter. In both cases the VM zero-extends
+    ///        it to a full 32-byte word when written to memory.
+    ///      - `chainSelector` is a `uint64` and is zero-extended to 32 bytes by the ABI/VM.
+    ///
+    /// @param _chainSelector The CCIP source chain selector (uint64).
+    /// @param _sender        The source application address decoded from `Any2EVMMessage.sender`.
+    /// @return allowKey      keccak256(abi.encode(_chainSelector, _sender)).
+    function _getAllowedSenderKey(uint64 _chainSelector, address _sender) private pure returns (bytes32 allowKey) {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, _chainSelector)
+            mstore(add(ptr, 0x20), _sender)
+            allowKey := keccak256(ptr, 0x40)
+        }
     }
 }
