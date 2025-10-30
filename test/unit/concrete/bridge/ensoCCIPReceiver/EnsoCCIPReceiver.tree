@@ -1,0 +1,8 @@
+EnsoCCIPReceiver::decodeMessageData
+├── when msg sender is not self
+│   └── it should revert
+└── when msg sender is self
+    ├── when data is malformed
+    │   └── it should panic
+    └── when data is not malformed
+        └── it should return payload decoded
