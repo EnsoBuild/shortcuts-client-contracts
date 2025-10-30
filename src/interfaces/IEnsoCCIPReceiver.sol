@@ -17,6 +17,7 @@ interface IEnsoCCIPReceiver {
     /// - ALREADY_EXECUTED: messageId was previously handled (idempotent no-op).
     /// - NO_TOKENS / TOO_MANY_TOKENS / NO_TOKEN_AMOUNT: token shape invalid.
     /// - MALFORMED_MESSAGE_DATA: payload (address,uint256,bytes) could not be decoded.
+    /// - ZERO_ADDRESS_RECEIVER: payload receiver is the zero address.
     /// - PAUSED: contract is paused; environment block on execution.
     /// - INSUFFICIENT_GAS: current gas < estimatedGas hint from payload.
     enum ErrorCode {
@@ -26,6 +27,7 @@ interface IEnsoCCIPReceiver {
         TOO_MANY_TOKENS,
         NO_TOKEN_AMOUNT,
         MALFORMED_MESSAGE_DATA,
+        ZERO_ADDRESS_RECEIVER,
         PAUSED,
         INSUFFICIENT_GAS
     }

@@ -19,7 +19,8 @@ import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 ///      - Validates `destTokenAmounts` has exactly one ERC-20 with non-zero amount.
 ///      - Decodes `(receiver, estimatedGas, shortcutData)` from the message payload (temp external helper).
 ///      - For environment issues (PAUSED / INSUFFICIENT_GAS), refunds to `receiver` for better UX.
-///      - For malformed messages (no/too many tokens, zero amount, bad payload), quarantines funds in this contract.
+///      - For malformed messages (no/too many tokens, zero amount, bad payload, zero address receiver), quarantines
+///      funds in this contract.
 ///      - Executes Shortcuts using a self-call (`try this.execute(...)`) to catch and handle reverts.
 contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
@@ -75,12 +76,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
             }
             if (refundKind == RefundKind.TO_RECEIVER) {
                 s_executedMessage[_message.messageId] = true;
-                if (receiver != address(0)) {
-                    IERC20(token).safeTransfer(receiver, amount);
-                } else {
-                    // Quarantine-in-place: funds remain in this contract; ops can recover via `recoverTokens`.
-                    emit MessageQuarantined(_message.messageId, errorCode, token, amount, receiver);
-                }
+                IERC20(token).safeTransfer(receiver, amount);
                 return;
             }
             if (refundKind == RefundKind.TO_ESCROW) {
@@ -101,12 +97,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
             emit ShortcutExecutionSuccessful(_message.messageId);
         } catch (bytes memory err) {
             emit ShortcutExecutionFailed(_message.messageId, err);
-            if (receiver != address(0)) {
-                IERC20(token).safeTransfer(receiver, amount);
-            } else {
-                // Quarantine-in-place: funds remain in this contract; ops can recover via `recoverTokens`.
-                emit MessageQuarantined(_message.messageId, errorCode, token, amount, receiver);
-            }
+            IERC20(token).safeTransfer(receiver, amount);
         }
     }
 
@@ -169,8 +160,9 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
             return RefundKind.TO_RECEIVER;
         }
         if (
-            _errorCode == ErrorCode.MALFORMED_MESSAGE_DATA || _errorCode == ErrorCode.NO_TOKENS
-                || _errorCode == ErrorCode.NO_TOKEN_AMOUNT || _errorCode == ErrorCode.TOO_MANY_TOKENS
+            _errorCode == ErrorCode.NO_TOKENS || _errorCode == ErrorCode.TOO_MANY_TOKENS
+                || _errorCode == ErrorCode.NO_TOKEN_AMOUNT || _errorCode == ErrorCode.MALFORMED_MESSAGE_DATA
+                || _errorCode == ErrorCode.ZERO_ADDRESS_RECEIVER
         ) {
             return RefundKind.TO_ESCROW;
         }
@@ -234,6 +226,11 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
             shortcutData = decodedShortcutData;
         } catch {
             return (token, amount, receiver, shortcutData, ErrorCode.MALFORMED_MESSAGE_DATA, errorData);
+        }
+
+        // Check receiver
+        if (receiver == address(0)) {
+            return (token, amount, receiver, shortcutData, ErrorCode.ZERO_ADDRESS_RECEIVER, errorData);
         }
 
         // Environment checks (refundable to receiver)
