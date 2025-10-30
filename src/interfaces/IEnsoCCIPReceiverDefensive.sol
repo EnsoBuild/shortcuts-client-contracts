@@ -10,6 +10,14 @@ pragma solidity ^0.8.0;
 ///      - Self-call execution entry used by try/catch in `_ccipReceive`
 ///      - Views for router/allowlists/replay state
 interface IEnsoCCIPReceiverDefensive {
+    /// @notice High-level validation/flow outcomes produced by `_validateMessage`.
+    /// @dev Meanings:
+    /// - NO_ERROR: message is well-formed; proceed to execution.
+    /// - ALREADY_EXECUTED: messageId was previously handled (idempotent no-op).
+    /// - NO_TOKENS / TOO_MANY_TOKENS / NO_TOKEN_AMOUNT: token shape invalid.
+    /// - MALFORMED_MESSAGE_DATA: payload (address,uint256,bytes) could not be decoded.
+    /// - PAUSED: contract is paused; environment block on execution.
+    /// - INSUFFICIENT_GAS: current gas < estimatedGas hint from payload.
     enum ErrorCode {
         NO_ERROR,
         ALREADY_EXECUTED,
@@ -18,47 +26,38 @@ interface IEnsoCCIPReceiverDefensive {
         NO_TOKEN_AMOUNT,
         MALFORMED_MESSAGE_DATA,
         PAUSED,
-        SOURCE_CHAIN_NOT_ALLOWED,
-        SENDER_NOT_ALLOWED,
         INSUFFICIENT_GAS
     }
 
+    /// @notice Refund policy selected by the receiver for a given ErrorCode.
+    /// @dev TO_RECEIVER is used for environment errors (e.g., PAUSED/INSUFFICIENT_GAS) after successful payload decode.
+    ///      TO_ESCROW is used for malformed token/payload cases.
     enum RefundKind {
         NONE,
         TO_RECEIVER,
         TO_ESCROW
     }
 
-    struct Escrow {
-        address token; // ERC20 token being held
-        uint256 amount; // amount held
-        address receiver; // payload receiver for reference; may be 0
-        bool isEscrow; // presence flag
-    }
-
     // -------------------------------------------------------------------------
     // Events
     // -------------------------------------------------------------------------
 
-    /// @notice Emitted when an allowed sender is (de)authorized for a source chain.
-    /// @param sourceChainSelector Chain selector of the source network.
-    /// @param sender Address of the source application on that chain.
-    /// @param isAllowed True if allowed, false if disallowed.
-    event AllowedSenderSet(uint64 indexed sourceChainSelector, address indexed sender, bool isAllowed);
-
-    /// @notice Emitted when a source chain is (de)authorized.
-    /// @param sourceChainSelector Chain selector of the source network.
-    /// @param isAllowed True if allowed, false if disallowed.
-    event AllowedSourceChainSet(uint64 indexed sourceChainSelector, bool isAllowed);
-
-    /// @notice Emitted when validation fails. See `errorCode` for class.
+    /// @notice Emitted when validation fails. See `errorCode` for the reason.
     /// @dev errorData encodings:
     ///  - ALREADY_EXECUTED: (bytes32 messageId)
-    ///  - SOURCE_CHAIN_NOT_ALLOWED: (uint64 sourceChainSelector)
-    ///  - SENDER_NOT_ALLOWED: (uint64 sourceChainSelector, address sender)
     ///  - INSUFFICIENT_GAS: (uint256 availableGas, uint256 estimatedGas)
-    ///  - Others: empty bytes unless specified.
+    ///  - Others: empty bytes unless specified by the implementation.
     event MessageValidationFailed(bytes32 indexed messageId, ErrorCode errorCode, bytes errorData);
+
+    /// @notice Funds were quarantined in the receiver instead of delivered to the payload receiver.
+    /// @param messageId The CCIP message id.
+    /// @param code The validation error that triggered quarantine.
+    /// @param token ERC-20 token retained.
+    /// @param amount Token amount retained.
+    /// @param receiver Original payload receiver (informational; may be zero if not decoded).
+    event MessageQuarantined(
+        bytes32 indexed messageId, ErrorCode code, address token, uint256 amount, address receiver
+    );
 
     /// @notice Emitted when Enso Shortcuts execution succeeds for a CCIP message.
     /// @param messageId CCIP message identifier.
@@ -69,16 +68,8 @@ interface IEnsoCCIPReceiverDefensive {
     /// @param err ABI-encoded revert data from the failed call.
     event ShortcutExecutionFailed(bytes32 indexed messageId, bytes err);
 
-    /// @notice Funds were quarantined to escrow instead of delivered to the payload receiver.
-    /// @param messageId The CCIP message id.
-    /// @param code The validation error that triggered quarantine.
-    /// @param token ERC-20 token moved to escrow.
-    /// @param amount Token amount quarantined.
-    /// @param receiver Original payload receiver (informational; may be zero if not decoded).
-    event MessageQuarantined(
-        bytes32 indexed messageId, ErrorCode code, address token, uint256 amount, address receiver
-    );
-    event EscrowSwept(bytes32 indexed messageId, address token, uint256 amount, address to);
+    /// @notice Emitted when the owner recovers tokens from the receiver.
+    event TokensRecovered(address token, address to, uint256 amount);
 
     // -------------------------------------------------------------------------
     // Errors
@@ -86,8 +77,11 @@ interface IEnsoCCIPReceiverDefensive {
 
     /// @notice Revert when an external caller targets the internal executor.
     error EnsoCCIPReceiver_OnlySelf();
-    error EnsoCCIPReceiver_MissingEscrow(bytes32 messageId);
+
+    /// @notice Revert if an unexpected ErrorCode is encountered in refund policy logic.
     error EnsoCCIPReceiver_UnsupportedErrorCode(ErrorCode errorCode);
+
+    /// @notice Revert if an unexpected RefundKind is encountered in refund policy logic.
     error EnsoCCIPReceiver_UnsupportedRefundKind(RefundKind refundKind);
 
     // -------------------------------------------------------------------------
@@ -103,51 +97,40 @@ interface IEnsoCCIPReceiverDefensive {
     /// @param shortcutData ABI-encoded call data for the Enso Shortcuts entrypoint.
     function execute(address token, uint256 amount, bytes calldata shortcutData) external;
 
-    /// @notice Pauses the CCIP receiver, disabling new incoming messages until unpaused.
-    /// @dev Only callable by the contract owner. While paused, `_ccipReceive` should
-    ///      revert or ignore messages to prevent execution.
+    /// @notice Temporary helper to decode `(address receiver, uint256 estimatedGas, bytes shortcutData)` from
+    ///         a CCIP message payload. Implementations may replace this with safe inline decoding later.
+    /// @dev SHOULD revert when called externally by non-self to avoid surfacing internals.
+    ///      Typical guard: `if (msg.sender != address(this)) revert EnsoCCIPReceiver_OnlySelf();`
+    function decodeMessageData(bytes calldata data)
+        external
+        view
+        returns (address receiver, uint256 estimatedGas, bytes memory shortcutData);
+
+    /// @notice Pauses the CCIP receiver, disabling new incoming message execution until unpaused.
+    /// @dev Only callable by the contract owner.
     function pause() external;
 
-    /// @notice Adds or removes an allowed sender for a specific source chain.
-    /// @dev Typically `onlyOwner`. Idempotent (setting an already-set value is allowed).
-    /// @param sourceChainSelector Chain selector of the source network.
-    /// @param sender Address of the source application on that chain.
-    /// @param isAllowed True to allow, false to disallow.
-    function setAllowedSender(uint64 sourceChainSelector, address sender, bool isAllowed) external;
+    /// @notice Provides the ability for the owner to recover any ERC-20 tokens held by this contract
+    ///         (for example, after quarantine or accidental sends).
+    /// @param token ERC20-token to recover.
+    /// @param to Destination address to send the tokens to.
+    /// @param amount The amount of tokens to send.
+    function recoverTokens(address token, address to, uint256 amount) external;
 
-    /// @notice Adds or removes an allowed source chain.
-    /// @dev Typically `onlyOwner`. Idempotent (setting an already-set value is allowed).
-    /// @param sourceChainSelector Chain selector of the source network.
-    /// @param isAllowed True to allow, false to disallow.
-    function setAllowedSourceChain(uint64 sourceChainSelector, bool isAllowed) external;
-
-    function sweepMessageInEscrow(bytes32 messageId, address token, uint256 amount, address to) external;
-
-    /// @notice Unpauses the CCIP receiver, re-enabling message processing.
-    /// @dev Only callable by the contract owner. Resumes normal operation after a pause.
+    /// @notice Unpauses the CCIP receiver, re-enabling normal message processing.
+    /// @dev Only callable by the contract owner.
     function unpause() external;
 
     /// @notice Returns the Enso Router address used by this receiver.
     /// @return router Address of the Enso Router.
     function getEnsoRouter() external view returns (address router);
 
-    function isMessageInEscrow(bytes32 messageId) external view returns (bool);
+    /// @notice Returns a human-readable version/format indicator for off-chain tooling and tests.
+    /// @return version The version number of this receiver implementation.
+    function version() external view returns (uint256 version);
 
-    /// @notice Returns whether a sender is allowlisted for a given source chain.
-    /// @param sourceChainSelector Chain selector of the source network.
-    /// @param sender Address of the source application on that chain.
-    /// @return allowed True if the sender is allowed.
-    function isSenderAllowed(uint64 sourceChainSelector, address sender) external view returns (bool allowed);
-
-    /// @notice Returns whether a source chain is allowlisted.
-    /// @param sourceChainSelector Chain selector of the source network.
-    /// @return allowed True if the source chain is allowed.
-    function isSourceChainAllowed(uint64 sourceChainSelector) external view returns (bool allowed);
-
-    function version() external returns (uint256 version);
-
-    /// @notice Returns whether a CCIP message was already executed.
+    /// @notice Returns whether a CCIP message was already handled (executed/refunded/quarantined).
     /// @param messageId CCIP message identifier.
-    /// @return executed True if the message was marked as executed.
+    /// @return executed True if the messageId is marked as executed/handled.
     function wasMessageExecuted(bytes32 messageId) external view returns (bool executed);
 }
