@@ -75,7 +75,12 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
             }
             if (refundKind == RefundKind.TO_RECEIVER) {
                 s_executedMessage[_message.messageId] = true;
-                IERC20(token).safeTransfer(receiver, amount);
+                if (receiver != address(0)) {
+                    IERC20(token).safeTransfer(receiver, amount);
+                } else {
+                    // Quarantine-in-place: funds remain in this contract; ops can recover via `recoverTokens`.
+                    emit MessageQuarantined(_message.messageId, errorCode, token, amount, receiver);
+                }
                 return;
             }
             if (refundKind == RefundKind.TO_ESCROW) {
@@ -96,7 +101,12 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
             emit ShortcutExecutionSuccessful(_message.messageId);
         } catch (bytes memory err) {
             emit ShortcutExecutionFailed(_message.messageId, err);
-            IERC20(token).safeTransfer(receiver, amount);
+            if (receiver != address(0)) {
+                IERC20(token).safeTransfer(receiver, amount);
+            } else {
+                // Quarantine-in-place: funds remain in this contract; ops can recover via `recoverTokens`.
+                emit MessageQuarantined(_message.messageId, errorCode, token, amount, receiver);
+            }
         }
     }
 
