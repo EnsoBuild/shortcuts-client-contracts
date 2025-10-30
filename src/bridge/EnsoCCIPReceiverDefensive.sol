@@ -10,15 +10,17 @@ import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 
 /// @title EnsoCCIPReceiverDefensive
 /// @author Enso
-/// @notice Destination-side CCIP receiver that validates source chain/sender, enforces replay
-///         protection, and forwards a single bridged ERC-20 to Enso Shortcuts via the Enso Router.
-/// @dev The contract:
-///      - Relies on Chainlink CCIP’s router gating via {CCIPReceiver}.
-///      - Adds allowlists for source chain selectors and source senders (per chain).
-///      - Guards against duplicate delivery with a messageId map.
-///      - Expects exactly one ERC-20 in `destTokenAmounts`; amount must be non-zero.
-///      - Executes Shortcuts through a self-call pattern (`try this.execute(...)`) so we can
-///        catch and handle reverts and sweep funds to a fallback receiver in the payload.
+/// @notice Destination-side CCIP receiver that enforces replay protection, validates the delivered
+///         token shape (exactly one non-zero ERC-20), decodes a payload, and either forwards funds
+///         to Enso Shortcuts via the Enso Router or performs defensive refund/quarantine without reverting.
+/// @dev Key properties:
+///      - Relies on Chainlink CCIP Router gating via {CCIPReceiver}.
+///      - Maintains idempotency with a messageId → handled flag.
+///      - Validates `destTokenAmounts` has exactly one ERC-20 with non-zero amount.
+///      - Decodes `(receiver, estimatedGas, shortcutData)` from the message payload (temp external helper).
+///      - For environment issues (PAUSED / INSUFFICIENT_GAS), refunds to `receiver` for better UX.
+///      - For malformed messages (no/too many tokens, zero amount, bad payload), quarantines funds in this contract.
+///      - Executes Shortcuts using a self-call (`try this.execute(...)`) to catch and handle reverts.
 contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
 
@@ -28,19 +30,7 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
     /// forge-lint: disable-next-item(screaming-snake-case-immutable)
     IEnsoRouter private immutable i_ensoRouter;
 
-    /// @dev Allowlist by source chain selector.
-    /// forge-lint: disable-next-item(mixed-case-variable)
-    mapping(uint64 sourceChainSelector => bool isAllowed) private s_allowedSourceChain;
-
-    /// @dev Per-(chain selector, sender) allowlist.
-    ///      Key is computed as: keccak256(abi.encode(sourceChainSelector, sender)),
-    ///      where `sender` is the EVM address decoded from `Any2EVMMessage.sender` bytes.
-    /// forge-lint: disable-next-item(mixed-case-variable)
-    mapping(bytes32 key => bool isAllowed) private s_allowedSender;
-
-    mapping(bytes32 messageId => bool isEscrow) private s_escrowMessage;
-
-    /// @dev Replay protection: tracks CCIP message IDs that were executed successfully (or handled).
+    /// @dev Replay protection: tracks CCIP message IDs that were executed/refunded/quarantined.
     /// forge-lint: disable-next-item(mixed-case-variable)
     mapping(bytes32 messageId => bool wasExecuted) private s_executedMessage;
 
@@ -53,14 +43,17 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
         i_ensoRouter = IEnsoRouter(_ensoRouter);
     }
 
-    /// @notice CCIP router callback: validates message, enforces replay protection, and dispatches.
+    /// @notice CCIP router callback: validate, classify (refund/quarantine/execute), and avoid reverting.
     /// @dev Flow:
-    ///      1) Check duplicate by messageId (fail fast).
-    ///      2) Check allowlisted source chain and sender (decoded from `message.sender`).
-    ///      3) Enforce exactly one ERC-20 delivered (and non-zero amount).
-    ///      4) Decode payload `(receiver, estimatedGas, shortcutData)`.
-    ///      5) Optional gas self-check (if `estimatedGas` > 0).
-    ///      6) Mark executed, attempt `execute(...)` via self-call; on failure, sweep token to `receiver`.
+    ///      1) Replay check by `messageId` (idempotent no-op if already handled).
+    ///      2) Validate token shape (exactly one ERC-20, non-zero amount).
+    ///      3) Decode payload `(receiver, estimatedGas, shortcutData)` using a temporary external helper.
+    ///      4) Environment checks: `paused()` and `estimatedGas` hint vs `gasleft()`.
+    ///      5) If non-OK → select refund policy:
+    ///            - TO_RECEIVER for environment issues (PAUSED / INSUFFICIENT_GAS),
+    ///            - TO_ESCROW for malformed token/payload (funds remain in this contract),
+    ///            - NONE for ALREADY_EXECUTED (no-op).
+    ///      6) If OK → mark executed and `try this.execute(...)`; on revert, refund to `receiver`.
     /// @param _message The CCIP Any2EVM message with metadata, payload, and delivered tokens.
     function _ccipReceive(Client.Any2EVMMessage memory _message) internal override {
         (
@@ -73,11 +66,11 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
         ) = _validateMessage(_message);
 
         if (errorCode != ErrorCode.NO_ERROR) {
-            emit IEnsoCCIPReceiverDefensive.MessageValidationFailed(_message.messageId, errorCode, errorData);
+            emit MessageValidationFailed(_message.messageId, errorCode, errorData);
 
             RefundKind refundKind = _getRefundPolicy(errorCode);
             if (refundKind == RefundKind.NONE) {
-                // NOTE: ErrorCode.ALREADY_EXECUTED → no-op;
+                // ALREADY_EXECUTED → idempotent no-op (do not flip the flag again)
                 return;
             }
             if (refundKind == RefundKind.TO_RECEIVER) {
@@ -87,41 +80,42 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
             }
             if (refundKind == RefundKind.TO_ESCROW) {
                 s_executedMessage[_message.messageId] = true;
+                // Quarantine-in-place: funds remain in this contract; ops can recover via `recoverTokens`.
                 emit MessageQuarantined(_message.messageId, errorCode, token, amount, receiver);
-                s_escrowMessage[_message.messageId] = true;
+                return;
             }
 
-            // NOTE: make sure this is caught in development
+            // Should not happen; guarded to surface during development.
             revert EnsoCCIPReceiver_UnsupportedRefundKind(refundKind);
         }
 
+        // Happy path: mark handled and attempt Shortcuts execution.
         s_executedMessage[_message.messageId] = true;
 
-        // Attempt Shortcuts execution; on failure, sweep funds to the fallback receiver.
         try this.execute(token, amount, shortcutData) {
-            emit IEnsoCCIPReceiverDefensive.ShortcutExecutionSuccessful(_message.messageId);
+            emit ShortcutExecutionSuccessful(_message.messageId);
         } catch (bytes memory err) {
-            emit IEnsoCCIPReceiverDefensive.ShortcutExecutionFailed(_message.messageId, err);
+            emit ShortcutExecutionFailed(_message.messageId, err);
             IERC20(token).safeTransfer(receiver, amount);
         }
     }
 
+    /// @inheritdoc IEnsoCCIPReceiverDefensive
     function decodeMessageData(bytes calldata _data) external view returns (address, uint256, bytes memory) {
         if (msg.sender != address(this)) {
             revert IEnsoCCIPReceiverDefensive.EnsoCCIPReceiver_OnlySelf();
         }
-
+        // Temporary approach; will be replaced by a safe inline decoder.
         return abi.decode(_data, (address, uint256, bytes));
     }
 
     /// @inheritdoc IEnsoCCIPReceiverDefensive
     function execute(address _token, uint256 _amount, bytes calldata _shortcutData) external {
         if (msg.sender != address(this)) {
-            revert IEnsoCCIPReceiverDefensive.EnsoCCIPReceiver_OnlySelf();
+            revert EnsoCCIPReceiver_OnlySelf();
         }
         Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(_token, _amount) });
         IERC20(_token).forceApprove(address(i_ensoRouter), _amount);
-
         i_ensoRouter.routeSingle(tokenIn, _shortcutData);
     }
 
@@ -131,34 +125,9 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
     }
 
     /// @inheritdoc IEnsoCCIPReceiverDefensive
-    function setAllowedSender(uint64 _sourceChainSelector, address _sender, bool _isAllowed) external onlyOwner {
-        s_allowedSender[_getAllowedSenderKey(_sourceChainSelector, _sender)] = _isAllowed;
-        emit IEnsoCCIPReceiverDefensive.AllowedSenderSet(_sourceChainSelector, _sender, _isAllowed);
-    }
-
-    /// @inheritdoc IEnsoCCIPReceiverDefensive
-    function setAllowedSourceChain(uint64 _sourceChainSelector, bool _isAllowed) external onlyOwner {
-        s_allowedSourceChain[_sourceChainSelector] = _isAllowed;
-        emit IEnsoCCIPReceiverDefensive.AllowedSourceChainSet(_sourceChainSelector, _isAllowed);
-    }
-
-    /// @dev currently only for malformed messages, as multiple tokens are not supported by CCIP
-    function sweepMessageInEscrow(
-        bytes32 _messageId,
-        address _token,
-        uint256 _amount,
-        address _to
-    )
-        external
-        onlyOwner
-    {
-        if (!s_escrowMessage[_messageId]) {
-            revert EnsoCCIPReceiver_MissingEscrow(_messageId);
-        }
-        delete s_escrowMessage[_messageId];
-
+    function recoverTokens(address _token, address _to, uint256 _amount) external onlyOwner {
         IERC20(_token).safeTransfer(_to, _amount);
-        emit EscrowSwept(_messageId, _token, _amount, _to);
+        emit TokensRecovered(_token, _to, _amount);
     }
 
     /// @inheritdoc IEnsoCCIPReceiverDefensive
@@ -171,20 +140,6 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
         return address(i_ensoRouter);
     }
 
-    function isMessageInEscrow(bytes32 _messageId) external view returns (bool) {
-        return s_escrowMessage[_messageId];
-    }
-
-    /// @inheritdoc IEnsoCCIPReceiverDefensive
-    function isSenderAllowed(uint64 _sourceChainSelector, address _sender) external view returns (bool) {
-        return s_allowedSender[_getAllowedSenderKey(_sourceChainSelector, _sender)];
-    }
-
-    /// @inheritdoc IEnsoCCIPReceiverDefensive
-    function isSourceChainAllowed(uint64 _sourceChainSelector) external view returns (bool) {
-        return s_allowedSourceChain[_sourceChainSelector];
-    }
-
     /// @inheritdoc IEnsoCCIPReceiverDefensive
     function version() external pure returns (uint256) {
         return VERSION;
@@ -195,14 +150,12 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
         return s_executedMessage[_messageId];
     }
 
+    /// @dev Maps an ErrorCode to a refund policy. NONE means no action (e.g., ALREADY_EXECUTED).
     function _getRefundPolicy(ErrorCode _errorCode) private pure returns (RefundKind) {
         if (_errorCode == ErrorCode.NO_ERROR || _errorCode == ErrorCode.ALREADY_EXECUTED) {
             return RefundKind.NONE;
         }
-        if (
-            _errorCode == ErrorCode.PAUSED || _errorCode == ErrorCode.SOURCE_CHAIN_NOT_ALLOWED
-                || _errorCode == ErrorCode.SENDER_NOT_ALLOWED || _errorCode == ErrorCode.INSUFFICIENT_GAS
-        ) {
+        if (_errorCode == ErrorCode.PAUSED || _errorCode == ErrorCode.INSUFFICIENT_GAS) {
             return RefundKind.TO_RECEIVER;
         }
         if (
@@ -212,10 +165,17 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
             return RefundKind.TO_ESCROW;
         }
 
-        // NOTE: make sure this is caught in development
-        revert IEnsoCCIPReceiverDefensive.EnsoCCIPReceiver_UnsupportedErrorCode(_errorCode);
+        // Should not happen; guarded to surface during development.
+        revert EnsoCCIPReceiver_UnsupportedErrorCode(_errorCode);
     }
 
+    /// @dev Validates message shape and environment; does not mutate state.
+    /// @return token The delivered ERC-20 token (must be non-zero if NO_ERROR).
+    /// @return amount The delivered token amount (must be > 0 if NO_ERROR).
+    /// @return receiver Decoded receiver from payload (valid if NO_ERROR/PAUSED/INSUFFICIENT_GAS).
+    /// @return shortcutData Decoded Enso Shortcuts calldata.
+    /// @return errorCode Classification of the validation result.
+    /// @return errorData Optional details (see `MessageValidationFailed` doc).
     function _validateMessage(Client.Any2EVMMessage memory _message)
         private
         view
@@ -228,18 +188,22 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
             bytes memory errorData
         )
     {
+        // Replay protection
         bytes32 messageId = _message.messageId;
         if (s_executedMessage[messageId]) {
             errorData = abi.encode(messageId);
             return (token, amount, receiver, shortcutData, ErrorCode.ALREADY_EXECUTED, errorData);
         }
 
+        // Token shape
         Client.EVMTokenAmount[] memory destTokenAmounts = _message.destTokenAmounts;
         if (destTokenAmounts.length == 0) {
             return (token, amount, receiver, shortcutData, ErrorCode.NO_TOKENS, errorData);
         }
 
         if (destTokenAmounts.length > 1) {
+            // CCIP currently delivers at most ONE token per message. Multiple-token deliveries are not supported by the
+            // protocol today, so treat any length > 1 as invalid and quarantine/refuse.
             return (token, amount, receiver, shortcutData, ErrorCode.TOO_MANY_TOKENS, errorData);
         }
 
@@ -250,8 +214,8 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
             return (token, amount, receiver, shortcutData, ErrorCode.NO_TOKEN_AMOUNT, errorData);
         }
 
+        // Decode payload (temporary external helper; to be replaced by safe inline decoder)
         uint256 estimatedGas;
-        // TODO: find an assembly alternative...
         try this.decodeMessageData(_message.data) returns (
             address decodedReceiver, uint256 decodedEstimatedGas, bytes memory decodedShortcutData
         ) {
@@ -262,20 +226,9 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
             return (token, amount, receiver, shortcutData, ErrorCode.MALFORMED_MESSAGE_DATA, errorData);
         }
 
+        // Environment checks (refundable to receiver)
         if (paused()) {
             return (token, amount, receiver, shortcutData, ErrorCode.PAUSED, errorData);
-        }
-
-        uint64 sourceChainSelector = _message.sourceChainSelector;
-        if (!s_allowedSourceChain[sourceChainSelector]) {
-            errorData = abi.encode(sourceChainSelector);
-            return (token, amount, receiver, shortcutData, ErrorCode.SOURCE_CHAIN_NOT_ALLOWED, errorData);
-        }
-
-        address sender = abi.decode(_message.sender, (address));
-        if (!s_allowedSender[_getAllowedSenderKey(sourceChainSelector, sender)]) {
-            errorData = abi.encode(sourceChainSelector, sender);
-            return (token, amount, receiver, shortcutData, ErrorCode.SENDER_NOT_ALLOWED, errorData);
         }
 
         uint256 availableGas = gasleft();
@@ -285,30 +238,5 @@ contract EnsoCCIPReceiverDefensive is IEnsoCCIPReceiverDefensive, CCIPReceiver, 
         }
 
         return (token, amount, receiver, shortcutData, ErrorCode.NO_ERROR, errorData);
-    }
-
-    /// @dev Computes the composite allowlist key for (chainSelector, sender).
-    ///      ABI-equivalent to:
-    ///          keccak256(abi.encode(chainSelector, sender))
-    ///      and implemented in Yul to avoid an extra temporary allocation.
-    ///      Semantics are identical to the high-level version.
-    ///
-    ///      Canonicality (no masking required):
-    ///      - `sender` is a canonical Solidity `address`, either decoded via
-    ///        `abi.decode(...,(address))` from `Any2EVMMessage.sender` or received
-    ///        as a public/external ABI parameter. In both cases the VM zero-extends
-    ///        it to a full 32-byte word when written to memory.
-    ///      - `chainSelector` is a `uint64` and is zero-extended to 32 bytes by the ABI/VM.
-    ///
-    /// @param _chainSelector The CCIP source chain selector (uint64).
-    /// @param _sender        The source application address decoded from `Any2EVMMessage.sender`.
-    /// @return allowKey      keccak256(abi.encode(_chainSelector, _sender)).
-    function _getAllowedSenderKey(uint64 _chainSelector, address _sender) private pure returns (bytes32 allowKey) {
-        assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            mstore(ptr, _chainSelector)
-            mstore(add(ptr, 0x20), _sender)
-            allowKey := keccak256(ptr, 0x40)
-        }
     }
 }
