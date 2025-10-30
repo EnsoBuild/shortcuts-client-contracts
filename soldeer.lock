@@ -17,6 +17,12 @@ git = "https://github.com/smartcontractkit/chainlink-ccip.git"
 rev = "0e3e0fc5c0f70f0d50dca66b139142ddf3009294"
 
 [[dependencies]]
+name = "chainlink-evm"
+version = "1.5.0"
+git = "https://github.com/smartcontractkit/chainlink-evm.git"
+rev = "86aa5a1d34b20eda8d18fe6eb0e4882948e545ba"
+
+[[dependencies]]
 name = "devtools"
 version = "0.0.1"
 git = "https://github.com/LayerZero-Labs/devtools.git"
