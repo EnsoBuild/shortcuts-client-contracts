@@ -100,15 +100,6 @@ interface IEnsoCCIPReceiver {
     /// @param shortcutData ABI-encoded call data for the Enso Shortcuts entrypoint.
     function execute(address token, uint256 amount, bytes calldata shortcutData) external;
 
-    /// @notice Temporary helper to decode `(address receiver, uint256 estimatedGas, bytes shortcutData)` from
-    ///         a CCIP message payload. Implementations may replace this with safe inline decoding later.
-    /// @dev SHOULD revert when called externally by non-self to avoid surfacing internals.
-    ///      Typical guard: `if (msg.sender != address(this)) revert EnsoCCIPReceiver_OnlySelf();`
-    function decodeMessageData(bytes calldata data)
-        external
-        view
-        returns (address receiver, uint256 estimatedGas, bytes memory shortcutData);
-
     /// @notice Pauses the CCIP receiver, disabling new incoming message execution until unpaused.
     /// @dev Only callable by the contract owner.
     function pause() external;
