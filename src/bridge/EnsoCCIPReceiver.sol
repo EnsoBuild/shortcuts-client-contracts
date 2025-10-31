@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { IEnsoCCIPReceiver } from "../interfaces/IEnsoCCIPReceiver.sol";
 import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
+import { CCIPMessageDecoder } from "../libraries/CCIPMessageDecoder.sol";
 import { CCIPReceiver, Client } from "chainlink-ccip/applications/CCIPReceiver.sol";
 import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
@@ -102,15 +103,6 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
     }
 
     /// @inheritdoc IEnsoCCIPReceiver
-    function decodeMessageData(bytes calldata _data) external view returns (address, uint256, bytes memory) {
-        if (msg.sender != address(this)) {
-            revert IEnsoCCIPReceiver.EnsoCCIPReceiver_OnlySelf();
-        }
-        // Temporary approach; will be replaced by a safe inline decoder.
-        return abi.decode(_data, (address, uint256, bytes));
-    }
-
-    /// @inheritdoc IEnsoCCIPReceiver
     function execute(address _token, uint256 _amount, bytes calldata _shortcutData) external {
         if (msg.sender != address(this)) {
             revert EnsoCCIPReceiver_OnlySelf();
@@ -159,6 +151,9 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
         if (_errorCode == ErrorCode.PAUSED || _errorCode == ErrorCode.INSUFFICIENT_GAS) {
             return RefundKind.TO_RECEIVER;
         }
+        // Only refund directly to the receiver when the payload decodes successfully.
+        // If decoding fails (MALFORMED_MESSAGE_DATA), all fields (including `receiver`) must be treated as untrusted,
+        // since a malformed payload could spoof a plausible receiver address.
         if (
             _errorCode == ErrorCode.NO_TOKENS || _errorCode == ErrorCode.TOO_MANY_TOKENS
                 || _errorCode == ErrorCode.NO_TOKEN_AMOUNT || _errorCode == ErrorCode.MALFORMED_MESSAGE_DATA
@@ -216,15 +211,11 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
             return (token, amount, receiver, shortcutData, ErrorCode.NO_TOKEN_AMOUNT, errorData);
         }
 
-        // Decode payload (temporary external helper; to be replaced by safe inline decoder)
+        // Decode payload
+        bool decodeSuccess;
         uint256 estimatedGas;
-        try this.decodeMessageData(_message.data) returns (
-            address decodedReceiver, uint256 decodedEstimatedGas, bytes memory decodedShortcutData
-        ) {
-            receiver = decodedReceiver;
-            estimatedGas = decodedEstimatedGas;
-            shortcutData = decodedShortcutData;
-        } catch {
+        (decodeSuccess, receiver, estimatedGas, shortcutData) = CCIPMessageDecoder.tryDecodeMessageData(_message.data);
+        if (!decodeSuccess) {
             return (token, amount, receiver, shortcutData, ErrorCode.MALFORMED_MESSAGE_DATA, errorData);
         }
 
