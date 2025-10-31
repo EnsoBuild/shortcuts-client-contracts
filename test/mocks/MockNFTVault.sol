@@ -17,8 +17,12 @@ contract MockNFTVault is ERC721, ERC721Holder {
     }
 
     function redeem(uint256 tokenId) public {
-        if (ownerOf(tokenId) != msg.sender) revert();
-        if (nft.ownerOf(tokenId) != address(this)) revert();
+        if (ownerOf(tokenId) != msg.sender) {
+            revert();
+        }
+        if (nft.ownerOf(tokenId) != address(this)) {
+            revert();
+        }
         _burn(tokenId);
         nft.safeTransferFrom(address(this), msg.sender, tokenId);
     }

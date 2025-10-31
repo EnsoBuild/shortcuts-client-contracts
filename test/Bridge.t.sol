@@ -64,7 +64,9 @@ contract BridgeTest is Test {
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
-        if (!success) revert TransferFailed();
+        if (!success) {
+            revert TransferFailed();
+        }
         // trigger compose
         lzReceiver.lzCompose(ethPool, bytes32(0), message, address(0), "");
         uint256 balanceAfter = weth.balanceOf(address(this));
@@ -82,7 +84,9 @@ contract BridgeTest is Test {
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
-        if (!success) revert TransferFailed();
+        if (!success) {
+            revert TransferFailed();
+        }
         // confirm funds have left this address
         assertGt(balanceBefore, address(this).balance);
         // trigger compose
@@ -97,15 +101,21 @@ contract BridgeTest is Test {
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
         // exact gas amount needed for execution
         uint256 estimatedGas = 75_272;
-        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, estimatedGas, commands, state); 
+        bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, estimatedGas, commands, state);
 
         // transfer funds
         (bool success,) = address(lzReceiver).call{ value: ETH_AMOUNT }("");
-        if (!success) revert TransferFailed();
+        if (!success) {
+            revert TransferFailed();
+        }
         // trigger compose with insufficient gas
-        vm.expectRevert(abi.encodeWithSelector(LayerZeroReceiver.InsufficientGas.selector, bytes32(0), estimatedGas, estimatedGas - 1));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroReceiver.InsufficientGas.selector, bytes32(0), estimatedGas, estimatedGas - 1
+            )
+        );
         // exactly 1 less gas than needed for lz compose
-        lzReceiver.lzCompose{ gas: 85_663 }(ethPool, bytes32(0), message, address(0), ""); 
+        lzReceiver.lzCompose{ gas: 85_663 }(ethPool, bytes32(0), message, address(0), "");
     }
 
     function testUsdcBridge() public {
@@ -226,11 +236,7 @@ contract BridgeTest is Test {
         );
     }
 
-    function _buildWethDeposit(uint256 amount)
-        internal
-        view
-        returns (bytes32[] memory commands, bytes[] memory state)
-    {
+    function _buildWethDeposit(uint256 amount) internal view returns (bytes32[] memory commands, bytes[] memory state) {
         // Setup script to deposit and transfer weth
         commands = new bytes32[](2);
         state = new bytes[](2);

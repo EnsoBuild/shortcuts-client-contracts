@@ -110,21 +110,21 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         uint256 safeThreshold = 2;
         address safeTo = address(0); // Contract address for optional delegate call.
         bytes memory safeData = ""; // Data payload for optional delegate call.
-        // address safeFallbackHandler = address(0); // Handler for fallback calls to this contract
+            // address safeFallbackHandler = address(0); // Handler for fallback calls to this contract
         address safePaymentToken = address(0); // Token that should be used for the payment (0 is ETH)
         uint256 safePayment = 0; // Value that should be paid
         address payable safePaymentReceiver = payable(address(0)); // Address that should receive the payment (or 0 if
             // tx.origin)
-        // s_safe.setup(
-        //     safeOwners,
-        //     safeThreshold,
-        //     safeTo,
-        //     safeData,
-        //     safeFallbackHandler,
-        //     safePaymentToken,
-        //     safePayment,
-        //     safePaymentReceiver
-        // );
+            // s_safe.setup(
+            //     safeOwners,
+            //     safeThreshold,
+            //     safeTo,
+            //     safeData,
+            //     safeFallbackHandler,
+            //     safePaymentToken,
+            //     safePayment,
+            //     safePaymentReceiver
+            // );
         bytes memory safeSetupData = abi.encodeCall(
             Safe.setup,
             (

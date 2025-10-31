@@ -16,7 +16,9 @@ contract MockVault is ERC20 {
     }
 
     function redeem(uint256 amount) public {
-        if (amount > balanceOf(msg.sender)) revert();
+        if (amount > balanceOf(msg.sender)) {
+            revert();
+        }
         _burn(msg.sender, amount);
         token.transfer(msg.sender, amount);
     }

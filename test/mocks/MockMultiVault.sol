@@ -17,18 +17,14 @@ contract MockMultiVault is ERC1155, ERC1155Holder {
     }
 
     function redeem(uint256 tokenId, uint256 amount) public {
-        if (amount > balanceOf(msg.sender, tokenId)) revert();
+        if (amount > balanceOf(msg.sender, tokenId)) {
+            revert();
+        }
         _burn(msg.sender, tokenId, amount);
         token.safeTransferFrom(address(this), msg.sender, tokenId, amount, "0x");
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(ERC1155, ERC1155Holder)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155, ERC1155Holder) returns (bool) {
         return interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC1155).interfaceId
             || interfaceId == type(IERC1155MetadataURI).interfaceId || super.supportsInterface(interfaceId);
     }

@@ -14,17 +14,113 @@ src = "src"
 test = "test"
 via_ir = true
 
+[profile.default.fuzz]
+max_test_rejects = 1_000_000 # Number of times `vm.assume` can fail
+runs = 1_000
+
 [fmt]
 bracket_spacing = true
 contract_new_lines = false
+ignore = [
+    # --- Already audited contracts START ---
+    'src/bridge/LayerZeroReceiver.sol',
+    'src/bridge/interfaces/layerzero/IPool.sol',
+    'src/delegate/DelegateEnsoShortcuts.sol',
+    'src/delegate/EIP7702EnsoShortcuts.sol',
+    'src/delegate/EnsoReceiver.sol',
+    'src/factory/interfaces/IEnsoRouter.sol',
+    'src/factory/ERC4337CloneFactory.sol',
+    'src/helpers/BalancerHelpers.sol',
+    'src/helpers/DecimalHelpers.sol',
+    'src/helpers/EnsoShortcutsHelpers.sol',
+    'src/helpers/ERC20Helpers.sol',
+    'src/helpers/MathHelpers.sol',
+    'src/helpers/MaverickV2Helpers.sol',
+    'src/helpers/PercentageMathHelpers.sol',
+    'src/helpers/SignedMathHelpers.sol',
+    'src/helpers/SommelierHelpers.sol',
+    'src/helpers/SwapHelpers.sol',
+    'src/helpers/TupleHelpers.sol',
+    'src/helpers/UniswapV4Helpers.sol',
+    'src/helpers/WeirollVerifier.sol',
+    'src/interfaces/IEnsoRouter.sol',
+    'src/libraries/DataTypes.sol',
+    'src/paymaster/SignaturePaymaster.sol',
+    'src/router/EnsoRouter.sol',
+    'src/solvers/BaseSolver.sol',
+    'src/solvers/BebopSolver.sol',
+    'src/solvers/MinimalWallet.sol',
+    'src/utils/Withdrawable.sol',
+    'src/AbstractEnsoShortcuts.sol',
+    'src/AbstractMultiSend.sol',
+    'src/EnsoShortcuts.sol',
+    # --- Already audited contracts FINISH ---
+]
 int_types = "long"
 line_length = 120
 multiline_func_header = "all"
 number_underscore = "thousands"
 quote_style = "double"
+single_line_statement_blocks = "multi"
 sort_imports = true
 tab_width = 4
 wrap_comments = true
+
+[lint]
+lint_on_build = false
+ignore = [
+    'script/BaseSolverDeployer.s.sol',
+    'script/BebopSolverDeployer.s.sol',
+    'script/ClientDeployer.s.sol',
+    'script/DelegateDeployer.s.sol',
+    'script/EIP7702EnsoShortcutsDeployer.s.sol',
+    'script/ERC20HelpersDeployer.s.sol',
+    'script/EnsoReceiverAndPaymasterDeployer.s.sol',
+    'script/EnsoReceiverDeployer.s.sol',
+    'script/EnsoRouterDeployer.s.sol',
+    'script/FullDeployer.s.sol',
+    'script/HelpersDeployer.s.sol',
+    'script/HyperCoreHelpersDeployer.s.sol',
+    'script/LayerZeroDeployer.s.sol',
+    'script/MaverickV2HelpersDeployer.s.sol',
+    'script/SocketDeployer.s.sol',
+    'script/SwapHelpersDeployer.s.sol',
+    'script/UniswapV4Deployer.s.sol',
+    # --- Already audited contracts START ---
+    'src/bridge/LayerZeroReceiver.sol',
+    'src/bridge/interfaces/layerzero/IPool.sol',
+    'src/delegate/DelegateEnsoShortcuts.sol',
+    'src/delegate/EIP7702EnsoShortcuts.sol',
+    'src/delegate/EnsoReceiver.sol',
+    'src/factory/interfaces/IEnsoRouter.sol',
+    'src/factory/ERC4337CloneFactory.sol',
+    'src/helpers/BalancerHelpers.sol',
+    'src/helpers/DecimalHelpers.sol',
+    'src/helpers/EnsoShortcutsHelpers.sol',
+    'src/helpers/ERC20Helpers.sol',
+    'src/helpers/MathHelpers.sol',
+    'src/helpers/MaverickV2Helpers.sol',
+    'src/helpers/PercentageMathHelpers.sol',
+    'src/helpers/SignedMathHelpers.sol',
+    'src/helpers/SommelierHelpers.sol',
+    'src/helpers/SwapHelpers.sol',
+    'src/helpers/TupleHelpers.sol',
+    'src/helpers/UniswapV4Helpers.sol',
+    'src/helpers/WeirollVerifier.sol',
+    'src/interfaces/IEnsoRouter.sol',
+    'src/libraries/DataTypes.sol',
+    'src/paymaster/SignaturePaymaster.sol',
+    'src/router/EnsoRouter.sol',
+    'src/solvers/BaseSolver.sol',
+    'src/solvers/BebopSolver.sol',
+    'src/solvers/MinimalWallet.sol',
+    'src/utils/Withdrawable.sol',
+    'src/AbstractEnsoShortcuts.sol',
+    'src/AbstractMultiSend.sol',
+    'src/EnsoShortcuts.sol',
+    # --- Already audited contracts FINISH ---
+    'test/**/*.sol',
+]
 
 [soldeer]
 recursive_deps = true
@@ -36,6 +132,8 @@ remappings_location = "txt"
 
 [dependencies]
 account-abstraction-v7 = { version = "0.7.0", git = "https://github.com/eth-infinitism/account-abstraction.git", rev = "7af70c8993a6f42973f520ae0752386a5032abe7" }
+chainlink-ccip = { version = "1.6.2", git = "https://github.com/smartcontractkit/chainlink-ccip.git", rev = "0e3e0fc5c0f70f0d50dca66b139142ddf3009294"}
+chainlink-evm = { version = "1.5.0", git = "https://github.com/smartcontractkit/chainlink-evm.git", rev = "86aa5a1d34b20eda8d18fe6eb0e4882948e545ba"}
 devtools = { version = "0.0.1", git = "https://github.com/LayerZero-Labs/devtools.git", rev = "ac8912867862f6dd737b0febabd8d3cb8f142df7" }
 enso-weiroll = { version = "1.4.1", git = "https://github.com/EnsoBuild/enso-weiroll.git", rev = "900250114203727ff236d3f6313673c17c2d90dd" }
 forge-std = { version = "1.9.7", git = "https://github.com/foundry-rs/forge-std.git", tag = "v1.9.7" }
