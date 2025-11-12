@@ -4,11 +4,56 @@
 // └── when caller is pending owner
 //     └── it should transfer ownership
 
-EnsoCCIPReceiver::Constructor
-└── when deployed
-    ├── it should set owner
-    ├── it should set ccipRouter
-    └── it should set ensoRouter
+EnsoCCIPReceiver::CcipReceive
+# when caller is not ccipRouter
+## it should revert
+# when caller is ccipRouter
+## when message was already executed
+### it should emit MessageValidationFailed
+## when message was not executed
+### when message has no tokens
+#### it should emit MessageValidationFailed
+### when message has tokens
+#### when message has more than one token
+##### it should emit MessageValidationFailed
+#### when message has single token
+##### when message token amount is zero
+###### it should emit MessageValidationFailed
+##### when message token amount is gt zero
+###### when message data is malformed
+####### it should emit MessageValidationFailed
+###### when message data is well formed
+####### when message data receiver is zero address
+######## it should emit MessageValidationFailed
+######## it shoud set executedMessage to true
+######## it should emit MessageQuarantined
+######## it should escrow message token amount
+####### when message data receiver is not zero address
+######## when contract is paused
+######### it should emit MessageValidationFailed
+######### it shoud set executedMessage to true
+######### it should safe transfer token amount to receiver
+######## when contract is not paused
+######### when shortcut execution was was successful
+########## it shoud set executedMessage to true
+########## it should emit ShortcutExecutionSuccessful
+######### when shortcut execution failed
+########## it should emit ShortcutExecutionFailed
+########## it should safe transfer token amount to receiver
+
+
+// EnsoCCIPReceiver::Constructor
+// └── when deployed
+//     ├── it should set owner
+//     ├── it should set ccipRouter
+//     └── it should set ensoRouter
+
+EnsoCCIPReceiver::RecoverTokens
+# when caller is not self
+## it should revert
+# when caller is self
+## it should force approve amount to ensoRouter
+## it should call ensoRouter routeSingle
 
 // EnsoCCIPReceiver::Pause
 // ├── when caller is not owner
@@ -27,6 +72,13 @@ EnsoCCIPReceiver::Constructor
 // │   └── it should revert
 // └── when caller is owner
 //     └── it should start ownership transfer
+
+EnsoCCIPReceiver::RecoverTokens
+# when caller is not owner
+## it should revert
+# when caller is owner
+## it should safe transfer amount to recipient
+## it should emit TOkensRecovered
 
 // EnsoCCIPReceiver::RenounceOwnership
 // ├── when caller is not owner
