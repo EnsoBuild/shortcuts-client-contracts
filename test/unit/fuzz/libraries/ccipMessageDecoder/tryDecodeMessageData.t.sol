@@ -5,7 +5,7 @@ import { CCIPMessageDecoder } from "../../../../../src/libraries/CCIPMessageDeco
 import { Test } from "forge-std-1.9.7/Test.sol";
 
 contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
-    function testFuzz_unsuccessfulResult_lengthLt128Bytes(bytes memory _data) external {
+    function testFuzz_unsuccessfulResult_lengthLt128Bytes(bytes memory _data) external pure {
         // Arrange
         vm.assume(_data.length < 128);
 
@@ -28,6 +28,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
         uint8 _wiggle
     )
         external
+        pure
     {
         // Arrange
         // Build a valid payload first
@@ -58,6 +59,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
         uint8 _k
     )
         external
+        pure
     {
         // Arrange
         bytes memory data = abi.encode(_receiver, _estimatedGas, _tail);
@@ -84,6 +86,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
         bytes memory _tail
     )
         external
+        pure
     {
         // Arrange
         bytes memory data = abi.encode(_receiver, _estimatedGas, _tail);
@@ -104,7 +107,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
         assertEq(shortcutData, "");
     }
 
-    function testFuzz_unsuccessful_tailDoesNotFit(address _receiver, uint256 _estimatedGas) external {
+    function testFuzz_unsuccessful_tailDoesNotFit(address _receiver, uint256 _estimatedGas) external pure {
         // Arrange
         // Start with empty tail → total 128 bytes
         bytes memory data = abi.encode(_receiver, _estimatedGas, bytes(""));
@@ -125,7 +128,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
         assertEq(shortcutData, "");
     }
 
-    function testFuzz_unsuccessful_hugeLenOverflowGuard(address _receiver, uint256 _estimatedGas) external {
+    function testFuzz_unsuccessful_hugeLenOverflowGuard(address _receiver, uint256 _estimatedGas) external pure {
         // Start with empty tail → total 128 bytes
         bytes memory data = abi.encode(_receiver, _estimatedGas, bytes(""));
         // off = 96
@@ -145,7 +148,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
         assertEq(shortcutData, "");
     }
 
-    function testFuzz_success_receiverMasking(bytes20 _low20, bytes12 _garbageHigh) external {
+    function testFuzz_success_receiverMasking(bytes20 _low20, bytes12 _garbageHigh) external pure {
         // Arrange
         address expectedReceiver = address(uint160(uint256(bytes32(_low20))));
         // Build a valid encoding
@@ -168,6 +171,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
         bytes memory _shortcutData
     )
         external
+        pure
     {
         // Arrange
         bytes memory data = abi.encode(_receiver, _estimatedGas, _shortcutData);

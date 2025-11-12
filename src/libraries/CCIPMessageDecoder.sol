@@ -70,7 +70,7 @@ library CCIPMessageDecoder {
                 assembly ("memory-safe") {
                     let src := add(add(base, off), 32) // start of tail payload
                     let dst := add(shortcutData, 32) // start of new bytes payload
-                        // Copy in 32-byte chunks up to padded boundary
+                    // Copy in 32-byte chunks up to padded boundary
                     for { let i := 0 } lt(i, padded) { i := add(i, 32) } {
                         mstore(add(dst, i), mload(add(src, i)))
                     }
