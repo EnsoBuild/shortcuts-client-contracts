@@ -41,7 +41,6 @@ EnsoCCIPReceiver::CcipReceive
 ########## it should emit ShortcutExecutionFailed
 ########## it should safe transfer token amount to receiver
 
-
 // EnsoCCIPReceiver::Constructor
 // └── when deployed
 //     ├── it should set owner

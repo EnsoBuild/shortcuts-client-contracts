@@ -2,17 +2,17 @@
 pragma solidity ^0.8.24;
 
 library CCIPMessageDecoder {
-    /// @dev Safe, non-reverting decoder for abi.encode(address,uint256,bytes) in MEMORY.
-    ///      Returns (ok, receiver, estimatedGas, shortcutData). On malformed input, ok=false.
-    ///      Layout: HEAD (96 bytes) = [receiver|estimatedGas|offset], TAIL at (base+off) = [len|bytes...].
-    function tryDecodeMessageData(bytes memory _data)
+    /// @dev Safe, non-reverting decoder for abi.encode(address,bytes) in MEMORY.
+    ///      Returns (ok, receiver, shortcutData). On malformed input, ok=false.
+    ///      Layout: HEAD (64 bytes) = [receiver|offset], TAIL at (base+off) = [len|bytes...].
+    function _tryDecodeMessageData(bytes memory _data)
         internal
         pure
-        returns (bool success, address receiver, uint256 estimatedGas, bytes memory shortcutData)
+        returns (bool success, address receiver, bytes memory shortcutData)
     {
-        // Need 3 head words (96) + 1 length word (32)
-        if (_data.length < 128) {
-            return (false, address(0), 0, bytes(""));
+        // Need 2 head words (64) + 1 length word (32) = 96 bytes minimum
+        if (_data.length < 96) {
+            return (false, address(0), bytes(""));
         }
 
         // Pointer to first head word
@@ -23,21 +23,20 @@ library CCIPMessageDecoder {
         assembly ("memory-safe") {
             // Address is right-aligned in the word → keep low 20 bytes
             receiver := and(mload(base), 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
-            estimatedGas := mload(add(base, 32))
-            off := mload(add(base, 64))
+            off := mload(add(base, 32))
         }
 
         // Word-aligned offset?
         if ((off & 31) != 0) {
-            return (false, address(0), 0, bytes(""));
+            return (false, address(0), bytes(""));
         }
 
         uint256 baseLen = _data.length;
 
-        // Off must be at/after 3-word head and leave room for tail length word
-        // i.e.  off >= 96  &&  off <= baseLen - 32  (avoid off+32 overflow)
-        if (off < 96 || off > baseLen - 32) {
-            return (false, address(0), 0, bytes(""));
+        // Off must be at/after 2-word head and leave room for tail length word
+        // i.e.  off >= 64  &&  off <= baseLen - 32  (avoid off+32 overflow)
+        if (off < 64 || off > baseLen - 32) {
+            return (false, address(0), bytes(""));
         }
 
         // Safe now to compute tail start (no overflow)
@@ -55,13 +54,13 @@ library CCIPMessageDecoder {
 
             // Require len itself to fit in the available tail
             if (len > avail) {
-                return (false, address(0), 0, bytes(""));
+                return (false, address(0), bytes(""));
             }
 
             // Ceil32(len) and ensure padded bytes also fit (defensive; usually implied by len<=avail)
             uint256 padded = (len + 31) & ~uint256(31);
             if (padded > avail) {
-                return (false, address(0), 0, bytes(""));
+                return (false, address(0), bytes(""));
             }
 
             // Allocate and copy exactly `len` bytes (ignore padding)
@@ -78,6 +77,6 @@ library CCIPMessageDecoder {
             }
         }
 
-        return (true, receiver, estimatedGas, shortcutData);
+        return (true, receiver, shortcutData);
     }
 }

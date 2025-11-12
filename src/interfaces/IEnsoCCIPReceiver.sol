@@ -19,7 +19,6 @@ interface IEnsoCCIPReceiver {
     /// - MALFORMED_MESSAGE_DATA: payload (address,uint256,bytes) could not be decoded.
     /// - ZERO_ADDRESS_RECEIVER: payload receiver is the zero address.
     /// - PAUSED: contract is paused; environment block on execution.
-    /// - INSUFFICIENT_GAS: current gas < estimatedGas hint from payload.
     enum ErrorCode {
         NO_ERROR,
         ALREADY_EXECUTED,
@@ -28,12 +27,11 @@ interface IEnsoCCIPReceiver {
         NO_TOKEN_AMOUNT,
         MALFORMED_MESSAGE_DATA,
         ZERO_ADDRESS_RECEIVER,
-        PAUSED,
-        INSUFFICIENT_GAS
+        PAUSED
     }
 
     /// @notice Refund policy selected by the receiver for a given ErrorCode.
-    /// @dev TO_RECEIVER is used for environment errors (e.g., PAUSED/INSUFFICIENT_GAS) after successful payload decode.
+    /// @dev TO_RECEIVER is used for environment errors (e.g., PAUSED) after successful payload decode.
     ///      TO_ESCROW is used for malformed token/payload cases.
     enum RefundKind {
         NONE,
@@ -48,7 +46,6 @@ interface IEnsoCCIPReceiver {
     /// @notice Emitted when validation fails. See `errorCode` for the reason.
     /// @dev errorData encodings:
     ///  - ALREADY_EXECUTED: (bytes32 messageId)
-    ///  - INSUFFICIENT_GAS: (uint256 availableGas, uint256 estimatedGas)
     ///  - Others: empty bytes unless specified by the implementation.
     event MessageValidationFailed(bytes32 indexed messageId, ErrorCode errorCode, bytes errorData);
 

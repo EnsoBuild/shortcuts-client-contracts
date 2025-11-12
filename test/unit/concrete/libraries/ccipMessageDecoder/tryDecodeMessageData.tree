@@ -1,13 +1,13 @@
 // CCIPMessageDecoder::tryDecodeMessageData
-// # when data length lt 128 bytes
+// # when data length lt 96 bytes
 // ## it should return unsuccessful result
-// # when data length gte 128 bytes
+// # when data length gte 96 bytes
 // ## when offset is not word aligned
 // ### it should return unsuccessful result
 // ## when offset is word aligned
-// ### when offset is before 3 word head
+// ### when offset is before 2 word head
 // #### it should return unsuccessful result
-// ### when offset is after 3 word head
+// ### when offset is after 2 word head
 // #### when there is not enough room for tail length word
 // ##### it should return unsuccessful result
 // #### when there is enough room for tail length word
@@ -16,15 +16,15 @@
 // ##### when tail fully fits
 // ###### it should return successful result
 CCIPMessageDecoder::tryDecodeMessageData
-├── when data length lt 128 bytes
+├── when data length lt 96 bytes
 │   └── it should return unsuccessful result
-└── when data length gte 128 bytes
+└── when data length gte 96 bytes
     ├── when offset is not word aligned
     │   └── it should return unsuccessful result
     └── when offset is word aligned
-        ├── when offset is before 3 word head
+        ├── when offset is before 2 word head
         │   └── it should return unsuccessful result
-        └── when offset is after 3 word head
+        └── when offset is after 2 word head
             ├── when there is not enough room for tail length word
             │   └── it should return unsuccessful result
             └── when there is enough room for tail length word
