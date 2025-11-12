@@ -19,7 +19,7 @@ import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 ///      - Maintains idempotency with a messageId → handled flag.
 ///      - Validates `destTokenAmounts` has exactly one ERC-20 with non-zero amount.
 ///      - Decodes `(receiver, estimatedGas, shortcutData)` from the message payload (temp external helper).
-///      - For environment issues (PAUSED / INSUFFICIENT_GAS), refunds to `receiver` for better UX.
+///      - For environment issues (PAUSED), refunds to `receiver` for better UX.
 ///      - For malformed messages (no/too many tokens, zero amount, bad payload, zero address receiver), quarantines
 ///      funds in this contract.
 ///      - Executes Shortcuts using a self-call (`try this.execute(...)`) to catch and handle reverts.
@@ -52,7 +52,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
     ///      3) Decode payload `(receiver, estimatedGas, shortcutData)` using a temporary external helper.
     ///      4) Environment checks: `paused()` and `estimatedGas` hint vs `gasleft()`.
     ///      5) If non-OK → select refund policy:
-    ///            - TO_RECEIVER for environment issues (PAUSED / INSUFFICIENT_GAS),
+    ///            - TO_RECEIVER for environment issues (PAUSED),
     ///            - TO_ESCROW for malformed token/payload (funds remain in this contract),
     ///            - NONE for ALREADY_EXECUTED (no-op).
     ///      6) If OK → mark executed and `try this.execute(...)`; on revert, refund to `receiver`.
@@ -148,7 +148,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
         if (_errorCode == ErrorCode.NO_ERROR || _errorCode == ErrorCode.ALREADY_EXECUTED) {
             return RefundKind.NONE;
         }
-        if (_errorCode == ErrorCode.PAUSED || _errorCode == ErrorCode.INSUFFICIENT_GAS) {
+        if (_errorCode == ErrorCode.PAUSED) {
             return RefundKind.TO_RECEIVER;
         }
         // Only refund directly to the receiver when the payload decodes successfully.
@@ -169,7 +169,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
     /// @dev Validates message shape and environment; does not mutate state.
     /// @return token The delivered ERC-20 token (must be non-zero if NO_ERROR).
     /// @return amount The delivered token amount (must be > 0 if NO_ERROR).
-    /// @return receiver Decoded receiver from payload (valid if NO_ERROR/PAUSED/INSUFFICIENT_GAS).
+    /// @return receiver Decoded receiver from payload (valid if NO_ERROR/PAUSED).
     /// @return shortcutData Decoded Enso Shortcuts calldata.
     /// @return errorCode Classification of the validation result.
     /// @return errorData Optional details (see `MessageValidationFailed` doc).
@@ -213,8 +213,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
 
         // Decode payload
         bool decodeSuccess;
-        uint256 estimatedGas;
-        (decodeSuccess, receiver, estimatedGas, shortcutData) = CCIPMessageDecoder.tryDecodeMessageData(_message.data);
+        (decodeSuccess, receiver, shortcutData) = CCIPMessageDecoder._tryDecodeMessageData(_message.data);
         if (!decodeSuccess) {
             return (token, amount, receiver, shortcutData, ErrorCode.MALFORMED_MESSAGE_DATA, errorData);
         }
@@ -227,12 +226,6 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
         // Environment checks (refundable to receiver)
         if (paused()) {
             return (token, amount, receiver, shortcutData, ErrorCode.PAUSED, errorData);
-        }
-
-        uint256 availableGas = gasleft();
-        if (estimatedGas != 0 && availableGas < estimatedGas) {
-            errorData = abi.encode(availableGas, estimatedGas);
-            return (token, amount, receiver, shortcutData, ErrorCode.INSUFFICIENT_GAS, errorData);
         }
 
         return (token, amount, receiver, shortcutData, ErrorCode.NO_ERROR, errorData);

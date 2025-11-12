@@ -9,31 +9,23 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
                                HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    // Head layout in memory (after the 32-byte length word):
-    // [ receiver (32) | estimatedGas (32) | offset (32) ] -> 96 bytes
-    uint256 private constant HEAD_SIZE = 96;
+    // New head layout in memory (after the 32-byte length word):
+    // [ receiver (32) | offset (32) ] -> 64 bytes
+    uint256 private constant HEAD_SIZE = 64;
 
-    function _encodeValid(
-        address receiver,
-        uint256 estimatedGas,
-        bytes memory payload
-    )
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return abi.encode(receiver, estimatedGas, payload);
+    function _encodeValid(address receiver, bytes memory payload) internal pure returns (bytes memory) {
+        return abi.encode(receiver, payload);
     }
 
     function _setOffset(bytes memory data, uint256 off) internal pure {
-        // write at head[2] (offset word)
+        // write at head[1] (offset word)
         assembly {
-            mstore(add(data, add(32, 64)), off)
+            mstore(add(data, add(32, 32)), off)
         }
     }
 
     function _peekOffsetMem(bytes memory data) internal pure returns (uint256 off) {
-        assembly { off := mload(add(data, 96)) }
+        assembly { off := mload(add(data, 64)) }
     }
 
     function _setTailLenAtOffset(bytes memory data, uint256 off, uint256 len) internal pure {
@@ -45,50 +37,47 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                            TESTS: < 128 bytes
+                            TESTS: < 96 bytes
     //////////////////////////////////////////////////////////////*/
 
-    function test_WhenDataLengthLt128Bytes() external pure {
-        // Arrange
-        bytes memory data =
-            hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    function test_WhenDataLengthLt96Bytes() external pure {
+        // Arrange: make any buffer shorter than 96 bytes
+        bytes memory data = new bytes(95);
 
         // Act
-        (bool decodeSuccess, address receiver, uint256 estimatedGas, bytes memory shortcutData) =
-            CCIPMessageDecoder.tryDecodeMessageData(data);
+        (bool decodeSuccess, address receiver, bytes memory shortcutData) =
+            CCIPMessageDecoder._tryDecodeMessageData(data);
 
         // Assert
         // it should return unsuccessful result
         assertFalse(decodeSuccess);
         assertEq(receiver, address(0));
-        assertEq(estimatedGas, 0);
         assertEq(shortcutData, "");
     }
 
     /*//////////////////////////////////////////////////////////////
-                        MOD: ≥ 128 bytes (valid base)
+                        MOD: ≥ 96 bytes (valid base)
     //////////////////////////////////////////////////////////////*/
 
-    modifier whenDataLengthGte128Bytes() {
+    modifier whenDataLengthGte96Bytes() {
         _;
     }
 
-    function test_WhenOffsetIsNotWordAligned() external pure whenDataLengthGte128Bytes {
-        // Arrange
-        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 123, bytes(""));
+    function test_WhenOffsetIsNotWordAligned() external pure whenDataLengthGte96Bytes {
+        // Arrange: abi.encode(address, bytes("")) → length = 96 (64 head + 32 length word)
+        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, bytes(""));
         // Make offset = 97 (not multiple of 32)
         _setOffset(msgData, 97);
         assertEq(_peekOffsetMem(msgData), 97, "offset mutation failed");
 
         // Act
-        (bool decodeSuccess, address receiver, uint256 estimatedGas, bytes memory shortcutData) =
-            CCIPMessageDecoder.tryDecodeMessageData(msgData);
+        (bool decodeSuccess, address receiver, bytes memory shortcutData) =
+            CCIPMessageDecoder._tryDecodeMessageData(msgData);
 
         // Assert
         // it should return an unsuccessful result
         assertFalse(decodeSuccess);
         assertEq(receiver, address(0));
-        assertEq(estimatedGas, 0);
         assertEq(shortcutData, "");
     }
 
@@ -100,56 +89,54 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         _;
     }
 
-    function test_WhenOffsetIsBefore3WordHead() external pure whenDataLengthGte128Bytes whenOffsetIsWordAligned {
+    function test_WhenOffsetIsBefore2WordHead() external pure whenDataLengthGte96Bytes whenOffsetIsWordAligned {
         // Arrange
-        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 123, bytes(""));
-        _setOffset(msgData, 64); // word-aligned but < 96 (invalid for our layout)
-        assertEq(_peekOffsetMem(msgData), 64, "offset mutation failed");
+        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, bytes(""));
+        _setOffset(msgData, 32); // word-aligned but < 64 (invalid for our layout)
+        assertEq(_peekOffsetMem(msgData), 32, "offset mutation failed");
 
         // Act
-        (bool decodeSuccess, address receiver, uint256 estimatedGas, bytes memory shortcutData) =
-            CCIPMessageDecoder.tryDecodeMessageData(msgData);
+        (bool decodeSuccess, address receiver, bytes memory shortcutData) =
+            CCIPMessageDecoder._tryDecodeMessageData(msgData);
 
         // Assert
         // it should return an unsuccessful result
         assertFalse(decodeSuccess);
         assertEq(receiver, address(0));
-        assertEq(estimatedGas, 0);
         assertEq(shortcutData, "");
     }
 
     /*//////////////////////////////////////////////////////////////
-                 MOD: offset is after the 3-word head (≥ 96)
+                 MOD: offset is after the 2-word head (≥ 64)
     //////////////////////////////////////////////////////////////*/
 
-    modifier whenOffsetIsAfter3WordHead() {
+    modifier whenOffsetIsAfter2WordHead() {
         _;
     }
 
     function test_WhenThereIsNotEnoughRoomForTailLengthWord()
         external
         pure
-        whenDataLengthGte128Bytes
+        whenDataLengthGte96Bytes
         whenOffsetIsWordAligned
-        whenOffsetIsAfter3WordHead
+        whenOffsetIsAfter2WordHead
     {
         // Arrange
-        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 123, bytes(""));
-        // Start from valid base and set offset to the canonical value (96)
-        _setOffset(msgData, HEAD_SIZE); // 96
+        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, bytes(""));
+        // Start from valid base and set offset to the canonical value (64)
+        _setOffset(msgData, HEAD_SIZE); // 64
         // Make offset so large that data.length < off + 32.
-        // Current s_messageData.length == 128 and word-aligned, so set off = 128.
+        // Current msgData.length == 96 and word-aligned, so set off = 96.
         _setOffset(msgData, msgData.length);
 
         // Act
-        (bool decodeSuccess, address receiver, uint256 estimatedGas, bytes memory shortcutData) =
-            CCIPMessageDecoder.tryDecodeMessageData(msgData);
+        (bool decodeSuccess, address receiver, bytes memory shortcutData) =
+            CCIPMessageDecoder._tryDecodeMessageData(msgData);
 
         // Assert
         // it should return an unsuccessful result
         assertFalse(decodeSuccess);
         assertEq(receiver, address(0));
-        assertEq(estimatedGas, 0);
         assertEq(shortcutData, "");
     }
 
@@ -164,55 +151,53 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
     function test_WhenTailDoesNotFullyFit()
         external
         pure
-        whenDataLengthGte128Bytes
+        whenDataLengthGte96Bytes
         whenOffsetIsWordAligned
-        whenOffsetIsAfter3WordHead
+        whenOffsetIsAfter2WordHead
         whenThereIsEnoughRoomForTailLengthWord
     {
         // Arrange
-        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 123, bytes(""));
-        // Set offset = 96 so the length word is within bounds (128 >= 96+32)
-        _setOffset(msgData, HEAD_SIZE); // 96
-        // With base length=128 and off=96, writing len=64 requires:
-        // off + 32 + ceil32(64) = 96 + 32 + 64 = 192 > 128  → should fail
-        _setTailLenAtOffset(msgData, HEAD_SIZE, 64);
+        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, bytes(""));
+        // Set offset = 64 so the length word is within bounds (96 >= 64+32)
+        _setOffset(msgData, HEAD_SIZE); // 64
+        // With base length=96 and off=64, avail = 96 - (64+32) = 0
+        // Writing len=1 makes it overflow the available tail → should fail
+        _setTailLenAtOffset(msgData, HEAD_SIZE, 1);
 
         // Act
-        (bool decodeSuccess, address receiver, uint256 estimatedGas, bytes memory shortcutData) =
-            CCIPMessageDecoder.tryDecodeMessageData(msgData);
+        (bool decodeSuccess, address receiver, bytes memory shortcutData) =
+            CCIPMessageDecoder._tryDecodeMessageData(msgData);
 
         // Assert
         // it should return an unsuccessful result
         assertFalse(decodeSuccess);
         assertEq(receiver, address(0));
-        assertEq(estimatedGas, 0);
         assertEq(shortcutData, "");
     }
 
     function test_WhenTailFullyFits()
         external
         pure
-        whenDataLengthGte128Bytes
+        whenDataLengthGte96Bytes
         whenOffsetIsWordAligned
-        whenOffsetIsAfter3WordHead
+        whenOffsetIsAfter2WordHead
         whenThereIsEnoughRoomForTailLengthWord
     {
         // Arrange
         // Build a valid payload where tail fully fits: len=3 → ceil32=32
-        // Total = 96 + 32 + 32 = 160 bytes
+        // Total = 64 + 32 + 32 = 128 bytes
         bytes memory payload = hex"010203";
-        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, type(uint256).max, payload);
+        bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, payload);
 
         // Act
-        (bool decodeSuccess, address receiver, uint256 estimatedGas, bytes memory shortcutData) =
-            CCIPMessageDecoder.tryDecodeMessageData(msgData);
+        (bool decodeSuccess, address receiver, bytes memory shortcutData) =
+            CCIPMessageDecoder._tryDecodeMessageData(msgData);
 
         // Assert
         // it should return a successful result
         assertTrue(decodeSuccess);
         assertEq(receiver, 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-        assertEq(estimatedGas, type(uint256).max);
         assertEq(shortcutData, payload);
-        assertEq(msgData.length, 160);
+        assertEq(msgData.length, 128);
     }
 }
