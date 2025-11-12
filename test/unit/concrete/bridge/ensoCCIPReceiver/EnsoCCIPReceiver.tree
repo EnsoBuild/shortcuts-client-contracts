@@ -1,8 +1,35 @@
-EnsoCCIPReceiver::decodeMessageData
-├── when msg sender is not self
-│   └── it should revert
-└── when msg sender is self
-    ├── when data is malformed
-    │   └── it should panic
-    └── when data is not malformed
-        └── it should return payload decoded
+// EnsoCCIPReceiver::AcceptOwnership
+// ├── when caller is not pending owner
+// │   └── it should revert
+// └── when caller is pending owner
+//     └── it should transfer ownership
+
+EnsoCCIPReceiver::Constructor
+└── when deployed
+    ├── it should set owner
+    ├── it should set ccipRouter
+    └── it should set ensoRouter
+
+// EnsoCCIPReceiver::Pause
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     └── it should pause the contract
+
+// EnsoCCIPReceiver::Unpause
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     └── it should unpause the contract
+
+// EnsoCCIPReceiver::TransferOwnership
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     └── it should start ownership transfer
+
+// EnsoCCIPReceiver::RenounceOwnership
+// ├── when caller is not owner
+// │   └── it should revert
+// └── when caller is owner
+//     └── it should transfer ownership to zero address

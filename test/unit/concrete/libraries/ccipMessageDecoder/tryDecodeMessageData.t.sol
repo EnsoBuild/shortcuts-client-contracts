@@ -48,7 +48,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
                             TESTS: < 128 bytes
     //////////////////////////////////////////////////////////////*/
 
-    function test_WhenDataLengthLt128Bytes() external {
+    function test_WhenDataLengthLt128Bytes() external pure {
         // Arrange
         bytes memory data =
             hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
@@ -73,7 +73,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         _;
     }
 
-    function test_WhenOffsetIsNotWordAligned() external whenDataLengthGte128Bytes {
+    function test_WhenOffsetIsNotWordAligned() external pure whenDataLengthGte128Bytes {
         // Arrange
         bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 123, bytes(""));
         // Make offset = 97 (not multiple of 32)
@@ -100,7 +100,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         _;
     }
 
-    function test_WhenOffsetIsBefore3WordHead() external whenDataLengthGte128Bytes whenOffsetIsWordAligned {
+    function test_WhenOffsetIsBefore3WordHead() external pure whenDataLengthGte128Bytes whenOffsetIsWordAligned {
         // Arrange
         bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 123, bytes(""));
         _setOffset(msgData, 64); // word-aligned but < 96 (invalid for our layout)
@@ -128,6 +128,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
 
     function test_WhenThereIsNotEnoughRoomForTailLengthWord()
         external
+        pure
         whenDataLengthGte128Bytes
         whenOffsetIsWordAligned
         whenOffsetIsAfter3WordHead
@@ -136,8 +137,8 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 123, bytes(""));
         // Start from valid base and set offset to the canonical value (96)
         _setOffset(msgData, HEAD_SIZE); // 96
-            // Make offset so large that data.length < off + 32.
-            // Current s_messageData.length == 128 and word-aligned, so set off = 128.
+        // Make offset so large that data.length < off + 32.
+        // Current s_messageData.length == 128 and word-aligned, so set off = 128.
         _setOffset(msgData, msgData.length);
 
         // Act
@@ -162,6 +163,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
 
     function test_WhenTailDoesNotFullyFit()
         external
+        pure
         whenDataLengthGte128Bytes
         whenOffsetIsWordAligned
         whenOffsetIsAfter3WordHead
@@ -171,8 +173,8 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 123, bytes(""));
         // Set offset = 96 so the length word is within bounds (128 >= 96+32)
         _setOffset(msgData, HEAD_SIZE); // 96
-            // With base length=128 and off=96, writing len=64 requires:
-            // off + 32 + ceil32(64) = 96 + 32 + 64 = 192 > 128  → should fail
+        // With base length=128 and off=96, writing len=64 requires:
+        // off + 32 + ceil32(64) = 96 + 32 + 64 = 192 > 128  → should fail
         _setTailLenAtOffset(msgData, HEAD_SIZE, 64);
 
         // Act
@@ -189,6 +191,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
 
     function test_WhenTailFullyFits()
         external
+        pure
         whenDataLengthGte128Bytes
         whenOffsetIsWordAligned
         whenOffsetIsAfter3WordHead
