@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import { EnsoShortcuts } from "../../../../../src/EnsoShortcuts.sol";
 import { EnsoCCIPReceiver } from "../../../../../src/bridge/EnsoCCIPReceiver.sol";
 import { EnsoShortcutsHelpers } from "../../../../../src/helpers/EnsoShortcutsHelpers.sol";
 import { EnsoRouter } from "../../../../../src/router/EnsoRouter.sol";
+import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { WETH9 } from "../../../../mocks/WETH9.sol";
 import { MockCCIPRouter } from "chainlink-ccip/test/mocks/MockRouter.sol";
 import { Test } from "forge-std-1.9.7/Test.sol";
@@ -14,10 +16,13 @@ abstract contract EnsoCCIPReceiver_Unit_Concrete_Test is Test {
     address payable internal s_account1;
     address payable internal s_account2;
     EnsoRouter internal s_ensoRouter;
+    EnsoShortcuts internal s_ensoShortcuts;
     EnsoShortcutsHelpers internal s_ensoShortcutsHelpers;
     MockCCIPRouter internal s_ccipRouter;
     EnsoCCIPReceiver internal s_ensoCcipReceiver;
     WETH9 internal s_weth;
+    MockERC20 internal s_tokenA;
+    MockERC20 internal s_tokenB;
 
     function setUp() public virtual {
         s_deployer = payable(vm.addr(1));
@@ -40,6 +45,9 @@ abstract contract EnsoCCIPReceiver_Unit_Concrete_Test is Test {
         s_ensoRouter = new EnsoRouter();
         vm.label(address(s_ensoRouter), "EnsoRouter");
 
+        s_ensoShortcuts = EnsoShortcuts(payable(s_ensoRouter.shortcuts()));
+        vm.label(address(s_ensoShortcuts), "EnsoShortcuts");
+
         s_ensoShortcutsHelpers = new EnsoShortcutsHelpers();
         vm.label(address(s_ensoShortcutsHelpers), "EnsoShortcutsHelpers");
 
@@ -51,6 +59,15 @@ abstract contract EnsoCCIPReceiver_Unit_Concrete_Test is Test {
 
         s_weth = new WETH9();
         vm.label(address(s_weth), "WETH9");
+
+        s_tokenA = new MockERC20("Token A", "TKNA");
+        vm.label(address(s_tokenA), "TKNA");
+        s_tokenA.mint(s_deployer, 1000 ether);
+
+        s_tokenB = new MockERC20("Token B", "TKNB");
+        vm.label(address(s_tokenB), "TKNB");
+        s_tokenB.mint(s_deployer, 1000 ether);
+
         vm.stopPrank();
     }
 }

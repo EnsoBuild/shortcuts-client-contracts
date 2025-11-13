@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { IEnsoCCIPReceiver } from "../interfaces/IEnsoCCIPReceiver.sol";
 import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
+import { ITypeAndVersion } from "../interfaces/ITypeAndVersion.sol";
 import { CCIPMessageDecoder } from "../libraries/CCIPMessageDecoder.sol";
 import { CCIPReceiver, Client } from "chainlink-ccip/applications/CCIPReceiver.sol";
 import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
@@ -23,10 +24,10 @@ import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 ///      - For malformed messages (no/too many tokens, zero amount, bad payload, zero address receiver), quarantines
 ///      funds in this contract.
 ///      - Executes Shortcuts using a self-call (`try this.execute(...)`) to catch and handle reverts.
-contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Pausable {
+contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Pausable, ITypeAndVersion {
     using SafeERC20 for IERC20;
 
-    uint256 private constant VERSION = 1;
+    string public constant override typeAndVersion = "EnsoCCIPReceiver 1.0.0";
 
     /// @dev Immutable Enso Router used to dispatch tokens + call Shortcuts.
     /// forge-lint: disable-next-item(screaming-snake-case-immutable)
@@ -131,11 +132,6 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
     /// @inheritdoc IEnsoCCIPReceiver
     function getEnsoRouter() external view returns (address) {
         return address(i_ensoRouter);
-    }
-
-    /// @inheritdoc IEnsoCCIPReceiver
-    function version() external pure returns (uint256) {
-        return VERSION;
     }
 
     /// @inheritdoc IEnsoCCIPReceiver

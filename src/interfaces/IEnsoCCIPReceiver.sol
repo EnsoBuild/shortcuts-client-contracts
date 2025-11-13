@@ -47,7 +47,7 @@ interface IEnsoCCIPReceiver {
     /// @dev errorData encodings:
     ///  - ALREADY_EXECUTED: (bytes32 messageId)
     ///  - Others: empty bytes unless specified by the implementation.
-    event MessageValidationFailed(bytes32 indexed messageId, ErrorCode errorCode, bytes errorData);
+    event MessageValidationFailed(bytes32 indexed messageId, ErrorCode indexed errorCode, bytes errorData);
 
     /// @notice Funds were quarantined in the receiver instead of delivered to the payload receiver.
     /// @param messageId The CCIP message id.
@@ -56,7 +56,7 @@ interface IEnsoCCIPReceiver {
     /// @param amount Token amount retained.
     /// @param receiver Original payload receiver (informational; may be zero if not decoded).
     event MessageQuarantined(
-        bytes32 indexed messageId, ErrorCode code, address token, uint256 amount, address receiver
+        bytes32 indexed messageId, ErrorCode indexed code, address token, uint256 amount, address receiver
     );
 
     /// @notice Emitted when Enso Shortcuts execution succeeds for a CCIP message.
@@ -69,7 +69,7 @@ interface IEnsoCCIPReceiver {
     event ShortcutExecutionFailed(bytes32 indexed messageId, bytes err);
 
     /// @notice Emitted when the owner recovers tokens from the receiver.
-    event TokensRecovered(address token, address to, uint256 amount);
+    event TokensRecovered(address indexed token, address indexed to, uint256 amount);
 
     // -------------------------------------------------------------------------
     // Errors
@@ -115,10 +115,6 @@ interface IEnsoCCIPReceiver {
     /// @notice Returns the Enso Router address used by this receiver.
     /// @return router Address of the Enso Router.
     function getEnsoRouter() external view returns (address router);
-
-    /// @notice Returns a human-readable version/format indicator for off-chain tooling and tests.
-    /// @return version The version number of this receiver implementation.
-    function version() external view returns (uint256 version);
 
     /// @notice Returns whether a CCIP message was already handled (executed/refunded/quarantined).
     /// @param messageId CCIP message identifier.

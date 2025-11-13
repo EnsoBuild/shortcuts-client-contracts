@@ -37,7 +37,9 @@ contract MockEnsoRouter {
             }
         }
         if (isNativeAsset) {
-            shortcuts.call{ value: msg.value }("");
+            (bool success, bytes memory result) = shortcuts.call{ value: msg.value }("");
+            (success);
+            (result);
         }
     }
 
