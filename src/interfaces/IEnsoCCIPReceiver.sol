@@ -50,6 +50,8 @@ interface IEnsoCCIPReceiver {
     event MessageValidationFailed(bytes32 indexed messageId, ErrorCode indexed errorCode, bytes errorData);
 
     /// @notice Funds were quarantined in the receiver instead of delivered to the payload receiver.
+    /// @dev CCIP currently delivers at most one ERC-20 per message, so we log the single token/amount
+    ///      pair (best-effort, informational) rather than arrays.
     /// @param messageId The CCIP message id.
     /// @param code The validation error that triggered quarantine.
     /// @param token ERC-20 token retained.
