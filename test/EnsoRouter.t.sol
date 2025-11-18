@@ -356,8 +356,8 @@ contract EnsoRouterTest is Test, ERC721Holder, ERC1155Holder {
 
         Token memory tokenIn = Token(TokenType.ERC721, abi.encode(address(nft), TOKENID));
         Token memory tokenOut = Token(TokenType.ERC721, abi.encode(address(nftVault), 1)); // token out is checking for
-            // balance, which
-            // should increase by 1
+        // balance, which
+        // should increase by 1
 
         router.safeRouteSingle(tokenIn, tokenOut, address(this), data);
         assertEq(1, nftVault.balanceOf(address(this)));

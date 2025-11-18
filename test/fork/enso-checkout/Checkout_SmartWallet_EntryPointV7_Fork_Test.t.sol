@@ -114,7 +114,7 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         address safePaymentToken = address(0); // Token that should be used for the payment (0 is ETH)
         uint256 safePayment = 0; // Value that should be paid
         address payable safePaymentReceiver = payable(address(0)); // Address that should receive the payment (or 0 if
-            // tx.origin)
+        // tx.origin)
         // s_safe.setup(
         //     safeOwners,
         //     safeThreshold,

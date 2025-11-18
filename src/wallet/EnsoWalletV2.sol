@@ -61,6 +61,8 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
     }
 
     function _checkOwner() internal view override {
-        if (msg.sender != owner()) revert EnsoWalletV2_InvalidSender(msg.sender);
+        if (msg.sender != owner()) {
+            revert EnsoWalletV2_InvalidSender(msg.sender);
+        }
     }
 }

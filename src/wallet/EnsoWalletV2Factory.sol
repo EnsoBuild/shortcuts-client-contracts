@@ -55,7 +55,9 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         // strictly only msg.sender can deploy and execute
         wallet = _deploy(msg.sender);
         bool isNativeAsset = _transfer(tokenIn, wallet);
-        if (!isNativeAsset && msg.value != 0) revert EnsoWalletV2Factory_WrongMsgValue(msg.value, 0);
+        if (!isNativeAsset && msg.value != 0) {
+            revert EnsoWalletV2Factory_WrongMsgValue(msg.value, 0);
+        }
 
         bool success;
         (success, response) = wallet.call{ value: msg.value }(data);
