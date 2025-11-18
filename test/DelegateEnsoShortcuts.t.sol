@@ -56,10 +56,7 @@ contract DelegateEnsoShortcutsTest is Test, SafeTestTools {
         assertEq(weth.balanceOf(alice), 0);
 
         safeInstance.execTransaction({
-            to: address(shortcuts),
-            value: 0 ether,
-            data: data,
-            operation: Enum.Operation.DelegateCall
+            to: address(shortcuts), value: 0 ether, data: data, operation: Enum.Operation.DelegateCall
         });
 
         assertEq(weth.balanceOf(address(safeInstance.safe)), 0);
@@ -86,10 +83,7 @@ contract DelegateEnsoShortcutsTest is Test, SafeTestTools {
         assertEq(weth.balanceOf(address(safeInstance.safe)), 0);
 
         safeInstance.execTransaction({
-            to: address(shortcuts),
-            value: 0 ether,
-            data: data,
-            operation: Enum.Operation.DelegateCall
+            to: address(shortcuts), value: 0 ether, data: data, operation: Enum.Operation.DelegateCall
         });
 
         assertEq(weth.balanceOf(address(safeInstance.safe)), 10 ether);

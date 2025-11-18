@@ -19,7 +19,9 @@ library ShortcutsEthereum {
         pure
         returns (ExecuteShortcutParams memory executeShortcutParams)
     {
-        if (txData.length < 4) revert ShortcutsEthereum__InvalidShortcutTxData();
+        if (txData.length < 4) {
+            revert ShortcutsEthereum__InvalidShortcutTxData();
+        }
 
         // Decode it from starting at the function selector (first 4 bytes)
         (bytes32 accountId, bytes32 requestId, bytes32[] memory commands, bytes[] memory state) =

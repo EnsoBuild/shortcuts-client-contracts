@@ -11,7 +11,8 @@
     "format:fix:sol": "forge fmt",
     "test:enso_checkout:fork": "forge test --match-path 'test/fork/enso-checkout/*.t.sol'",
     "test:enso_checkout:unit": "forge test --match-path 'test/unit/concrete/{delegate/ensoReceiver,factory/erc4337CloneFactory,paymaster/signaturePaymaster}/*.t.sol'",
-    "test:enso_checkout:mutation": "node scripts/runEnsoCheckoutMutationTests.mjs"
+    "test:enso_checkout:mutation": "node scripts/runEnsoCheckoutMutationTests.mjs",
+    "test:enso_wallet_v2:unit": "forge test --match-path 'test/unit/concrete/wallet/{ensoWalletV2,ensoWalletV2Factory}/*.t.sol'"
   },
   "keywords": [],
   "author": "",
