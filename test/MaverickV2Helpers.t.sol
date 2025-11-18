@@ -14,7 +14,7 @@ contract MaverickV2HelpersTest is Test {
     address public lens = 0xBf0D89E67351f68a0a921943332c5bE0f7a0FF8A;
     address public refund = 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045;
 
-    address public usdce_holder = 0x329C395D83493ea909ba3CE76b04766E17De4Ea8;
+    address public usdce_holder = 0x816f722424B49Cf1275cc86DA9840Fbd5a6167e9;
     address public pusd_holder = 0x131C4558343BC50c2c08164972f9748738902705;
 
     string _rpcURL = vm.envString("PLUME_RPC_URL");

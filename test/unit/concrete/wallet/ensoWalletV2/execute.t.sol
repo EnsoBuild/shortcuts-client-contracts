@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { EnsoWalletV2 } from "../../../../../src/wallet/EnsoWalletV2.sol";
-import { IEnsoWalletV2 } from "../../../../../src/wallet/interfaces/IEnsoWalletV2.sol";
+import { IEnsoWalletV2 } from "../../../../../src/interfaces/IEnsoWalletV2.sol";
 import { EnsoWalletV2_Unit_Concrete_Test } from "./EnsoWalletV2.t.sol";
 
 contract Target {

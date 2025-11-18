@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
-import { Token, TokenType } from "../../interfaces/IEnsoRouter.sol";
+import { Token, TokenType } from "./IEnsoRouter.sol";
 
 /// @title IEnsoWalletV2Factory
 /// @author Enso
