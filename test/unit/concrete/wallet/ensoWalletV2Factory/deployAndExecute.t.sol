@@ -4,10 +4,10 @@ pragma solidity ^0.8.20;
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { EnsoWalletV2 } from "../../../../../src/wallet/EnsoWalletV2.sol";
 import { EnsoWalletV2Factory } from "../../../../../src/wallet/EnsoWalletV2Factory.sol";
+import { IEnsoWalletV2Factory } from "../../../../../src/wallet/interfaces/IEnsoWalletV2Factory.sol";
 import { WeirollPlanner } from "../../../../utils/WeirollPlanner.sol";
+import { EnsoWalletV2_Unit_Concrete_Test } from "../ensoWalletV2/EnsoWalletV2.t.sol";
 import { WETH } from "solady/tokens/WETH.sol";
-
-import { EnsoWalletV2_Unit_Concrete_Test } from "../ensowalletv2/EnsoWalletV2.t.sol";
 
 contract Target {
     function func() external payable returns (uint256) {
@@ -133,7 +133,9 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         weth.deposit{ value: value }();
         weth.approve(address(s_walletFactory), value);
 
-        vm.expectRevert(abi.encodeWithSelector(EnsoWalletV2Factory.WrongMsgValue.selector, value, 0));
+        vm.expectRevert(
+            abi.encodeWithSelector(IEnsoWalletV2Factory.EnsoWalletV2Factory_WrongMsgValue.selector, value, 0)
+        );
         s_walletFactory.deployAndExecute{ value: value }(tokenIn, executeData);
     }
 

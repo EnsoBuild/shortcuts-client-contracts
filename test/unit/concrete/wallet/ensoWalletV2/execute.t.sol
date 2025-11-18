@@ -2,9 +2,12 @@
 pragma solidity ^0.8.20;
 
 import { EnsoWalletV2 } from "../../../../../src/wallet/EnsoWalletV2.sol";
+import { IEnsoWalletV2 } from "../../../../../src/wallet/interfaces/IEnsoWalletV2.sol";
 import { EnsoWalletV2_Unit_Concrete_Test } from "./EnsoWalletV2.t.sol";
 
 contract Target {
+    error Target_Revert();
+
     function func() external pure returns (uint256) {
         return 42;
     }
@@ -13,8 +16,12 @@ contract Target {
         return value;
     }
 
-    function revert() external pure {
+    function revertString() external pure {
         revert("Test revert");
+    }
+
+    function revertCustomError() external pure {
+        revert Target_Revert();
     }
 }
 
@@ -50,18 +57,24 @@ contract EnsoWalletV2_Execute_Unit_Concrete_Test is EnsoWalletV2_Unit_Concrete_T
         assertTrue(success);
     }
 
-    function test_RevertWhen_TargetReverts() external {
+    function test_RevertWhen_TargetRevertsString() external {
         // it should revert when target call reverts
         vm.startPrank(s_owner);
-        bool success = s_wallet.execute(address(s_target), 0, abi.encodeWithSelector(Target.revert.selector));
+        vm.expectRevert(bytes("Test revert"));
+        bool success = s_wallet.execute(address(s_target), 0, abi.encodeWithSelector(Target.revertString.selector));
+    }
 
-        assertFalse(success);
+    function test_RevertWhen_TargetRevertsCustomError() external {
+        // it should revert when target call reverts
+        vm.startPrank(s_owner);
+        vm.expectRevert(abi.encodeWithSelector(Target.Target_Revert.selector));
+        bool success = s_wallet.execute(address(s_target), 0, abi.encodeWithSelector(Target.revertCustomError.selector));
     }
 
     function test_RevertWhen_NotOwner() external {
         // it should revert when not called by owner
         vm.startPrank(s_user);
-        vm.expectRevert(abi.encodeWithSelector(EnsoWalletV2.InvalidSender.selector, s_user));
+        vm.expectRevert(abi.encodeWithSelector(IEnsoWalletV2.EnsoWalletV2_InvalidSender.selector, s_user));
         s_wallet.execute(address(s_target), 0, "");
     }
 }

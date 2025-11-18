@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { EnsoWalletV2 } from "../../../../../src/wallet/EnsoWalletV2.sol";
+import { IEnsoWalletV2 } from "../../../../../src/wallet/interfaces/IEnsoWalletV2.sol";
 import { WeirollPlanner } from "../../../../utils/WeirollPlanner.sol";
 
 import { EnsoWalletV2_Unit_Concrete_Test } from "./EnsoWalletV2.t.sol";
@@ -52,7 +53,7 @@ contract EnsoWalletV2_ExecuteShortcut_Unit_Concrete_Test is EnsoWalletV2_Unit_Co
         bytes32[] memory commands = new bytes32[](0);
         bytes[] memory state = new bytes[](0);
 
-        vm.expectRevert(abi.encodeWithSelector(EnsoWalletV2.InvalidSender.selector, s_user));
+        vm.expectRevert(abi.encodeWithSelector(IEnsoWalletV2.EnsoWalletV2_InvalidSender.selector, s_user));
         s_wallet.executeShortcut(ACCOUNT_ID, REQUEST_ID, commands, state);
     }
 

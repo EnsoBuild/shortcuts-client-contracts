@@ -2,7 +2,8 @@
 pragma solidity ^0.8.20;
 
 import { EnsoWalletV2Factory } from "../../../../../src/wallet/EnsoWalletV2Factory.sol";
-import { EnsoWalletV2_Unit_Concrete_Test } from "../ensowalletv2/EnsoWalletV2.t.sol";
+import { IEnsoWalletV2Factory } from "../../../../../src/wallet/interfaces/IEnsoWalletV2Factory.sol";
+import { EnsoWalletV2_Unit_Concrete_Test } from "../ensoWalletV2/EnsoWalletV2.t.sol";
 import { Vm } from "forge-std/Test.sol";
 
 contract EnsoWalletV2Factory_GetAddress_Unit_Concrete_Test is EnsoWalletV2_Unit_Concrete_Test {
@@ -45,7 +46,7 @@ contract EnsoWalletV2Factory_GetAddress_Unit_Concrete_Test is EnsoWalletV2_Unit_
 
         // First deployment - should emit event
         vm.expectEmit(true, true, true, true, address(s_walletFactory));
-        emit EnsoWalletV2Factory.EnsoWalletV2Deployed(predictedAddress, s_account1);
+        emit IEnsoWalletV2Factory.EnsoWalletV2Deployed(predictedAddress, s_account1);
         address walletAddress1 = s_walletFactory.deploy(s_account1);
 
         // Second deployment - should not emit event (same address)

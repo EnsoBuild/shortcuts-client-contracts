@@ -9,6 +9,9 @@ import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/Safe
 import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
+/// @title EnsoWalletV2Factory
+/// @author Enso
+/// @notice Factory for deploying deterministic Enso Wallet V2 instances using minimal clones
 contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
     using LibClone for address;
     using SafeERC20 for IERC20;
@@ -19,10 +22,12 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         implementation = implementation_;
     }
 
+    /// @inheritdoc IEnsoWalletV2Factory
     function deploy(address account) external returns (address wallet) {
         return _deploy(account);
     }
 
+    /// @inheritdoc IEnsoWalletV2Factory
     function deployAndExecute(
         Token calldata tokenIn,
         bytes calldata data
@@ -34,6 +39,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         return _deployAndExecute(tokenIn, data);
     }
 
+    /// @inheritdoc IEnsoWalletV2Factory
     function getAddress(address account) external view returns (address) {
         bytes32 salt = _getSalt(account);
         return implementation.predictDeterministicAddress(salt, address(this));
@@ -49,7 +55,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         // strictly only msg.sender can deploy and execute
         wallet = _deploy(msg.sender);
         bool isNativeAsset = _transfer(tokenIn, wallet);
-        if (!isNativeAsset && msg.value != 0) revert WrongMsgValue(msg.value, 0);
+        if (!isNativeAsset && msg.value != 0) revert EnsoWalletV2Factory_WrongMsgValue(msg.value, 0);
 
         bool success;
         (success, response) = wallet.call{ value: msg.value }(data);
@@ -59,7 +65,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
                     revert(add(0x20, response), mload(response))
                 }
             }
-            revert ExecutionFailed();
+            revert EnsoWalletV2Factory_ExecutionFailed();
         }
     }
 
@@ -89,7 +95,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
             (IERC1155 erc1155, uint256 tokenId, uint256 amount) = abi.decode(token.data, (IERC1155, uint256, uint256));
             erc1155.safeTransferFrom(msg.sender, receiver, tokenId, amount, "0x");
         } else {
-            revert UnsupportedTokenType(tokenType);
+            revert EnsoWalletV2Factory_UnsupportedTokenType(tokenType);
         }
     }
 
