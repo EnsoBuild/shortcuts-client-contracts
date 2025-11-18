@@ -1,25 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import { Token, TokenType } from "../interfaces/IEnsoRouter.sol";
-
 import { IEnsoWalletV2 } from "./interfaces/IEnsoWalletV2.sol";
-
+import { IEnsoWalletV2Factory } from "./interfaces/IEnsoWalletV2Factory.sol";
 import { IERC1155 } from "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
-contract EnsoWalletV2Factory {
+contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
     using LibClone for address;
     using SafeERC20 for IERC20;
 
     address public immutable implementation;
-
-    event EnsoWalletV2Deployed(address wallet, address indexed account);
-
-    error WrongMsgValue(uint256 value, uint256 expectedAmount);
-    error UnsupportedTokenType(TokenType tokenType);
 
     constructor(address implementation_) {
         implementation = implementation_;
@@ -60,9 +54,12 @@ contract EnsoWalletV2Factory {
         bool success;
         (success, response) = wallet.call{ value: msg.value }(data);
         if (!success) {
-            assembly {
-                revert(add(response, 32), mload(response))
+            if (response.length > 0) {
+                assembly ("memory-safe") {
+                    revert(add(0x20, response), mload(response))
+                }
             }
+            revert ExecutionFailed();
         }
     }
 
@@ -96,7 +93,7 @@ contract EnsoWalletV2Factory {
         }
     }
 
-    function _getSalt(address account) internal pure returns (bytes32) {
+    function _getSalt(address account) private pure returns (bytes32) {
         return keccak256(abi.encode(account));
     }
 }

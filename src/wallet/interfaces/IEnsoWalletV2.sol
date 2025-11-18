@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 interface IEnsoWalletV2 {
+    error ExecutionFailed();
     error InvalidSender(address sender);
 
     function initialize(address owner_) external;

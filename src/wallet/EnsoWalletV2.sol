@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import { AbstractEnsoShortcuts } from "../AbstractEnsoShortcuts.sol";
 import { AbstractMultiSend } from "../AbstractMultiSend.sol";
 import { Withdrawable } from "../utils/Withdrawable.sol";
-
+import { IEnsoWalletV2 } from "./interfaces/IEnsoWalletV2.sol";
 import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 
-contract EnsoWalletV2 is AbstractMultiSend, AbstractEnsoShortcuts, Initializable, Withdrawable {
+contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts, Initializable, Withdrawable {
     string public constant VERSION = "1.0.0";
     address public factory;
     address private _owner;
-
-    error InvalidSender(address sender);
 
     modifier onlyOwner() {
         _checkOwner();
@@ -46,32 +44,15 @@ contract EnsoWalletV2 is AbstractMultiSend, AbstractEnsoShortcuts, Initializable
         onlyOwner
         returns (bool success)
     {
-        assembly {
-            success := call(gas(), target, value, add(data, 0x20), mload(data), 0, 0)
+        (bool success, bytes memory response) = target.call{ value: msg.value }(data);
+        if (!success) {
+            if (response.length > 0) {
+                assembly ("memory-safe") {
+                    revert(add(0x20, response), mload(response))
+                }
+            }
+            revert ExecutionFailed();
         }
-    }
-
-    /**
-     * @notice Executes a shortcut
-     * @dev Can be called by owner or factory
-     * @param accountId The bytes32 value representing an API user
-     * @param requestId The bytes32 value representing an API request
-     * @param commands An array of bytes32 values that encode calls
-     * @param state An array of bytes that are used to generate call data for each command
-     * @return response Array of response data from each executed command
-     */
-    function executeShortcut(
-        bytes32 accountId,
-        bytes32 requestId,
-        bytes32[] calldata commands,
-        bytes[] calldata state
-    )
-        public
-        payable
-        override
-        returns (bytes[] memory response)
-    {
-        return super.executeShortcut(accountId, requestId, commands, state);
     }
 
     /// @notice Abstract override function to return owner
