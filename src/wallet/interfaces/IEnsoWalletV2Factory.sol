@@ -26,7 +26,7 @@ interface IEnsoWalletV2Factory {
 
     /// @notice Returns the implementation contract address used for cloning
     /// @return The address of the implementation contract
-    function implementation() external view returns (address);
+    function IMPLEMENTATION() external view returns (address);
 
     /// @notice Deploys a wallet for the given account (idempotent)
     /// @param account The account address that will own the wallet

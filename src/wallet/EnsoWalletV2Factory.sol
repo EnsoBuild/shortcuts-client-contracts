@@ -16,10 +16,10 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
     using LibClone for address;
     using SafeERC20 for IERC20;
 
-    address public immutable implementation;
+    address public immutable IMPLEMENTATION;
 
-    constructor(address implementation_) {
-        implementation = implementation_;
+    constructor(address implementation) {
+        IMPLEMENTATION = implementation;
     }
 
     /// @inheritdoc IEnsoWalletV2Factory
@@ -42,7 +42,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
     /// @inheritdoc IEnsoWalletV2Factory
     function getAddress(address account) external view returns (address) {
         bytes32 salt = _getSalt(account);
-        return implementation.predictDeterministicAddress(salt, address(this));
+        return IMPLEMENTATION.predictDeterministicAddress(salt, address(this));
     }
 
     function _deployAndExecute(
@@ -73,9 +73,9 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
 
     function _deploy(address account) private returns (address wallet) {
         bytes32 salt = _getSalt(account);
-        wallet = implementation.predictDeterministicAddress(salt, address(this));
+        wallet = IMPLEMENTATION.predictDeterministicAddress(salt, address(this));
         if (wallet.code.length == 0) {
-            implementation.cloneDeterministic(salt);
+            IMPLEMENTATION.cloneDeterministic(salt);
             IEnsoWalletV2(wallet).initialize(account);
             emit EnsoWalletV2Deployed(wallet, account);
         }
@@ -102,6 +102,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
     }
 
     function _getSalt(address account) private pure returns (bytes32) {
+        /// forge-lint: disable-next-item(asm-keccak256)
         return keccak256(abi.encode(account));
     }
 }

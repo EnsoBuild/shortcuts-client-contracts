@@ -61,14 +61,14 @@ contract EnsoWalletV2_Execute_Unit_Concrete_Test is EnsoWalletV2_Unit_Concrete_T
         // it should revert when target call reverts
         vm.startPrank(s_owner);
         vm.expectRevert(bytes("Test revert"));
-        bool success = s_wallet.execute(address(s_target), 0, abi.encodeWithSelector(Target.revertString.selector));
+        s_wallet.execute(address(s_target), 0, abi.encodeWithSelector(Target.revertString.selector));
     }
 
     function test_RevertWhen_TargetRevertsCustomError() external {
         // it should revert when target call reverts
         vm.startPrank(s_owner);
         vm.expectRevert(abi.encodeWithSelector(Target.Target_Revert.selector));
-        bool success = s_wallet.execute(address(s_target), 0, abi.encodeWithSelector(Target.revertCustomError.selector));
+        s_wallet.execute(address(s_target), 0, abi.encodeWithSelector(Target.revertCustomError.selector));
     }
 
     function test_RevertWhen_NotOwner() external {

@@ -22,7 +22,7 @@ contract EnsoWalletV2Factory_GetAddress_Unit_Concrete_Test is EnsoWalletV2_Unit_
         assertEq(predictedAddress, actualAddress);
     }
 
-    function test_WhenCalledMultipleTimes() external {
+    function test_WhenCalledMultipleTimes() external view {
         // it should return same address for same account
         address predictedAddress1 = s_walletFactory.getAddress(s_account1);
         address predictedAddress2 = s_walletFactory.getAddress(s_account1);
@@ -30,7 +30,7 @@ contract EnsoWalletV2Factory_GetAddress_Unit_Concrete_Test is EnsoWalletV2_Unit_
         assertEq(predictedAddress1, predictedAddress2);
     }
 
-    function test_WhenDifferentAccounts() external {
+    function test_WhenDifferentAccounts() external view {
         // it should return different addresses for different accounts
         address predictedAddress1 = s_walletFactory.getAddress(s_account1);
         address predictedAddress2 = s_walletFactory.getAddress(s_account2);
