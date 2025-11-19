@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
-import { EnsoWalletV2 } from "../../../../../src/wallet/EnsoWalletV2.sol";
 import { EnsoWalletV2Factory } from "../../../../../src/factory/EnsoWalletV2Factory.sol";
+import { EnsoWalletV2 } from "../../../../../src/wallet/EnsoWalletV2.sol";
 
 import { MockERC1155 } from "../../../../mocks/MockERC1155.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
