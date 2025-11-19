@@ -24,6 +24,9 @@ interface IEnsoWalletV2Factory {
     /// @param expectedAmount The expected amount
     error EnsoWalletV2Factory_WrongMsgValue(uint256 value, uint256 expectedAmount);
 
+    /// @notice Thrown when multiple native assets are sent in the tokensIn array
+    error EnsoWalletV2Factory_DuplicateNativeAsset();
+
     /// @notice Returns the implementation contract address used for cloning
     /// @return The address of the implementation contract
     function IMPLEMENTATION() external view returns (address);
@@ -34,12 +37,12 @@ interface IEnsoWalletV2Factory {
     function deploy(address account) external returns (address wallet);
 
     /// @notice Deploys a wallet, transfers token, and executes calldata in one transaction
-    /// @param tokenIn The token to transfer to the wallet
+    /// @param tokensIn The tokens to transfer to the wallet
     /// @param data The calldata to execute on the wallet
     /// @return wallet The deployed wallet address
     /// @return response The return data from the execution
     function deployAndExecute(
-        Token calldata tokenIn,
+        Token[] calldata tokensIn,
         bytes calldata data
     )
         external

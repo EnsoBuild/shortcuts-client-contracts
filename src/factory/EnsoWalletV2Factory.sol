@@ -29,14 +29,14 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
 
     /// @inheritdoc IEnsoWalletV2Factory
     function deployAndExecute(
-        Token calldata tokenIn,
+        Token[] calldata tokensIn,
         bytes calldata data
     )
         external
         payable
         returns (address wallet, bytes memory response)
     {
-        return _deployAndExecute(tokenIn, data);
+        return _deployAndExecute(tokensIn, data);
     }
 
     /// @inheritdoc IEnsoWalletV2Factory
@@ -46,7 +46,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
     }
 
     function _deployAndExecute(
-        Token calldata tokenIn,
+        Token[] calldata tokensIn,
         bytes calldata data
     )
         private
@@ -54,7 +54,14 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
     {
         // strictly only msg.sender can deploy and execute
         wallet = _deploy(msg.sender);
-        bool isNativeAsset = _transfer(tokenIn, wallet);
+
+        bool isNativeAsset;
+        for (uint256 i = 0; i < tokensIn.length; i++) {
+            if (_transfer(tokensIn[i], wallet)) {
+                if (isNativeAsset) revert EnsoWalletV2Factory_DuplicateNativeAsset();
+                isNativeAsset = true;
+            }
+        }
         if (!isNativeAsset && msg.value != 0) {
             revert EnsoWalletV2Factory_WrongMsgValue(msg.value, 0);
         }

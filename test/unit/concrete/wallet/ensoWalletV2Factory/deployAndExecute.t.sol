@@ -35,6 +35,9 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
 
         // it should deploy wallet and execute with native token
         Token memory tokenIn = Token({ tokenType: TokenType.Native, data: "" });
+        Token[] memory tokensIn = new Token[](1);
+        tokensIn[0] = tokenIn;
+    
         uint256 value = 1 ether;
 
         bytes32[] memory commands = new bytes32[](2);
@@ -62,7 +65,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         bytes memory executeData = _buildExecuteShortcutsCalldata(commands, state);
 
         vm.startPrank(s_user);
-        (address walletAddress,) = s_walletFactory.deployAndExecute{ value: value }(tokenIn, executeData);
+        (address walletAddress,) = s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData);
 
         // it should deploy wallet
         assertTrue(walletAddress.code.length > 0);
@@ -82,6 +85,8 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
 
         uint256 value = 1 ether;
         Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(weth, value) });
+        Token[] memory tokensIn = new Token[](1);
+        tokensIn[0] = tokenIn;
 
         bytes32[] memory commands = new bytes32[](1);
         bytes[] memory state = new bytes[](2);
@@ -106,7 +111,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         weth.approve(address(s_walletFactory), value);
 
         vm.startPrank(s_user);
-        (address walletAddress,) = s_walletFactory.deployAndExecute(tokenIn, executeData);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData);
 
         // it should deploy wallet
         assertTrue(walletAddress.code.length > 0);
@@ -123,6 +128,8 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
     function test_revert_ERC20WithNativeValue() external {
         uint256 value = 1 ether;
         Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(weth, value) });
+        Token[] memory tokensIn = new Token[](1);
+        tokensIn[0] = tokenIn;
 
         bytes32[] memory commands = new bytes32[](0);
         bytes[] memory state = new bytes[](0);
@@ -136,11 +143,14 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         vm.expectRevert(
             abi.encodeWithSelector(IEnsoWalletV2Factory.EnsoWalletV2Factory_WrongMsgValue.selector, value, 0)
         );
-        s_walletFactory.deployAndExecute{ value: value }(tokenIn, executeData);
+        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData);
     }
 
     function test_revert_executeShortcut() external {
         Token memory tokenIn = Token({ tokenType: TokenType.Native, data: "" });
+        Token[] memory tokensIn = new Token[](1);
+        tokensIn[0] = tokenIn;
+
         uint256 value = 1 ether;
 
         bytes32[] memory commands = new bytes32[](1);
@@ -161,7 +171,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
 
         vm.startPrank(s_user);
         vm.expectRevert();
-        s_walletFactory.deployAndExecute{ value: value }(tokenIn, executeData);
+        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData);
     }
 
     function _buildExecuteShortcutsCalldata(
