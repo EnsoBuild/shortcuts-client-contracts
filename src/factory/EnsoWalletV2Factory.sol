@@ -2,8 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { Token, TokenType } from "../interfaces/IEnsoRouter.sol";
-import { IEnsoWalletV2 } from "./interfaces/IEnsoWalletV2.sol";
-import { IEnsoWalletV2Factory } from "./interfaces/IEnsoWalletV2Factory.sol";
+import { IEnsoWalletV2 } from "../interfaces/IEnsoWalletV2.sol";
+import { IEnsoWalletV2Factory } from "../interfaces/IEnsoWalletV2Factory.sol";
 import { IERC1155 } from "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";

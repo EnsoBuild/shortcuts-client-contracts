@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
+import { IEnsoWalletV2 } from "../../../../../src/interfaces/IEnsoWalletV2.sol";
 import { EnsoWalletV2 } from "../../../../../src/wallet/EnsoWalletV2.sol";
-import { IEnsoWalletV2 } from "../../../../../src/wallet/interfaces/IEnsoWalletV2.sol";
 import { WeirollPlanner } from "../../../../utils/WeirollPlanner.sol";
 
 import { EnsoWalletV2_Unit_Concrete_Test } from "./EnsoWalletV2.t.sol";

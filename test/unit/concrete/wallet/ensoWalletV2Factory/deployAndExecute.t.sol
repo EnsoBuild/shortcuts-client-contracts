@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
+import { EnsoWalletV2Factory } from "../../../../../src/factory/EnsoWalletV2Factory.sol";
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
+import { IEnsoWalletV2Factory } from "../../../../../src/interfaces/IEnsoWalletV2Factory.sol";
 import { EnsoWalletV2 } from "../../../../../src/wallet/EnsoWalletV2.sol";
-import { EnsoWalletV2Factory } from "../../../../../src/wallet/EnsoWalletV2Factory.sol";
-import { IEnsoWalletV2Factory } from "../../../../../src/wallet/interfaces/IEnsoWalletV2Factory.sol";
 import { WeirollPlanner } from "../../../../utils/WeirollPlanner.sol";
 import { EnsoWalletV2_Unit_Concrete_Test } from "../ensoWalletV2/EnsoWalletV2.t.sol";
 import { WETH } from "solady/tokens/WETH.sol";

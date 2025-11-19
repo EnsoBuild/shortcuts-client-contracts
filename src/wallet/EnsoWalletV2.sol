@@ -3,8 +3,8 @@ pragma solidity ^0.8.28;
 
 import { AbstractEnsoShortcuts } from "../AbstractEnsoShortcuts.sol";
 import { AbstractMultiSend } from "../AbstractMultiSend.sol";
+import { IEnsoWalletV2 } from "../interfaces/IEnsoWalletV2.sol";
 import { Withdrawable } from "../utils/Withdrawable.sol";
-import { IEnsoWalletV2 } from "./interfaces/IEnsoWalletV2.sol";
 import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.sol";
 
 /// @title EnsoWalletV2
