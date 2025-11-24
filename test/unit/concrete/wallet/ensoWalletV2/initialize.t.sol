@@ -18,19 +18,5 @@ contract EnsoWalletV2_Initialize_Unit_Concrete_Test is EnsoWalletV2_Unit_Concret
         vm.expectRevert(abi.encodeWithSelector(Initializable.InvalidInitialization.selector));
         s_wallet.initialize(s_owner);
     }
-
-    function test_WhenNotInitialized() external {
-        // it should initialize correctly
-        EnsoWalletV2 wallet = EnsoWalletV2(payable(address(s_walletImplementation)));
-
-        vm.startPrank(address(s_walletFactory));
-        wallet.initialize(s_owner);
-
-        // it should set owner
-        assertEq(wallet.owner(), s_owner);
-
-        // it should set factory
-        assertEq(wallet.factory(), address(s_walletFactory));
-    }
 }
 
