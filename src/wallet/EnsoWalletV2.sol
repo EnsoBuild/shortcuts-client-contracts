@@ -21,6 +21,10 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
         _;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @inheritdoc IEnsoWalletV2
     function initialize(address owner_) external initializer {
         _owner = owner_;
