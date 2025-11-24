@@ -8,6 +8,7 @@ library ChainId {
     uint256 public constant GNOSIS = 100;
     uint256 public constant UNICHAIN = 130;
     uint256 public constant POLYGON = 137;
+    uint256 public constant MONAD = 143;
     uint256 public constant SONIC = 146;
     uint256 public constant ZKSYNC = 324;
     uint256 public constant WORLD = 480;
