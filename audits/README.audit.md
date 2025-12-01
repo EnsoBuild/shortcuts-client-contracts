@@ -5,7 +5,7 @@
 **Version:** 1.0.0  
 **Audit Date:** [TBD]  
 **PR:** [#60](https://github.com/EnsoBuild/shortcuts-client-contracts/pull/60)  
-**Commit:** [0526e61](https://github.com/EnsoBuild/shortcuts-client-contracts/commit/0526e61e6e1a5a09d2e1b18c34c135d04673b0dd)
+**Commit:** [0526e61](https://github.com/EnsoBuild/shortcuts-client-contracts/commit/a419b1cab6a54b91ce8bd28ccf80327d8a767f21)
 
 ---
 
