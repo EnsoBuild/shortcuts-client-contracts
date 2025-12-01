@@ -19,7 +19,7 @@ import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 ///      - Relies on Chainlink CCIP Router gating via {CCIPReceiver}.
 ///      - Maintains idempotency with a messageId → handled flag.
 ///      - Validates `destTokenAmounts` has exactly one ERC-20 with non-zero amount.
-///      - Decodes `(receiver, estimatedGas, shortcutData)` from the message payload (temp external helper).
+///      - Decodes `(receiver, shortcutData)` from the message payload (temp external helper).
 ///      - For environment issues (PAUSED), refunds to `receiver` for better UX.
 ///      - For malformed messages (no/too many tokens, zero amount, bad payload, zero address receiver), quarantines
 ///      funds in this contract.
@@ -50,8 +50,8 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
     /// @dev Flow:
     ///      1) Replay check by `messageId` (idempotent no-op if already handled).
     ///      2) Validate token shape (exactly one ERC-20, non-zero amount).
-    ///      3) Decode payload `(receiver, estimatedGas, shortcutData)` using a temporary external helper.
-    ///      4) Environment checks: `paused()` and `estimatedGas` hint vs `gasleft()`.
+    ///      3) Decode payload `(receiver, shortcutData)` using a temporary external helper.
+    ///      4) Environment checks: `paused()`.
     ///      5) If non-OK → select refund policy:
     ///            - TO_RECEIVER for environment issues (PAUSED),
     ///            - TO_ESCROW for malformed token/payload (funds remain in this contract),

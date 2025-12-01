@@ -16,7 +16,7 @@ interface IEnsoCCIPReceiver {
     /// - NO_ERROR: message is well-formed; proceed to execution.
     /// - ALREADY_EXECUTED: messageId was previously handled (idempotent no-op).
     /// - NO_TOKENS / TOO_MANY_TOKENS / NO_TOKEN_AMOUNT: token shape invalid.
-    /// - MALFORMED_MESSAGE_DATA: payload (address,uint256,bytes) could not be decoded.
+    /// - MALFORMED_MESSAGE_DATA: payload (address,bytes) could not be decoded.
     /// - ZERO_ADDRESS_RECEIVER: payload receiver is the zero address.
     /// - PAUSED: contract is paused; environment block on execution.
     enum ErrorCode {
