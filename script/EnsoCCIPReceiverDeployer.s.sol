@@ -17,6 +17,7 @@ contract EnsoCCIPReceiverDeployer is Script {
         uint256 chainId = block.chainid;
 
         // TODO: set owner address
+        owner = 0x6AA68C46eD86161eB318b1396F7b79E386e88676;
         if (chainId == ChainId.ETHEREUM) {
             ccipRouter = 0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
