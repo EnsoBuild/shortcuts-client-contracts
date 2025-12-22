@@ -36,12 +36,15 @@ contract EnsoCCIPReceiverDeployer is Script {
         } else if (chainId == ChainId.POLYGON) {
             ccipRouter = 0x849c5ED5a80F5B408Dd4969b78c2C8fdf0565Bfe;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
+        } else if (chainId == ChainId.MONAD) {
+            ccipRouter = 0x33566fE5976AAa420F3d5C64996641Fc3858CaDB;
+            ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // NOTE: different router for Monad
         } else if (chainId == ChainId.SONIC) {
             ccipRouter = 0xB4e1Ff7882474BB93042be9AD5E1fA387949B860;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         } else if (chainId == ChainId.ZKSYNC) {
             ccipRouter = 0x748Fd769d81F5D94752bf8B0875E9301d0ba71bB;
-            ensoRouter = 0x1BD8CefD703CF6b8fF886AD2E32653C32bc62b5C; // NOTE: different router for zksync
+            ensoRouter = 0x1BD8CefD703CF6b8fF886AD2E32653C32bc62b5C; // NOTE: different router for zkSync
         } else if (chainId == ChainId.WORLD) {
             ccipRouter = 0x5fd9E4986187c56826A3064954Cfa2Cf250cfA0f;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
@@ -53,7 +56,7 @@ contract EnsoCCIPReceiverDeployer is Script {
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         } else if (chainId == ChainId.PLASMA) {
             ccipRouter = 0xcDca5D374e46A6DDDab50bD2D9acB8c796eC35C3;
-            ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // NOTE: different router for plasma
+            ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // NOTE: different router for Plasma
         } else if (chainId == ChainId.ARBITRUM) {
             ccipRouter = 0x141fa059441E0ca23ce184B6A78bafD2A517DdE8;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
@@ -65,13 +68,13 @@ contract EnsoCCIPReceiverDeployer is Script {
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         } else if (chainId == ChainId.LINEA) {
             ccipRouter = 0x549FEB73F2348F6cD99b9fc8c69252034897f06C;
-            ensoRouter = 0xA146d46823f3F594B785200102Be5385CAfCE9B5; // NOTE: different router for linea
+            ensoRouter = 0xA146d46823f3F594B785200102Be5385CAfCE9B5; // NOTE: different router for Linea
         } else if (chainId == ChainId.BERACHAIN) {
             ccipRouter = 0x71a275704c283486fBa26dad3dd0DB78804426eF;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         } else if (chainId == ChainId.PLUME) {
             ccipRouter = 0x5C4f4622AD0EC4a47e04840db7E9EcA8354109af;
-            ensoRouter = 0x3067BDBa0e6628497d527bEF511c22DA8b32cA3F; // NOTE: different router for plume
+            ensoRouter = 0x3067BDBa0e6628497d527bEF511c22DA8b32cA3F; // NOTE: different router for Plume
         } else if (chainId == ChainId.KATANA) {
             ccipRouter = 0x7c19b79D2a054114Ab36ad758A36e92376e267DA;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;

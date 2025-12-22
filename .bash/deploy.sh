@@ -24,25 +24,33 @@ fi
 if [[ $network_upper == "POLYGON" ]]; then
     params+=(--gas-estimate-multiplier 300)
 fi
-if [ "$broadcast" == "broadcast" ]; then
+if [ $broadcast == "broadcast" ]; then
     params+=(--broadcast)
     if [ -n "$verifier" ]; then
         params+=(--verify)
         params+=(--verifier "${verifier}")
-        if [ "$verifier" == "etherscan" ]; then
-            params+=(--etherscan-api-key "${!blockscan_key}")
-        elif [ "$verifier" == "routescan" ]; then
+        if [ $verifier == "etherscan" ]; then
+            params+=(--etherscan-api-key ${!blockscan_key})
+        elif [ $verifier == "routescan" ]; then
             params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan")
             params+=(--etherscan-api-key "verifyContract")
-        elif [ "$verifier" == "blockscout" ]; then
-            if [ "$network_upper" == "INK" ]; then
+        elif [ $verifier == "blockscout" ]; then
+            if [ $network_upper == "INK"]; then
                 params+=(--verifier-url "https://explorer.inkonchain.com/api")
-            elif [ "$network_upper" == "PLUME" ]; then
+                params+=(--etherscan-api-key ${!blockscan_key})
+            elif [ $network_upper == "PLUME"]; then
                 params+=(--verifier-url "https://explorer.plume.org/api")
-            elif [ "$network_upper" == "KATANA" ]; then
+                params+=(--etherscan-api-key ${!blockscan_key})
+            elif [ $network_upper == "KATANA"]; then
                 params+=(--verifier-url "https://explorer.katanarpc.com/api")
+                params+=(--etherscan-api-key ${!blockscan_key})
             else
                 params+=(--verifier-url "https://${network}.blockscout.com/api")
+                params+=(--etherscan-api-key ${!blockscan_key})
+            fi
+        elif [ $verifier == "sourcify"]; then
+            if [ $network_upper == "MONAD"]; then
+                params+=(--verifier-url "https://sourcify-api-monad.blockvision.org/")
             fi
         fi
     fi
