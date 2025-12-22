@@ -171,7 +171,7 @@ bsc = { key = "${BSC_BLOCKSCAN_KEY}" }
 gnosis = { key = "${GNOSIS_BLOCKSCAN_KEY}" }
 linea = { key = "${LINEA_BLOCKSCAN_KEY}" }
 mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
-monad = { key = "${MONAD_BLOCKSCAN_KEY}" }
+monad = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
 optimism = { key = "${OPTIMISM_BLOCKSCAN_KEY}" }
 plume = { key = "${PLUME_BLOCKSCAN_KEY}" }
 polygon = { key = "${POLYGON_BLOCKSCAN_KEY}" }
