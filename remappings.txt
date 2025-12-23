@@ -3,6 +3,8 @@
 @layerzerolabs/lz-evm-oapp-v2/=dependencies/layerzero-v2-2.0.2/packages/layerzero-v2/evm/oapp/
 @uniswap/v4-core/=dependencies/v4-core-4.0.0/
 @uniswap/v4-periphery/=dependencies/v4-periphery-4.0.0/
+@uniswap/universal-router/=dependencies/universal-router-4.0.0/
+@uniswap/permit2/=dependencies/permit2-4.0.0/
 devtools/=dependencies/devtools-0.0.1/packages/toolbox-foundry/src/
 ds-test/=dependencies/forge-std-1.9.7/dependencies/ds-test/src/
 enso-weiroll/=dependencies/enso-weiroll-1.4.1/contracts/
@@ -42,3 +44,4 @@ chainlink-evm-1.5.0/=dependencies/chainlink-evm-1.5.0/contracts/src/v0.8/
 @openzeppelin/contracts@5.0.2/utils/introspection/ERC165Checker.sol=dependencies/@openzeppelin-contracts-5.2.0/contracts/utils/introspection/ERC165Checker.sol
 @openzeppelin/contracts@4.8.3/token/ERC20/utils/SafeERC20.sol=dependencies/@openzeppelin-contracts-5.2.0/contracts/token/ERC20/utils/SafeERC20.sol
 @openzeppelin/contracts@4.8.3/token/ERC20/IERC20.sol=dependencies/@openzeppelin-contracts-5.2.0/contracts/token/ERC20/IERC20.sol
+universal-router-4.0.0/=dependencies/universal-router-4.0.0/
