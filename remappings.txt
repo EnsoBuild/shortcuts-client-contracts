@@ -3,6 +3,8 @@
 @layerzerolabs/lz-evm-oapp-v2/=dependencies/layerzero-v2-2.0.2/packages/layerzero-v2/evm/oapp/
 @uniswap/v4-core/=dependencies/v4-core-4.0.0/
 @uniswap/v4-periphery/=dependencies/v4-periphery-4.0.0/
+@uniswap/universal-router/=dependencies/universal-router-4.0.0/
+@uniswap/permit2/=dependencies/permit2-4.0.0/
 devtools/=dependencies/devtools-0.0.1/packages/toolbox-foundry/src/
 ds-test/=dependencies/forge-std-1.9.7/dependencies/ds-test/src/
 enso-weiroll/=dependencies/enso-weiroll-1.4.1/contracts/
@@ -34,3 +36,4 @@ safe-tools-0.2.0/=dependencies/safe-tools-0.2.0/src/
 solady-0.1.22/=dependencies/solady-0.1.22/src/
 v4-core-4.0.0/=dependencies/v4-core-4.0.0/src/
 v4-periphery-4.0.0/=dependencies/v4-periphery-4.0.0/src/
+universal-router-4.0.0/=dependencies/universal-router-4.0.0/
