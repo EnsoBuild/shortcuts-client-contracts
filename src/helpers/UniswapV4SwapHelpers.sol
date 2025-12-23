@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IPermit2 } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import { IUniversalRouter } from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import { Commands } from "@uniswap/universal-router/contracts/libraries/Commands.sol";
@@ -11,6 +12,8 @@ import { IV4Router } from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
 import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 
 contract UniswapV4SwapHelpers {
+    using SafeERC20 for IERC20;
+
     IUniversalRouter public immutable UNIVERSAL_ROUTER;
     IPermit2 public immutable PERMIT2;
 
@@ -86,7 +89,7 @@ contract UniswapV4SwapHelpers {
     }
 
     function approveToken(address token, uint256 amount) private {
-        IERC20(token).approve(address(PERMIT2), amount);
+        IERC20(token).forceApprove(address(PERMIT2), amount);
         PERMIT2.approve(token, address(UNIVERSAL_ROUTER), uint160(amount), type(uint48).max);
     }
 }
