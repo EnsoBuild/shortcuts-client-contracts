@@ -138,8 +138,8 @@ safe-tools = { version = "0.2.0", git = "https://github.com/colinnielsen/safe-to
 solady = { version = "0.1.22", git = "https://github.com/Vectorized/solady.git", tag = "v0.1.22" }
 v4-core = { version = "4.0.0", git = "https://github.com/Uniswap/v4-core.git", rev = "e50237c43811bd9b526eff40f26772152a42daba" }
 v4-periphery = { version = "4.0.0", git = "https://github.com/Uniswap/v4-periphery.git", rev = "9628c36b4f5083d19606e63224e4041fe748edae" }
-universal-router = { version = "4.0.0", git = "https://github.com/uniswap/universal-router", rev = "705f7bb9836ebc4f6ad1aad91629c3d0fc4128d4" }
-permit2 = { version = "4.0.0", git = "https://github.com/uniswap/permit2", rev = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219" }
+universal-router = { version = "4.0.0", git = "https://github.com/Uniswap/universal-router", rev = "705f7bb9836ebc4f6ad1aad91629c3d0fc4128d4" }
+permit2 = { version = "4.0.0", git = "https://github.com/Uniswap/permit2", rev = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219" }
 
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"
