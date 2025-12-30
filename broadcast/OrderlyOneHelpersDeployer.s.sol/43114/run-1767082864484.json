@@ -1,0 +1,37 @@
+{
+  "transactions": [
+    {
+      "hash": "0x492b5133227fba8d5a2c72cd89e2d7b5f0a6300d31e96029bf0cf0201ed6c1b6",
+      "transactionType": "CREATE2",
+      "contractName": "OrderlyOneHelpers",
+      "contractAddress": "0x06e68d7cd05549f2896d8c0900a5f6fa0ebc6add",
+      "function": null,
+      "arguments": null,
+      "transaction": {
+        "from": "0x4e758bb9f101344f251e9ef40ab6b9f00406fbe9",
+        "to": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+        "gas": "0x1cd56",
+        "value": "0x0",
+        "input": "0x4f726465726c794f6e6548656c70657273000000000000000000000000000000608080604052346013576092908160188239f35b5f80fdfe60806004361015600d575f80fd5b5f3560e01c63764907bf14601f575f80fd5b34608e576040366003190112608e576024356001600160a01b03811690819003608e5760208201908152600435604083015260408252606082019082821067ffffffffffffffff831117607a57602092826040525190208152f35b634e487b7160e01b5f52604160045260245ffd5b5f80fd",
+        "nonce": "0x0",
+        "chainId": "0xa86a"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    }
+  ],
+  "receipts": [],
+  "libraries": [],
+  "pending": [
+    "0x492b5133227fba8d5a2c72cd89e2d7b5f0a6300d31e96029bf0cf0201ed6c1b6"
+  ],
+  "returns": {
+    "orderlyOneHelpers": {
+      "internal_type": "contract OrderlyOneHelpers",
+      "value": "0x06e68d7CD05549F2896D8c0900A5F6Fa0Ebc6ADD"
+    }
+  },
+  "timestamp": 1767082864484,
+  "chain": 43114,
+  "commit": "224e79f"
+}
