@@ -11,7 +11,92 @@ import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { IV4Router } from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
 import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 
-contract UniswapV4SwapHelpers {
+/// @notice Original implementation for gas comparison (BEFORE refactor)
+contract UniswapV4SwapHelpersOriginal {
+    using SafeERC20 for IERC20;
+
+    IUniversalRouter public immutable UNIVERSAL_ROUTER;
+    IPermit2 public immutable PERMIT2;
+
+    constructor(IUniversalRouter universalRouter, IPermit2 permit2) {
+        UNIVERSAL_ROUTER = universalRouter;
+        PERMIT2 = permit2;
+    }
+
+    function swapExactInSingle(
+        PoolKey calldata poolKey,
+        bool zeroForOne,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint256 deadline,
+        address receiver,
+        bytes calldata hookData
+    )
+        public
+        payable
+        returns (uint256 amountOut)
+    {
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
+
+        bytes memory actions =
+            abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
+        bytes[] memory params = new bytes[](3);
+
+        params[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: poolKey,
+                zeroForOne: zeroForOne,
+                amountIn: uint128(amountIn),
+                amountOutMinimum: uint128(minAmountOut),
+                hookData: hookData
+            })
+        );
+
+        if (zeroForOne) {
+            params[1] = abi.encode(poolKey.currency0, amountIn);
+            params[2] = abi.encode(poolKey.currency1, minAmountOut);
+
+            if (poolKey.currency0.isAddressZero()) {
+                require(msg.value != 0);
+            } else {
+                require(msg.value == 0);
+                IERC20(Currency.unwrap(poolKey.currency0)).transferFrom(msg.sender, address(this), amountIn);
+                approveToken(Currency.unwrap(poolKey.currency0), amountIn);
+            }
+        } else {
+            params[1] = abi.encode(poolKey.currency1, amountIn);
+            params[2] = abi.encode(poolKey.currency0, minAmountOut);
+
+            if (poolKey.currency1.isAddressZero()) {
+                require(msg.value != 0);
+            } else {
+                require(msg.value == 0);
+                IERC20(Currency.unwrap(poolKey.currency1)).transferFrom(msg.sender, address(this), amountIn);
+                approveToken(Currency.unwrap(poolKey.currency1), amountIn);
+            }
+        }
+
+        inputs[0] = abi.encode(actions, params);
+
+        UNIVERSAL_ROUTER.execute{ value: msg.value }(commands, inputs, deadline);
+
+        address tokenOut = Currency.unwrap(zeroForOne ? poolKey.currency1 : poolKey.currency0);
+        amountOut = IERC20(tokenOut).balanceOf(address(this));
+        require(amountOut >= minAmountOut, "UniswapV4SwapHelpers: Insufficient output amount");
+        IERC20(tokenOut).transfer(receiver, amountOut);
+
+        return amountOut;
+    }
+
+    function approveToken(address token, uint256 amount) private {
+        IERC20(token).forceApprove(address(PERMIT2), amount);
+        PERMIT2.approve(token, address(UNIVERSAL_ROUTER), uint160(amount), type(uint48).max);
+    }
+}
+
+/// @notice Refactored implementation for gas comparison (AFTER refactor)
+contract UniswapV4SwapHelpersRefactored {
     using SafeERC20 for IERC20;
 
     IUniversalRouter public immutable UNIVERSAL_ROUTER;
