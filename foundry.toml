@@ -14,6 +14,11 @@ src = "src"
 test = "test"
 via_ir = true
 
+[profile.test-high-optimization]
+optimizer = true
+optimizer-runs = 10000
+via_ir = true  # Keep via-ir enabled like default profile
+
 [fmt]
 bracket_spacing = true
 contract_new_lines = false
