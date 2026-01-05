@@ -12,9 +12,12 @@ import { Initializable } from "openzeppelin-contracts/proxy/utils/Initializable.
 /// @notice Minimal wallet that supports shortcuts, multi-send, and arbitrary execution
 contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts, Initializable, Withdrawable {
     /// @inheritdoc IEnsoWalletV2
-    string public constant VERSION = "1.0.0";
+    string public constant VERSION = "1.0.1";
     address public factory;
     address private _owner;
+
+    /// @inheritdoc IEnsoWalletV2
+    mapping(address executor => bool isAllowed) public executors;
 
     modifier onlyOwner() {
         _checkOwner();
@@ -54,14 +57,35 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
         }
     }
 
+    /// @inheritdoc IEnsoWalletV2
+    function setExecutor(address executor, bool allowed) external onlyOwner {
+        executors[executor] = allowed;
+        emit ExecutorSet(executor, allowed);
+    }
+
     function owner() public view override returns (address) {
         return _owner;
     }
 
     function _checkMsgSender() internal view override(AbstractEnsoShortcuts, AbstractMultiSend) {
-        if (msg.sender != factory && msg.sender != owner()) {
+        if (msg.sender != owner() && msg.sender != factory && !executors[msg.sender]) {
             revert EnsoWalletV2_InvalidSender(msg.sender);
         }
+    }
+
+    /// @inheritdoc IEnsoWalletV2
+    function executeShortcut(
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] calldata commands,
+        bytes[] calldata state
+    )
+        public
+        payable
+        override(IEnsoWalletV2, AbstractEnsoShortcuts)
+        returns (bytes[] memory response)
+    {
+        return super.executeShortcut(accountId, requestId, commands, state);
     }
 
     function _checkOwner() internal view override {
