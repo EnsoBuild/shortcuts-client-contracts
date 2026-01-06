@@ -166,6 +166,11 @@ soneium = "${SONEIUM_RPC_URL}"
 sonic = "${SONIC_RPC_URL}"
 world = "${WORLD_RPC_URL}"
 zksync = "${ZKSYNC_RPC_URL}"
+unichain = "${UNICHAIN_RPC_URL}"
+monad = "${MONAD_RPC_URL}"
+world = "${WORLD_RPC_URL}"
+soneium = "${SONEIUM_RPC_URL}"
+ink = "${INK_RPC_URL}"
 
 [etherscan]
 arbitrum = { key = "${ARBITRUM_BLOCKSCAN_KEY}" }
