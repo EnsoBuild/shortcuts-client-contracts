@@ -17,6 +17,9 @@ contract UniswapV4SwapHelpers {
     IUniversalRouter public immutable UNIVERSAL_ROUTER;
     IPermit2 public immutable PERMIT2;
 
+    error InvalidValue();
+    error InsufficientOutputAmount(uint256 amountOut, uint256 minAmountOut);
+
     constructor(IUniversalRouter universalRouter, IPermit2 permit2) {
         UNIVERSAL_ROUTER = universalRouter;
         PERMIT2 = permit2;
@@ -52,37 +55,33 @@ contract UniswapV4SwapHelpers {
             })
         );
 
-        if (zeroForOne) {
-            params[1] = abi.encode(poolKey.currency0, amountIn);
-            params[2] = abi.encode(poolKey.currency1, minAmountOut);
+        Currency currencyIn = zeroForOne ? poolKey.currency0 : poolKey.currency1;
+        Currency currencyOut = zeroForOne ? poolKey.currency1 : poolKey.currency0;
 
-            if (poolKey.currency0.isAddressZero()) {
-                require(msg.value != 0);
-            } else {
-                require(msg.value == 0);
-                IERC20(Currency.unwrap(poolKey.currency0)).transferFrom(msg.sender, address(this), amountIn);
-                approveToken(Currency.unwrap(poolKey.currency0), amountIn);
+        params[1] = abi.encode(currencyIn, amountIn);
+        params[2] = abi.encode(currencyOut, minAmountOut);
+
+        if (currencyIn.isAddressZero()) {
+            if (msg.value == 0) {
+                revert InvalidValue();
             }
         } else {
-            params[1] = abi.encode(poolKey.currency1, amountIn);
-            params[2] = abi.encode(poolKey.currency0, minAmountOut);
-
-            if (poolKey.currency1.isAddressZero()) {
-                require(msg.value != 0);
-            } else {
-                require(msg.value == 0);
-                IERC20(Currency.unwrap(poolKey.currency1)).transferFrom(msg.sender, address(this), amountIn);
-                approveToken(Currency.unwrap(poolKey.currency1), amountIn);
+            if (msg.value != 0) {
+                revert InvalidValue();
             }
+            address tokenIn = Currency.unwrap(currencyIn);
+            IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+            approveToken(tokenIn, amountIn);
         }
 
         inputs[0] = abi.encode(actions, params);
-
         UNIVERSAL_ROUTER.execute{ value: msg.value }(commands, inputs, deadline);
 
-        address tokenOut = Currency.unwrap(zeroForOne ? poolKey.currency1 : poolKey.currency0);
+        address tokenOut = Currency.unwrap(currencyOut);
         amountOut = IERC20(tokenOut).balanceOf(address(this));
-        require(amountOut >= minAmountOut, "UniswapV4SwapHelpers: Insufficient output amount");
+        if (amountOut < minAmountOut) {
+            revert InsufficientOutputAmount(amountOut, minAmountOut);
+        }
         IERC20(tokenOut).transfer(receiver, amountOut);
 
         return amountOut;
