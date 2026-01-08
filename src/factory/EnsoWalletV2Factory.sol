@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 import { Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 import { IEnsoWalletV2 } from "../interfaces/IEnsoWalletV2.sol";
@@ -58,7 +58,9 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         bool isNativeAsset;
         for (uint256 i = 0; i < tokensIn.length; i++) {
             if (_transfer(tokensIn[i], wallet)) {
-                if (isNativeAsset) revert EnsoWalletV2Factory_DuplicateNativeAsset();
+                if (isNativeAsset) {
+                    revert EnsoWalletV2Factory_DuplicateNativeAsset();
+                }
                 isNativeAsset = true;
             }
         }
