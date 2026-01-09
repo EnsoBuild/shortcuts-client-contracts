@@ -76,7 +76,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
                     revert(add(0x20, response), mload(response))
                 }
             }
-            revert EnsoWalletV2Factory_ExecutionFailed();
+            revert EnsoWalletV2Factory_ExecutionFailedNoReason();
         }
     }
 
