@@ -37,7 +37,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         Token memory tokenIn = Token({ tokenType: TokenType.Native, data: "" });
         Token[] memory tokensIn = new Token[](1);
         tokensIn[0] = tokenIn;
-    
+
         uint256 value = 1 ether;
 
         bytes32[] memory commands = new bytes32[](2);

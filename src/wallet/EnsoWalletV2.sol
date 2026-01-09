@@ -50,7 +50,7 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
                     revert(add(0x20, response), mload(response))
                 }
             }
-            revert EnsoWalletV2_ExecutionFailed();
+            revert EnsoWalletV2_ExecutionFailedNoReason();
         }
     }
 

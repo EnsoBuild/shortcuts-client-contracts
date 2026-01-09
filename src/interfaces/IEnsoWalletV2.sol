@@ -5,8 +5,8 @@ pragma solidity ^0.8.20;
 /// @author Enso
 /// @notice Interface for Enso Wallet V2 - a minimal wallet that supports shortcuts and multi-send operations
 interface IEnsoWalletV2 {
-    /// @notice Thrown when an execution call fails
-    error EnsoWalletV2_ExecutionFailed();
+    /// @notice Thrown when an execution call fails without revert reason
+    error EnsoWalletV2_ExecutionFailedNoReason();
 
     /// @notice Thrown when the sender is not authorized
     /// @param sender The address that attempted the unauthorized call
