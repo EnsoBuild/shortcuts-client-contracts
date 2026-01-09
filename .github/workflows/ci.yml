@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - "*" # Trigger on any push to any branch
+      - '*' # Trigger on any push to any branch
 
   pull_request:
     branches:
@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -46,9 +48,6 @@ jobs:
 
       - name: Show Forge version
         run: forge --version
-
-      - name: Install Forge dependencies
-        run: forge soldeer install
 
       - name: Build contracts
         run: forge build --sizes
