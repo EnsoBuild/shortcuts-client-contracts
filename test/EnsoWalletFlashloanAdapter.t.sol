@@ -1,0 +1,307 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.28;
+
+import "../lib/forge-std/src/Test.sol";
+
+import "../src/flashloan/EnsoWalletFlashloanAdapter.sol";
+import "../src/flashloan/AbstractEnsoFlashloan.sol";
+import "../src/wallet/EnsoWalletV2.sol";
+import "../src/factory/EnsoWalletV2Factory.sol";
+
+import "./utils/WeirollPlanner.sol";
+
+interface IWETH {
+    function deposit() external payable;
+    function withdraw(uint256) external;
+    function transfer(address to, uint256 value) external returns (bool);
+    function balanceOf(address) external view returns (uint256);
+}
+
+interface IERC20Minimal {
+    function transfer(address to, uint256 value) external returns (bool);
+    function balanceOf(address) external view returns (uint256);
+}
+
+contract EnsoWalletFlashloanAdapterTest is Test {
+    EnsoWalletFlashloanAdapter public adapter;
+    EnsoWalletV2 public walletImplementation;
+    EnsoWalletV2Factory public walletFactory;
+    EnsoWalletV2 public wallet;
+
+    address user_bob = makeAddr("bob");
+    address receiver = makeAddr("receiver");
+
+    // Mainnet addresses
+    address morpho = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
+    address aaveV3Pool = address(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
+    address balancerV3Vault = address(0xbA1333333333a1BA1108E8412f11850A5C319bA9);
+    address weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+
+    string _rpcURL = vm.envString("ETHEREUM_RPC_URL");
+    uint256 _ethereumFork;
+
+    function setUp() public {
+        _ethereumFork = vm.createFork(_rpcURL);
+        vm.selectFork(_ethereumFork);
+
+        // Deploy wallet infrastructure
+        walletImplementation = new EnsoWalletV2();
+        walletFactory = new EnsoWalletV2Factory(address(walletImplementation));
+
+        // Deploy wallet for user_bob
+        wallet = EnsoWalletV2(payable(walletFactory.deploy(user_bob)));
+
+        // Deploy adapter with trusted lenders
+        address[] memory lenders = new address[](3);
+        LenderProtocol[] memory protocols = new LenderProtocol[](3);
+
+        lenders[0] = morpho;
+        protocols[0] = LenderProtocol.Morpho;
+
+        lenders[1] = aaveV3Pool;
+        protocols[1] = LenderProtocol.AaveV3;
+
+        lenders[2] = balancerV3Vault;
+        protocols[2] = LenderProtocol.BalancerV3;
+
+        adapter = new EnsoWalletFlashloanAdapter(lenders, protocols);
+
+        // Set the adapter as executor on the wallet so it can call executeShortcut
+        vm.prank(user_bob);
+        wallet.setExecutor(address(adapter), true);
+    }
+
+    // Morpho test:
+    // - flashloan asset: WETH
+    // - WETH.withdraw -> WETH.deposit -> transfer back to adapter
+    function testMorphoFlashloan() public {
+        vm.selectFork(_ethereumFork);
+
+        IWETH token = IWETH(weth);
+        uint256 amount = 1 ether;
+
+        // Build weiroll commands:
+        // 1. Unwrap WETH to ETH
+        // 2. Wrap ETH back to WETH
+        // 3. Transfer WETH back to adapter for repayment
+        bytes32[] memory commands = new bytes32[](3);
+        bytes[] memory state = new bytes[](2);
+
+        // Command 0: WETH.withdraw(amount) - unwrap
+        commands[0] = WeirollPlanner.buildCommand(
+            token.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // input from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 1: WETH.deposit{value: amount}() - wrap
+        commands[1] = WeirollPlanner.buildCommand(
+            token.deposit.selector,
+            0x03, // call with value
+            0x00ffffffffff, // value from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 2: WETH.transfer(adapter, amount) - send back for repayment
+        commands[2] = WeirollPlanner.buildCommand(
+            token.transfer.selector,
+            0x01, // call
+            0x0100ffffffff, // inputs from state[1], state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        state[0] = abi.encode(amount);
+        state[1] = abi.encode(address(adapter));
+
+        bytes memory morphoData = abi.encode(morpho, token, amount);
+
+        // Wallet must be the msg.sender when calling executeFlashloan
+        bytes memory callData = abi.encodeWithSelector(
+            adapter.executeFlashloan.selector,
+            LenderProtocol.Morpho,
+            morphoData,
+            bytes32(0), // accountId
+            bytes32(0), // requestId
+            commands,
+            state
+        );
+
+        vm.prank(user_bob);
+        wallet.execute(address(adapter), 0, callData);
+    }
+
+    // Aave V3 test:
+    // - flashloan asset: WETH
+    // - WETH.withdraw -> WETH.deposit -> transfer back to adapter (amount + premium)
+    function testAaveV3Flashloan() public {
+        vm.selectFork(_ethereumFork);
+
+        IWETH token = IWETH(weth);
+        uint256 amount = 1 ether;
+
+        // Calculate Aave premium
+        uint256 BPS = 10_000;
+        uint256 totalFee = IAaveV3Pool(aaveV3Pool).FLASHLOAN_PREMIUM_TOTAL();
+        uint256 premium = (amount * totalFee) / BPS;
+        uint256 repayAmount = amount + premium;
+
+        // Fund the wallet with premium amount (user needs to provide this)
+        vm.deal(user_bob, premium);
+        vm.prank(user_bob);
+        token.deposit{ value: premium }();
+        vm.prank(user_bob);
+        token.transfer(address(wallet), premium);
+
+        // Build weiroll commands:
+        // 1. Unwrap flashloaned WETH to ETH
+        // 2. Wrap ETH back to WETH
+        // 3. Transfer WETH back to adapter for repayment (amount + premium)
+        bytes32[] memory commands = new bytes32[](3);
+        bytes[] memory state = new bytes[](3);
+
+        // Command 0: WETH.withdraw(amount) - unwrap only flashloaned amount
+        commands[0] = WeirollPlanner.buildCommand(
+            token.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // input from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 1: WETH.deposit{value: amount}() - wrap
+        commands[1] = WeirollPlanner.buildCommand(
+            token.deposit.selector,
+            0x03, // call with value
+            0x00ffffffffff, // value from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 2: WETH.transfer(adapter, repayAmount) - send back for repayment
+        commands[2] = WeirollPlanner.buildCommand(
+            token.transfer.selector,
+            0x01, // call
+            0x0102ffffffff, // inputs from state[1], state[2]
+            0xff, // no output
+            address(token)
+        );
+
+        state[0] = abi.encode(amount);
+        state[1] = abi.encode(address(adapter));
+        state[2] = abi.encode(repayAmount);
+
+        bytes memory aaveData = abi.encode(aaveV3Pool, token, amount);
+
+        // Wallet must be the msg.sender when calling executeFlashloan
+        bytes memory callData = abi.encodeWithSelector(
+            adapter.executeFlashloan.selector,
+            LenderProtocol.AaveV3,
+            aaveData,
+            bytes32(0), // accountId
+            bytes32(0), // requestId
+            commands,
+            state
+        );
+
+        vm.prank(user_bob);
+        wallet.execute(address(adapter), 0, callData);
+    }
+
+    // BalancerV3 test:
+    // - flashloan asset: WETH
+    // - WETH.withdraw -> WETH.deposit -> transfer back to adapter
+    function testBalancerV3Flashloan() public {
+        vm.selectFork(_ethereumFork);
+
+        IWETH token = IWETH(weth);
+        uint256 amount = 1 ether;
+
+        // Build weiroll commands:
+        // 1. Unwrap WETH to ETH
+        // 2. Wrap ETH back to WETH
+        // 3. Transfer WETH back to adapter for repayment
+        bytes32[] memory commands = new bytes32[](3);
+        bytes[] memory state = new bytes[](2);
+
+        // Command 0: WETH.withdraw(amount) - unwrap
+        commands[0] = WeirollPlanner.buildCommand(
+            token.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // input from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 1: WETH.deposit{value: amount}() - wrap
+        commands[1] = WeirollPlanner.buildCommand(
+            token.deposit.selector,
+            0x03, // call with value
+            0x00ffffffffff, // value from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 2: WETH.transfer(adapter, amount) - send back for repayment
+        commands[2] = WeirollPlanner.buildCommand(
+            token.transfer.selector,
+            0x01, // call
+            0x0100ffffffff, // inputs from state[1], state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        state[0] = abi.encode(amount);
+        state[1] = abi.encode(address(adapter));
+
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(token);
+        amounts[0] = amount;
+
+        bytes memory balancerData = abi.encode(balancerV3Vault, tokens, amounts);
+
+        // Wallet must be the msg.sender when calling executeFlashloan
+        bytes memory callData = abi.encodeWithSelector(
+            adapter.executeFlashloan.selector,
+            LenderProtocol.BalancerV3,
+            balancerData,
+            bytes32(0), // accountId
+            bytes32(0), // requestId
+            commands,
+            state
+        );
+
+        vm.prank(user_bob);
+        wallet.execute(address(adapter), 0, callData);
+    }
+
+    // Test that unauthorized lender cannot call callbacks
+    function testUnauthorizedLenderReverts() public {
+        vm.selectFork(_ethereumFork);
+
+        address unauthorizedLender = makeAddr("unauthorized");
+
+        vm.prank(unauthorizedLender);
+        vm.expectRevert(AbstractEnsoFlashloan.UnknownLender.selector);
+        adapter.onMorphoFlashLoan(1 ether, "");
+    }
+
+    // Test that non-executor cannot call wallet's executeShortcut
+    function testNonExecutorCannotCallWallet() public {
+        vm.selectFork(_ethereumFork);
+
+        address randomCaller = makeAddr("random");
+
+        bytes32[] memory commands = new bytes32[](0);
+        bytes[] memory state = new bytes[](0);
+
+        vm.prank(randomCaller);
+        vm.expectRevert(abi.encodeWithSelector(IEnsoWalletV2.EnsoWalletV2_InvalidSender.selector, randomCaller));
+        wallet.executeShortcut(bytes32(0), bytes32(0), commands, state);
+    }
+}
+
