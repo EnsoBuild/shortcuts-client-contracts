@@ -1,0 +1,225 @@
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity ^0.8.28;
+
+import { IEnsoWalletV2 } from "../interfaces/IEnsoWalletV2.sol";
+import { BalancerV3FlashloanParams, IAaveV3Pool, IBalancerV3Vault, IMorpho } from "./EnsoFlashloanInterfaces.sol";
+import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+
+enum LenderProtocol {
+    None,
+    Morpho,
+    AaveV3,
+    BalancerV3
+}
+
+abstract contract AbstractEnsoFlashloan {
+    using SafeERC20 for IERC20;
+
+    error UnsupportedProtocol();
+    error NotAuthorized();
+    error UnknownLender();
+    error IncorrectPaybackAmount(uint256 amount, uint256 requiredAmount);
+    error WrongConstrutorParams();
+
+    mapping(address lender => LenderProtocol protocol) private _trustedLenders;
+
+    constructor(address[] memory lenders, LenderProtocol[] memory protocols) {
+        if (lenders.length != protocols.length) {
+            revert WrongConstrutorParams();
+        }
+
+        for (uint256 i = 0; i < lenders.length; i++) {
+            _trustedLenders[lenders[i]] = protocols[i];
+        }
+    }
+
+    function executeFlashloan(
+        LenderProtocol protocol,
+        bytes calldata protocolFlashloanData,
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] calldata commands,
+        bytes[] calldata state
+    )
+        external
+        payable
+    {
+        if (protocol == LenderProtocol.Morpho) {
+            _executeMorphoFlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
+        } else if (protocol == LenderProtocol.BalancerV3) {
+            _executeBalancerV3FlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
+        } else if (protocol == LenderProtocol.AaveV3) {
+            _executeAaveV3FlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
+        } else {
+            revert UnsupportedProtocol();
+        }
+    }
+
+    // --- Flashloan execution ---
+
+    function _executeMorphoFlashLoan(
+        bytes calldata data,
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] calldata commands,
+        bytes[] calldata state
+    )
+        private
+    {
+        (IMorpho morpho, address token, uint256 amount) = abi.decode(data, (IMorpho, address, uint256));
+        bytes memory morphoCallback = abi.encode(msg.sender, token, accountId, requestId, commands, state);
+
+        morpho.flashLoan(token, amount, morphoCallback);
+    }
+
+    function _executeAaveV3FlashLoan(
+        bytes calldata data,
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] calldata commands,
+        bytes[] calldata state
+    )
+        private
+    {
+        (IAaveV3Pool pool, address token, uint256 amount) = abi.decode(data, (IAaveV3Pool, address, uint256));
+        bytes memory aaveCallback = abi.encode(msg.sender, accountId, requestId, commands, state);
+
+        pool.flashLoanSimple(address(this), token, amount, aaveCallback, 0);
+    }
+
+    function _executeBalancerV3FlashLoan(
+        bytes calldata data,
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] calldata commands,
+        bytes[] calldata state
+    )
+        private
+    {
+        (IBalancerV3Vault vault, address[] memory tokens, uint256[] memory amounts) =
+            abi.decode(data, (IBalancerV3Vault, address[], uint256[]));
+
+        BalancerV3FlashloanParams memory params = BalancerV3FlashloanParams({
+            wallet: msg.sender,
+            tokens: tokens,
+            amounts: amounts,
+            accountId: accountId,
+            requestId: requestId,
+            commands: commands,
+            state: state
+        });
+
+        vault.unlock(abi.encodeWithSelector(this.onBalancerV3Flashloan.selector, params));
+    }
+
+    // --- Flashloan callbacks ---
+
+    // LenderProtocol = Morpho
+    // Morpho vault calls msg.sender, safe to check only msg.sender
+    function onMorphoFlashLoan(uint256 amount, bytes calldata data) external {
+        _verifyLender(msg.sender, LenderProtocol.Morpho);
+
+        (
+            address wallet,
+            IERC20 token,
+            bytes32 accountId,
+            bytes32 requestId,
+            bytes32[] memory commands,
+            bytes[] memory state
+        ) = abi.decode(data, (address, IERC20, bytes32, bytes32, bytes32[], bytes[]));
+
+        token.safeTransfer(wallet, amount);
+        uint256 balanceBefore = token.balanceOf(address(this));
+
+        executeShortcut(wallet, accountId, requestId, commands, state);
+
+        uint256 balanceAfter = token.balanceOf(address(this));
+        if (balanceAfter < amount + balanceBefore) {
+            revert IncorrectPaybackAmount(balanceAfter, amount);
+        }
+
+        token.forceApprove(msg.sender, amount);
+    }
+
+    // LenderProtocol = BalancerV3
+    // BalancerV3 vault calls msg.sender, safe to check only msg.sender
+    function onBalancerV3Flashloan(BalancerV3FlashloanParams memory flashloanParams) external {
+        _verifyLender(msg.sender, LenderProtocol.BalancerV3);
+
+        uint256[] memory balancesBefore = new uint256[](flashloanParams.tokens.length);
+        for (uint256 i = 0; i < flashloanParams.tokens.length; i++) {
+            balancesBefore[i] = IERC20(flashloanParams.tokens[i]).balanceOf(address(this));
+            IBalancerV3Vault(msg.sender)
+                .sendTo(flashloanParams.tokens[i], flashloanParams.wallet, flashloanParams.amounts[i]);
+        }
+
+        executeShortcut(
+            flashloanParams.wallet,
+            flashloanParams.accountId,
+            flashloanParams.requestId,
+            flashloanParams.commands,
+            flashloanParams.state
+        );
+
+        for (uint256 i = 0; i < flashloanParams.tokens.length; i++) {
+            uint256 amountBorrowed = flashloanParams.amounts[i];
+            IERC20(flashloanParams.tokens[i]).safeTransfer(msg.sender, amountBorrowed);
+            IBalancerV3Vault(msg.sender).settle(flashloanParams.tokens[i], amountBorrowed);
+        }
+    }
+
+    // LenderProtocol = AaveV3
+    // For Aave V3 both msg.sender and initiator have to be checked, because Aave V3 allows to perform
+    // the callback to any address (not strictly limited to caller of flashLoanSimple)
+    function executeOperation(
+        IERC20 token,
+        uint256 amount,
+        uint256 premium,
+        address initiator,
+        bytes calldata data
+    )
+        external
+        returns (bool)
+    {
+        _verifyLender(msg.sender, LenderProtocol.AaveV3);
+        if (initiator != address(this)) {
+            revert NotAuthorized();
+        }
+
+        (address wallet, bytes32 accountId, bytes32 requestId, bytes32[] memory commands, bytes[] memory state) =
+            abi.decode(data, (address, bytes32, bytes32, bytes32[], bytes[]));
+
+        token.safeTransfer(wallet, amount);
+        uint256 balanceBefore = token.balanceOf(address(this));
+
+        executeShortcut(wallet, accountId, requestId, commands, state);
+
+        uint256 balanceAfter = token.balanceOf(address(this));
+        uint256 repaymentAmount = amount + premium;
+        if (balanceAfter < repaymentAmount + balanceBefore) {
+            revert IncorrectPaybackAmount(balanceAfter, repaymentAmount);
+        }
+
+        token.forceApprove(msg.sender, repaymentAmount);
+
+        return true;
+    }
+
+    function _verifyLender(address lender, LenderProtocol expectedProtocol) internal view {
+        if (_trustedLenders[lender] != expectedProtocol) {
+            revert UnknownLender();
+        }
+    }
+
+    function executeShortcut(
+        address wallet,
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] memory commands,
+        bytes[] memory state
+    )
+        internal
+        virtual;
+
+    receive() external payable { }
+}
