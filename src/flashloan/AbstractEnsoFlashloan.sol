@@ -353,6 +353,4 @@ abstract contract AbstractEnsoFlashloan {
     )
         internal
         virtual;
-
-    receive() external payable { }
 }
