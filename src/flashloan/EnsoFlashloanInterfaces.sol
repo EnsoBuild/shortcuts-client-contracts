@@ -46,3 +46,70 @@ interface IBalancerV3Vault {
     function settle(address token, uint256 amount) external;
 }
 
+// --- Dolomite Types and Interfaces ---
+
+library DolomiteTypes {
+    struct AccountInfo {
+        address owner;
+        uint256 number;
+    }
+
+    enum AssetDenomination {
+        Wei,
+        Par
+    }
+
+    enum AssetReference {
+        Delta,
+        Target
+    }
+
+    struct AssetAmount {
+        bool sign; // true = positive
+        AssetDenomination denomination;
+        AssetReference ref;
+        uint256 value;
+    }
+}
+
+library DolomiteActions {
+    enum ActionType {
+        Deposit,
+        Withdraw,
+        Transfer,
+        Buy,
+        Sell,
+        Trade,
+        Liquidate,
+        Vaporize,
+        Call
+    }
+
+    struct ActionArgs {
+        ActionType actionType;
+        uint256 accountId;
+        DolomiteTypes.AssetAmount amount;
+        uint256 primaryMarketId;
+        uint256 secondaryMarketId;
+        address otherAddress;
+        uint256 otherAccountId;
+        bytes data;
+    }
+}
+
+interface IDolomiteMargin {
+    function operate(DolomiteTypes.AccountInfo[] memory accounts, DolomiteActions.ActionArgs[] memory actions) external;
+
+    function getMarketIdByTokenAddress(address token) external view returns (uint256);
+}
+
+struct DolomiteFlashloanParams {
+    address wallet;
+    address token;
+    uint256 amount;
+    bytes32 accountId;
+    bytes32 requestId;
+    bytes32[] commands;
+    bytes[] state;
+}
+
