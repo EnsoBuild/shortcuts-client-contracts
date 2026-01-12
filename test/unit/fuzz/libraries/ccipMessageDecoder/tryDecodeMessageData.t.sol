@@ -144,6 +144,33 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
         assertEq(receiver, expectedReceiver);
     }
 
+    function testFuzz_unsuccessful_superfluousTrailingBytes(
+        address _receiver,
+        bytes memory _shortcutData,
+        uint8 _extraBytes
+    )
+        external
+        pure
+    {
+        // Arrange
+        // Ensure at least 1 extra byte (1-32 range from uint8, avoiding 0)
+        uint256 extra = uint256(_extraBytes) % 32 + 1;
+
+        // Build valid encoding, then append extra bytes
+        bytes memory validData = abi.encode(_receiver, _shortcutData);
+        bytes memory data = abi.encodePacked(validData, new bytes(extra));
+
+        // Act
+        (bool decodeSuccess, address receiver, bytes memory shortcutData) =
+            CCIPMessageDecoder._tryDecodeMessageData(data);
+
+        // Assert
+        // it should return an unsuccessful result due to superfluous bytes
+        assertFalse(decodeSuccess);
+        assertEq(receiver, address(0));
+        assertEq(shortcutData, "");
+    }
+
     function testFuzz_successfulResult(address _receiver, bytes memory _shortcutData) external pure {
         // Arrange
         bytes memory data = abi.encode(_receiver, _shortcutData);
