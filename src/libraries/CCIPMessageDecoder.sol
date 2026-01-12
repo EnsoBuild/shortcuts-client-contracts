@@ -57,9 +57,9 @@ library CCIPMessageDecoder {
                 return (false, address(0), bytes(""));
             }
 
-            // Ceil32(len) and ensure padded bytes also fit (defensive; usually implied by len<=avail)
+            // Ceil32(len) and ensure padded length matches exactly (reject superfluous bytes)
             uint256 padded = (len + 31) & ~uint256(31);
-            if (padded > avail) {
+            if (padded != avail) {
                 return (false, address(0), bytes(""));
             }
 
