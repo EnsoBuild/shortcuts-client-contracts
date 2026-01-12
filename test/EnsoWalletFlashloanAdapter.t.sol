@@ -3,10 +3,10 @@ pragma solidity ^0.8.28;
 
 import "../lib/forge-std/src/Test.sol";
 
-import "../src/flashloan/EnsoWalletFlashloanAdapter.sol";
-import "../src/flashloan/AbstractEnsoFlashloan.sol";
-import "../src/wallet/EnsoWalletV2.sol";
 import "../src/factory/EnsoWalletV2Factory.sol";
+import "../src/flashloan/AbstractEnsoFlashloan.sol";
+import "../src/flashloan/EnsoWalletFlashloanAdapter.sol";
+import "../src/wallet/EnsoWalletV2.sol";
 
 import "./utils/WeirollPlanner.sol";
 
@@ -35,6 +35,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
     address morpho = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
     address aaveV3Pool = address(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
     address balancerV3Vault = address(0xbA1333333333a1BA1108E8412f11850A5C319bA9);
+    address dolomiteMargin = address(0x003Ca23Fd5F0ca87D01F6eC6CD14A8AE60c2b97D);
     address weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     string _rpcURL = vm.envString("ETHEREUM_RPC_URL");
@@ -52,8 +53,8 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         wallet = EnsoWalletV2(payable(walletFactory.deploy(user_bob)));
 
         // Deploy adapter with trusted lenders
-        address[] memory lenders = new address[](3);
-        LenderProtocol[] memory protocols = new LenderProtocol[](3);
+        address[] memory lenders = new address[](4);
+        LenderProtocol[] memory protocols = new LenderProtocol[](4);
 
         lenders[0] = morpho;
         protocols[0] = LenderProtocol.Morpho;
@@ -63,6 +64,9 @@ contract EnsoWalletFlashloanAdapterTest is Test {
 
         lenders[2] = balancerV3Vault;
         protocols[2] = LenderProtocol.BalancerV3;
+
+        lenders[3] = dolomiteMargin;
+        protocols[3] = LenderProtocol.Dolomite;
 
         adapter = new EnsoWalletFlashloanAdapter(lenders, protocols);
 
@@ -269,6 +273,70 @@ contract EnsoWalletFlashloanAdapterTest is Test {
             adapter.executeFlashloan.selector,
             LenderProtocol.BalancerV3,
             balancerData,
+            bytes32(0), // accountId
+            bytes32(0), // requestId
+            commands,
+            state
+        );
+
+        vm.prank(user_bob);
+        wallet.execute(address(adapter), 0, callData);
+    }
+
+    // Dolomite test:
+    // - flashloan asset: WETH
+    // - WETH.withdraw -> WETH.deposit -> transfer back to adapter
+    // - No fees for Dolomite flashloans
+    function testDolomiteFlashloan() public {
+        vm.selectFork(_ethereumFork);
+
+        IWETH token = IWETH(weth);
+        uint256 amount = 1 ether;
+
+        // Build weiroll commands:
+        // 1. Unwrap WETH to ETH
+        // 2. Wrap ETH back to WETH
+        // 3. Transfer WETH back to adapter for repayment
+        bytes32[] memory commands = new bytes32[](3);
+        bytes[] memory state = new bytes[](2);
+
+        // Command 0: WETH.withdraw(amount) - unwrap
+        commands[0] = WeirollPlanner.buildCommand(
+            token.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // input from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 1: WETH.deposit{value: amount}() - wrap
+        commands[1] = WeirollPlanner.buildCommand(
+            token.deposit.selector,
+            0x03, // call with value
+            0x00ffffffffff, // value from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 2: WETH.transfer(adapter, amount) - send back for repayment
+        commands[2] = WeirollPlanner.buildCommand(
+            token.transfer.selector,
+            0x01, // call
+            0x0100ffffffff, // inputs from state[1], state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        state[0] = abi.encode(amount);
+        state[1] = abi.encode(address(adapter));
+
+        bytes memory dolomiteData = abi.encode(dolomiteMargin, token, amount);
+
+        // Wallet must be the msg.sender when calling executeFlashloan
+        bytes memory callData = abi.encodeWithSelector(
+            adapter.executeFlashloan.selector,
+            LenderProtocol.Dolomite,
+            dolomiteData,
             bytes32(0), // accountId
             bytes32(0), // requestId
             commands,

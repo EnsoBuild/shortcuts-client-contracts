@@ -2,14 +2,24 @@
 pragma solidity ^0.8.28;
 
 import { IEnsoWalletV2 } from "../interfaces/IEnsoWalletV2.sol";
-import { BalancerV3FlashloanParams, IAaveV3Pool, IBalancerV3Vault, IMorpho } from "./EnsoFlashloanInterfaces.sol";
+import {
+    BalancerV3FlashloanParams,
+    DolomiteActions,
+    DolomiteFlashloanParams,
+    DolomiteTypes,
+    IAaveV3Pool,
+    IBalancerV3Vault,
+    IDolomiteMargin,
+    IMorpho
+} from "./EnsoFlashloanInterfaces.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 enum LenderProtocol {
     None,
     Morpho,
     AaveV3,
-    BalancerV3
+    BalancerV3,
+    Dolomite
 }
 
 abstract contract AbstractEnsoFlashloan {
@@ -50,6 +60,8 @@ abstract contract AbstractEnsoFlashloan {
             _executeBalancerV3FlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
         } else if (protocol == LenderProtocol.AaveV3) {
             _executeAaveV3FlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
+        } else if (protocol == LenderProtocol.Dolomite) {
+            _executeDolomiteFlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
         } else {
             revert UnsupportedProtocol();
         }
@@ -110,6 +122,94 @@ abstract contract AbstractEnsoFlashloan {
         });
 
         vault.unlock(abi.encodeWithSelector(this.onBalancerV3Flashloan.selector, params));
+    }
+
+    function _executeDolomiteFlashLoan(
+        bytes calldata data,
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] calldata commands,
+        bytes[] calldata state
+    )
+        private
+    {
+        (IDolomiteMargin dolomiteMargin, address token, uint256 amount) =
+            abi.decode(data, (IDolomiteMargin, address, uint256));
+
+        uint256 marketId = dolomiteMargin.getMarketIdByTokenAddress(token);
+
+        bytes memory callbackData = abi.encode(
+            DolomiteFlashloanParams({
+                wallet: msg.sender,
+                token: token,
+                amount: amount,
+                accountId: accountId,
+                requestId: requestId,
+                commands: commands,
+                state: state
+            })
+        );
+
+        DolomiteTypes.AccountInfo[] memory accounts = new DolomiteTypes.AccountInfo[](1);
+        accounts[0] = DolomiteTypes.AccountInfo({ owner: address(this), number: 0 });
+
+        // Actions: Withdraw -> Call -> Deposit
+        DolomiteActions.ActionArgs[] memory actions = new DolomiteActions.ActionArgs[](3);
+
+        // Withdraw (borrow)
+        actions[0] = DolomiteActions.ActionArgs({
+            actionType: DolomiteActions.ActionType.Withdraw,
+            accountId: 0,
+            amount: DolomiteTypes.AssetAmount({
+                sign: false,
+                denomination: DolomiteTypes.AssetDenomination.Wei,
+                ref: DolomiteTypes.AssetReference.Delta,
+                value: amount
+            }),
+            primaryMarketId: marketId,
+            secondaryMarketId: 0,
+            otherAddress: address(this),
+            otherAccountId: 0,
+            data: ""
+        });
+
+        // Call (callback)
+        actions[1] = DolomiteActions.ActionArgs({
+            actionType: DolomiteActions.ActionType.Call,
+            accountId: 0,
+            amount: DolomiteTypes.AssetAmount({
+                sign: false,
+                denomination: DolomiteTypes.AssetDenomination.Wei,
+                ref: DolomiteTypes.AssetReference.Delta,
+                value: 0
+            }),
+            primaryMarketId: 0,
+            secondaryMarketId: 0,
+            otherAddress: address(this),
+            otherAccountId: 0,
+            data: callbackData
+        });
+
+        // Deposit (repay)
+        // this action only happens after the call action is done
+        actions[2] = DolomiteActions.ActionArgs({
+            actionType: DolomiteActions.ActionType.Deposit,
+            accountId: 0,
+            amount: DolomiteTypes.AssetAmount({
+                sign: true,
+                denomination: DolomiteTypes.AssetDenomination.Wei,
+                ref: DolomiteTypes.AssetReference.Delta,
+                value: amount
+            }),
+            primaryMarketId: marketId,
+            secondaryMarketId: 0,
+            otherAddress: address(this),
+            otherAccountId: 0,
+            data: ""
+        });
+
+        IERC20(token).forceApprove(address(dolomiteMargin), amount);
+        dolomiteMargin.operate(accounts, actions);
     }
 
     // --- Flashloan callbacks ---
@@ -203,6 +303,39 @@ abstract contract AbstractEnsoFlashloan {
         token.forceApprove(msg.sender, repaymentAmount);
 
         return true;
+    }
+
+    // LenderProtocol = Dolomite
+    // For Dolomite, msg.sender is DolomiteMargin and sender param is the initiator.
+    // Must verify both (similar to AaveV3's initiator check).
+    function callFunction(
+        address sender,
+        DolomiteTypes.AccountInfo memory, /* accountInfo */
+        bytes memory data
+    )
+        external
+    {
+        _verifyLender(msg.sender, LenderProtocol.Dolomite);
+        if (sender != address(this)) {
+            revert NotAuthorized();
+        }
+
+        DolomiteFlashloanParams memory params = abi.decode(data, (DolomiteFlashloanParams));
+
+        IERC20 token = IERC20(params.token);
+        uint256 amount = params.amount;
+
+        token.safeTransfer(params.wallet, amount);
+        uint256 balanceBefore = token.balanceOf(address(this));
+
+        executeShortcut(params.wallet, params.accountId, params.requestId, params.commands, params.state);
+
+        uint256 balanceAfter = token.balanceOf(address(this));
+        if (balanceAfter < amount + balanceBefore) {
+            revert IncorrectPaybackAmount(balanceAfter, amount);
+        }
+
+        // approval already done in _executeDolomiteFlashLoan, deposit action pulls tokens
     }
 
     function _verifyLender(address lender, LenderProtocol expectedProtocol) internal view {
