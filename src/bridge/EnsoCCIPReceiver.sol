@@ -140,6 +140,8 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
     }
 
     /// @dev Maps an ErrorCode to a refund policy. NONE means no action (e.g., ALREADY_EXECUTED).
+    /// @dev: NO_ERROR is included for completeness; in practice this function is only called when errorCode != NO_ERROR
+    /// (see _ccipReceive).
     function _getRefundPolicy(ErrorCode _errorCode) private pure returns (RefundKind) {
         if (_errorCode == ErrorCode.NO_ERROR || _errorCode == ErrorCode.ALREADY_EXECUTED) {
             return RefundKind.NONE;
