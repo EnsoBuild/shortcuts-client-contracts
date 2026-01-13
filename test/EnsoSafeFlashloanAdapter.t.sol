@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../lib/forge-std/src/Test.sol";
+import { Test } from "forge-std-1.9.7/Test.sol"; // THIS
 
 import "../src/delegate/DelegateEnsoShortcuts.sol";
 import "../src/flashloan/AbstractEnsoFlashloan.sol";
@@ -9,7 +9,7 @@ import "../src/flashloan/EnsoSafeFlashloanAdapter.sol";
 
 import "./utils/WeirollPlanner.sol";
 
-import { SafeTestTools, SafeTestLib, SafeInstance } from "safe-tools/SafeTestTools.sol";
+import { SafeInstance, SafeTestLib, SafeTestTools } from "safe-tools/SafeTestTools.sol";
 
 interface IWETH {
     function deposit() external payable;
