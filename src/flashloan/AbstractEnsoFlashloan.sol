@@ -10,7 +10,10 @@ import {
     IAaveV3Pool,
     IBalancerV3Vault,
     IDolomiteMargin,
-    IMorpho
+    IMorpho,
+    IUniswapV3Factory,
+    IUniswapV3Pool,
+    UniswapV3FlashloanParams
 } from "./EnsoFlashloanInterfaces.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -19,7 +22,8 @@ enum LenderProtocol {
     Morpho,
     AaveV3,
     BalancerV3,
-    Dolomite
+    Dolomite,
+    UniswapV3
 }
 
 abstract contract AbstractEnsoFlashloan {
@@ -62,6 +66,8 @@ abstract contract AbstractEnsoFlashloan {
             _executeAaveV3FlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
         } else if (protocol == LenderProtocol.Dolomite) {
             _executeDolomiteFlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
+        } else if (protocol == LenderProtocol.UniswapV3) {
+            _executeUniswapV3FlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
         } else {
             revert UnsupportedProtocol();
         }
@@ -212,6 +218,35 @@ abstract contract AbstractEnsoFlashloan {
         dolomiteMargin.operate(accounts, actions);
     }
 
+    function _executeUniswapV3FlashLoan(
+        bytes calldata data,
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] calldata commands,
+        bytes[] calldata state
+    )
+        private
+    {
+        (IUniswapV3Pool pool, address token0, address token1, uint256 amount0, uint256 amount1) =
+            abi.decode(data, (IUniswapV3Pool, address, address, uint256, uint256));
+
+        bytes memory callbackData = abi.encode(
+            UniswapV3FlashloanParams({
+                wallet: msg.sender,
+                token0: token0,
+                token1: token1,
+                amount0: amount0,
+                amount1: amount1,
+                accountId: accountId,
+                requestId: requestId,
+                commands: commands,
+                state: state
+            })
+        );
+
+        pool.flash(address(this), amount0, amount1, callbackData);
+    }
+
     // --- Flashloan callbacks ---
 
     // LenderProtocol = Morpho
@@ -336,6 +371,58 @@ abstract contract AbstractEnsoFlashloan {
         }
 
         // approval already done in _executeDolomiteFlashLoan, deposit action pulls tokens
+    }
+
+    // LenderProtocol = UniswapV3
+    // UniswapV3 pool calls msg.sender. We verify the factory is trusted, then validate pool address.
+    function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external {
+        UniswapV3FlashloanParams memory params = abi.decode(data, (UniswapV3FlashloanParams));
+
+        IUniswapV3Pool pool = IUniswapV3Pool(msg.sender);
+        address factory = pool.factory();
+        _verifyLender(factory, LenderProtocol.UniswapV3);
+
+        // NOTE: this might be redundant since we get the factory to verify lender
+        uint24 poolFee = pool.fee();
+        address expectedPool = IUniswapV3Factory(factory).getPool(params.token0, params.token1, poolFee);
+        if (msg.sender != expectedPool) {
+            revert UnknownLender();
+        }
+
+        if (params.amount0 > 0) {
+            IERC20(params.token0).safeTransfer(params.wallet, params.amount0);
+        }
+        if (params.amount1 > 0) {
+            IERC20(params.token1).safeTransfer(params.wallet, params.amount1);
+        }
+
+        uint256 balanceBefore0 = params.amount0 > 0 ? IERC20(params.token0).balanceOf(address(this)) : 0;
+        uint256 balanceBefore1 = params.amount1 > 0 ? IERC20(params.token1).balanceOf(address(this)) : 0;
+
+        executeShortcut(params.wallet, params.accountId, params.requestId, params.commands, params.state);
+
+        uint256 repay0 = params.amount0 + fee0;
+        uint256 repay1 = params.amount1 + fee1;
+
+        if (params.amount0 > 0) {
+            uint256 balanceAfter0 = IERC20(params.token0).balanceOf(address(this));
+            if (balanceAfter0 < repay0 + balanceBefore0) {
+                revert IncorrectPaybackAmount(balanceAfter0, repay0 + balanceBefore0);
+            }
+        }
+        if (params.amount1 > 0) {
+            uint256 balanceAfter1 = IERC20(params.token1).balanceOf(address(this));
+            if (balanceAfter1 < repay1 + balanceBefore1) {
+                revert IncorrectPaybackAmount(balanceAfter1, repay1 + balanceBefore1);
+            }
+        }
+
+        if (repay0 > 0) {
+            IERC20(params.token0).safeTransfer(msg.sender, repay0);
+        }
+        if (repay1 > 0) {
+            IERC20(params.token1).safeTransfer(msg.sender, repay1);
+        }
     }
 
     function _verifyLender(address lender, LenderProtocol expectedProtocol) internal view {

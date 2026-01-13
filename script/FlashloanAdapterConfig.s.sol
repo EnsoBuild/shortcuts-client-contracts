@@ -29,6 +29,9 @@ abstract contract FlashloanAdapterConfig {
 
         _shortcuts[ETHEREUM] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
 
+        _lenders[ETHEREUM].push(0x1F98431c8aD98523631AE4a59f267346ea31F984); // UniswapV3 Factory
+        _protocols[ETHEREUM].push(LenderProtocol.UniswapV3);
+
         //
         // Berachain
         //
@@ -39,5 +42,8 @@ abstract contract FlashloanAdapterConfig {
         _protocols[BERACHAIN].push(LenderProtocol.Dolomite);
 
         _shortcuts[BERACHAIN] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+
+        _lenders[BERACHAIN].push(0xD84CBf0B02636E7f53dB9E5e45A616E05d710990); // Kodiak (UniswapV3 fork) Factory
+        _protocols[BERACHAIN].push(LenderProtocol.UniswapV3);
     }
 }

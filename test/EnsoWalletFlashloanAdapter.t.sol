@@ -6,6 +6,7 @@ import { Test } from "forge-std-1.9.7/Test.sol"; // THIS
 import "../src/factory/EnsoWalletV2Factory.sol";
 import "../src/flashloan/AbstractEnsoFlashloan.sol";
 import "../src/flashloan/EnsoWalletFlashloanAdapter.sol";
+import "../src/flashloan/EnsoFlashloanInterfaces.sol";
 import "../src/wallet/EnsoWalletV2.sol";
 
 import "./utils/WeirollPlanner.sol";
@@ -36,7 +37,9 @@ contract EnsoWalletFlashloanAdapterTest is Test {
     address aaveV3Pool = address(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
     address balancerV3Vault = address(0xbA1333333333a1BA1108E8412f11850A5C319bA9);
     address dolomiteMargin = address(0x003Ca23Fd5F0ca87D01F6eC6CD14A8AE60c2b97D);
+    address uniswapV3Factory = address(0x1F98431c8aD98523631AE4a59f267346ea31F984);
     address weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 
     string _rpcURL = vm.envString("ETHEREUM_RPC_URL");
     uint256 _ethereumFork;
@@ -53,8 +56,8 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         wallet = EnsoWalletV2(payable(walletFactory.deploy(user_bob)));
 
         // Deploy adapter with trusted lenders
-        address[] memory lenders = new address[](4);
-        LenderProtocol[] memory protocols = new LenderProtocol[](4);
+        address[] memory lenders = new address[](5);
+        LenderProtocol[] memory protocols = new LenderProtocol[](5);
 
         lenders[0] = morpho;
         protocols[0] = LenderProtocol.Morpho;
@@ -67,6 +70,9 @@ contract EnsoWalletFlashloanAdapterTest is Test {
 
         lenders[3] = dolomiteMargin;
         protocols[3] = LenderProtocol.Dolomite;
+
+        lenders[4] = uniswapV3Factory;
+        protocols[4] = LenderProtocol.UniswapV3;
 
         adapter = new EnsoWalletFlashloanAdapter(lenders, protocols);
 
@@ -337,6 +343,92 @@ contract EnsoWalletFlashloanAdapterTest is Test {
             adapter.executeFlashloan.selector,
             LenderProtocol.Dolomite,
             dolomiteData,
+            bytes32(0), // accountId
+            bytes32(0), // requestId
+            commands,
+            state
+        );
+
+        vm.prank(user_bob);
+        wallet.execute(address(adapter), 0, callData);
+    }
+
+    // UniswapV3 test:
+    // - flashloan from WETH/USDC 0.05% pool
+    // - borrow only WETH (amount1 = 0)
+    // - WETH.withdraw -> WETH.deposit -> transfer back to adapter (amount + fee)
+    function testUniswapV3Flashloan() public {
+        vm.selectFork(_ethereumFork);
+
+        IWETH token = IWETH(weth);
+        uint256 amount = 1 ether;
+
+        // Get the WETH/USDC 0.05% pool
+        address pool = IUniswapV3Factory(uniswapV3Factory).getPool(weth, usdc, 500);
+        require(pool != address(0), "Pool not found");
+
+        // Calculate fee: 0.05% = 500/1e6 = 0.0005
+        uint256 fee = (amount * 500) / 1e6;
+        if (fee == 0) fee = 1; // minimum 1 wei
+        uint256 repayAmount = amount + fee;
+
+        // Fund the wallet with fee amount
+        vm.deal(user_bob, fee);
+        vm.prank(user_bob);
+        token.deposit{ value: fee }();
+        vm.prank(user_bob);
+        token.transfer(address(wallet), fee);
+
+        // Build weiroll commands:
+        // 1. Unwrap WETH to ETH
+        // 2. Wrap ETH back to WETH
+        // 3. Transfer WETH back to adapter for repayment (amount + fee)
+        bytes32[] memory commands = new bytes32[](3);
+        bytes[] memory state = new bytes[](3);
+
+        // Command 0: WETH.withdraw(amount) - unwrap only flashloaned amount
+        commands[0] = WeirollPlanner.buildCommand(
+            token.withdraw.selector,
+            0x01, // call
+            0x00ffffffffff, // input from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 1: WETH.deposit{value: amount}() - wrap
+        commands[1] = WeirollPlanner.buildCommand(
+            token.deposit.selector,
+            0x03, // call with value
+            0x00ffffffffff, // value from state[0]
+            0xff, // no output
+            address(token)
+        );
+
+        // Command 2: WETH.transfer(adapter, repayAmount) - send back for repayment
+        commands[2] = WeirollPlanner.buildCommand(
+            token.transfer.selector,
+            0x01, // call
+            0x0102ffffffff, // inputs from state[1], state[2]
+            0xff, // no output
+            address(token)
+        );
+
+        state[0] = abi.encode(amount);
+        state[1] = abi.encode(address(adapter));
+        state[2] = abi.encode(repayAmount);
+
+        // UniswapV3 data: pool address, token0, token1, amount0, amount1
+        // Note: In WETH/USDC pool, USDC (lower address) is token0, WETH is token1
+        // We're borrowing WETH so amount0=0, amount1=amount
+        (address token0, address token1) = usdc < weth ? (usdc, weth) : (weth, usdc);
+        (uint256 amount0, uint256 amount1) = usdc < weth ? (uint256(0), amount) : (amount, uint256(0));
+        bytes memory uniswapData = abi.encode(pool, token0, token1, amount0, amount1);
+
+        // Wallet must be the msg.sender when calling executeFlashloan
+        bytes memory callData = abi.encodeWithSelector(
+            adapter.executeFlashloan.selector,
+            LenderProtocol.UniswapV3,
+            uniswapData,
             bytes32(0), // accountId
             bytes32(0), // requestId
             commands,
