@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - "*" # Trigger on any push to any branch
+      - '*' # Trigger on any push to any branch
 
   pull_request:
     branches:
@@ -48,7 +48,7 @@ jobs:
         run: forge --version
 
       - name: Install Forge dependencies
-        run: forge soldeer update
+        run: forge soldeer update --recursive-deps
 
       - name: Build contracts
         run: forge build --sizes
