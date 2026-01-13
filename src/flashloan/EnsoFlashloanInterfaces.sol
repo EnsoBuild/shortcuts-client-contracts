@@ -113,3 +113,27 @@ struct DolomiteFlashloanParams {
     bytes[] state;
 }
 
+// --- UniswapV3 Types and Interfaces ---
+
+interface IUniswapV3Factory {
+    function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address);
+}
+
+interface IUniswapV3Pool {
+    function factory() external view returns (address);
+    function fee() external view returns (uint24);
+    function flash(address recipient, uint256 amount0, uint256 amount1, bytes calldata data) external;
+}
+
+struct UniswapV3FlashloanParams {
+    address wallet;
+    address token0;
+    address token1;
+    uint256 amount0;
+    uint256 amount1;
+    bytes32 accountId;
+    bytes32 requestId;
+    bytes32[] commands;
+    bytes[] state;
+}
+
