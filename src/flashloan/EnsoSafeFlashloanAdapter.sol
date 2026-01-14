@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 import { AbstractEnsoShortcuts } from "../AbstractEnsoShortcuts.sol";
 import { AbstractEnsoFlashloan, LenderProtocol } from "./AbstractEnsoFlashloan.sol";
@@ -14,9 +14,10 @@ contract EnsoSafeFlashloanAdapter is AbstractEnsoFlashloan {
     constructor(
         address[] memory lenders,
         LenderProtocol[] memory protocols,
-        address shortcuts_
+        address shortcuts_,
+        address owner_
     )
-        AbstractEnsoFlashloan(lenders, protocols)
+        AbstractEnsoFlashloan(lenders, protocols, owner_)
     {
         shortcuts = shortcuts_;
     }

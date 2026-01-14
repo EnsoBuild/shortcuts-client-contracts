@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
-import { IEnsoWalletV2 } from "../interfaces/IEnsoWalletV2.sol";
 import {
     BalancerV3FlashloanParams,
     DolomiteActions,
@@ -14,8 +13,10 @@ import {
     IUniswapV3Factory,
     IUniswapV3Pool,
     UniswapV3FlashloanParams
-} from "./EnsoFlashloanInterfaces.sol";
+} from "../interfaces/IEnsoFlashloan.sol";
+import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 
 enum LenderProtocol {
     None,
@@ -26,7 +27,7 @@ enum LenderProtocol {
     UniswapV3
 }
 
-abstract contract AbstractEnsoFlashloan {
+abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     using SafeERC20 for IERC20;
 
     error UnsupportedProtocol();
@@ -35,16 +36,31 @@ abstract contract AbstractEnsoFlashloan {
     error IncorrectPaybackAmount(uint256 amount, uint256 requiredAmount);
     error WrongConstrutorParams();
 
-    mapping(address lender => LenderProtocol protocol) private _trustedLenders;
+    event LenderRemoved(address indexed lender);
 
-    constructor(address[] memory lenders, LenderProtocol[] memory protocols) {
+    mapping(address lender => LenderProtocol protocol) public trustedLenders;
+
+    constructor(address[] memory lenders, LenderProtocol[] memory protocols, address owner_) Ownable(owner_) {
         if (lenders.length != protocols.length) {
             revert WrongConstrutorParams();
         }
 
         for (uint256 i = 0; i < lenders.length; i++) {
-            _trustedLenders[lenders[i]] = protocols[i];
+            trustedLenders[lenders[i]] = protocols[i];
         }
+    }
+
+    function removeLender(address lender) external onlyOwner {
+        trustedLenders[lender] = LenderProtocol.None;
+        emit LenderRemoved(lender);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     function executeFlashloan(
@@ -57,6 +73,7 @@ abstract contract AbstractEnsoFlashloan {
     )
         external
         payable
+        whenNotPaused
     {
         if (protocol == LenderProtocol.Morpho) {
             _executeMorphoFlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
@@ -426,7 +443,7 @@ abstract contract AbstractEnsoFlashloan {
     }
 
     function _verifyLender(address lender, LenderProtocol expectedProtocol) internal view {
-        if (_trustedLenders[lender] != expectedProtocol) {
+        if (trustedLenders[lender] != expectedProtocol) {
             revert UnknownLender();
         }
     }

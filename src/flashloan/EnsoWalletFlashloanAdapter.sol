@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 import { IEnsoWalletV2 } from "../interfaces/IEnsoWalletV2.sol";
 import { AbstractEnsoFlashloan, LenderProtocol } from "./AbstractEnsoFlashloan.sol";
@@ -7,9 +7,10 @@ import { AbstractEnsoFlashloan, LenderProtocol } from "./AbstractEnsoFlashloan.s
 contract EnsoWalletFlashloanAdapter is AbstractEnsoFlashloan {
     constructor(
         address[] memory lenders,
-        LenderProtocol[] memory protocols
+        LenderProtocol[] memory protocols,
+        address owner_
     )
-        AbstractEnsoFlashloan(lenders, protocols)
+        AbstractEnsoFlashloan(lenders, protocols, owner_)
     { }
 
     function executeShortcut(

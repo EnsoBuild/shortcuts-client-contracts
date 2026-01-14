@@ -18,7 +18,8 @@ contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        adapter = new EnsoWalletFlashloanAdapter{ salt: "EnsoWalletFlashloanAdapter" }(lenders, protocols);
+        address owner = vm.envOr("OWNER", vm.addr(deployerPrivateKey));
+        adapter = new EnsoWalletFlashloanAdapter{ salt: "EnsoWalletFlashloanAdapter" }(lenders, protocols, owner);
 
         vm.stopBroadcast();
     }

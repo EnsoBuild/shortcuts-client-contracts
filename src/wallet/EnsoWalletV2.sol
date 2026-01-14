@@ -74,6 +74,8 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
     }
 
     /// @inheritdoc IEnsoWalletV2
+    /// @dev Explicit override required because executeShortcut is defined in both
+    ///      IEnsoWalletV2 and AbstractEnsoShortcuts
     function executeShortcut(
         bytes32 accountId,
         bytes32 requestId,
