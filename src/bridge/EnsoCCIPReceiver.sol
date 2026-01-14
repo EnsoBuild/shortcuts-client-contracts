@@ -27,6 +27,7 @@ import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Pausable, ITypeAndVersion {
     using SafeERC20 for IERC20;
 
+    /// forge-lint: disable-next-item(screaming-snake-case-const)
     string public constant override typeAndVersion = "EnsoCCIPReceiver 1.0.0";
 
     /// @dev Immutable Enso Router used to dispatch tokens + call Shortcuts.
