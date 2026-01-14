@@ -6,7 +6,7 @@ import { Test } from "forge-std-1.9.7/Test.sol"; // THIS
 import "../src/factory/EnsoWalletV2Factory.sol";
 import "../src/flashloan/AbstractEnsoFlashloan.sol";
 import "../src/flashloan/EnsoWalletFlashloanAdapter.sol";
-import "../src/flashloan/EnsoFlashloanInterfaces.sol";
+import "../src/interfaces/IEnsoFlashloan.sol";
 import "../src/wallet/EnsoWalletV2.sol";
 
 import "./utils/WeirollPlanner.sol";
@@ -74,7 +74,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         lenders[4] = uniswapV3Factory;
         protocols[4] = LenderProtocol.UniswapV3;
 
-        adapter = new EnsoWalletFlashloanAdapter(lenders, protocols);
+        adapter = new EnsoWalletFlashloanAdapter(lenders, protocols, address(this));
 
         // Set the adapter as executor on the wallet so it can call executeShortcut
         vm.prank(user_bob);
