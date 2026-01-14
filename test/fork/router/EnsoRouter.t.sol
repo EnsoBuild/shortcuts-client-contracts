@@ -3,18 +3,18 @@ pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
 
-import "../src/EnsoShortcuts.sol";
-import "../src/router/EnsoRouter.sol";
+import "../../../src/EnsoShortcuts.sol";
+import "../../../src/router/EnsoRouter.sol";
 
-import "./mocks/MockERC1155.sol";
-import "./mocks/MockERC20.sol";
-import "./mocks/MockERC721.sol";
+import "../../mocks/MockERC1155.sol";
+import "../../mocks/MockERC20.sol";
+import "../../mocks/MockERC721.sol";
 
-import "./mocks/MockMultiVault.sol";
-import "./mocks/MockNFTVault.sol";
-import "./mocks/MockVault.sol";
+import "../../mocks/MockMultiVault.sol";
+import "../../mocks/MockNFTVault.sol";
+import "../../mocks/MockVault.sol";
 
-import "./utils/WeirollPlanner.sol";
+import "../../utils/WeirollPlanner.sol";
 
 import { ERC1155Holder } from "openzeppelin-contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import { ERC721Holder } from "openzeppelin-contracts/token/ERC721/utils/ERC721Holder.sol";

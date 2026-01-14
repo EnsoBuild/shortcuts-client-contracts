@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/helpers/MaverickV2Helpers.sol";
+import "../../../src/helpers/MaverickV2Helpers.sol";
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 

@@ -58,7 +58,9 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         bool isNativeAsset;
         for (uint256 i = 0; i < tokensIn.length; i++) {
             if (_transfer(tokensIn[i], wallet)) {
-                if (isNativeAsset) revert EnsoWalletV2Factory_DuplicateNativeAsset();
+                if (isNativeAsset) {
+                    revert EnsoWalletV2Factory_DuplicateNativeAsset();
+                }
                 isNativeAsset = true;
             }
         }

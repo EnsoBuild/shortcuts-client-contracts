@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { DelegateDeployer, DelegateDeployerResult } from "../script/DelegateDeployer.s.sol";
-import { AbstractEnsoShortcuts, DelegateEnsoShortcuts } from "../src/delegate/DelegateEnsoShortcuts.sol";
-import { WeirollPlanner } from "./utils/WeirollPlanner.sol";
+import { DelegateDeployer, DelegateDeployerResult } from "../../../../../script/DelegateDeployer.s.sol";
+import { AbstractEnsoShortcuts, DelegateEnsoShortcuts } from "../../../../../src/delegate/DelegateEnsoShortcuts.sol";
+import { WeirollPlanner } from "../../../../utils/WeirollPlanner.sol";
 import { Test } from "forge-std/Test.sol";
 import { Enum, SafeInstance, SafeTestLib, SafeTestTools } from "safe-tools/SafeTestTools.sol";
 import { WETH } from "solady/tokens/WETH.sol";

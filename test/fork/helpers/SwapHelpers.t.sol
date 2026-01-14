@@ -3,13 +3,13 @@ pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
 
-import "../src/EnsoShortcuts.sol";
-import "../src/helpers/SwapHelpers.sol";
-import "../src/router/EnsoRouter.sol";
-import "./mocks/MockERC20.sol";
-import "./mocks/MockVault.sol";
+import "../../../src/EnsoShortcuts.sol";
+import "../../../src/helpers/SwapHelpers.sol";
+import "../../../src/router/EnsoRouter.sol";
+import "../../mocks/MockERC20.sol";
+import "../../mocks/MockVault.sol";
 
-import "./utils/WeirollPlanner.sol";
+import "../../utils/WeirollPlanner.sol";
 
 contract SwapHelpersTest is Test {
     SwapHelpers public swapHelpers;

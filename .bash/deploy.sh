@@ -28,12 +28,31 @@ if [ $broadcast == "broadcast" ]; then
     params+=(--broadcast)
     if [ -n "$verifier" ]; then
         params+=(--verify)
+<<<<<<< HEAD
         if [ $verifier == "routescan" ]; then
             params+=(--verifier custom)
             if [ $network_upper == "BERACHAIN" ]; then
                 chain_id=80094
             elif [ $network_upper == "PLASMA" ]; then
                 chain_id=9745
+=======
+        params+=(--verifier "${verifier}")
+        if [ $verifier == "etherscan" ]; then
+            params+=(--etherscan-api-key ${!blockscan_key})
+        elif [ $verifier == "routescan" ]; then
+            params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan")
+            params+=(--etherscan-api-key "verifyContract")
+        elif [ $verifier == "blockscout" ]; then
+            if [ $network_upper == "INK"]; then
+                params+=(--verifier-url "https://explorer.inkonchain.com/api")
+                params+=(--etherscan-api-key ${!blockscan_key})
+            elif [ $network_upper == "PLUME"]; then
+                params+=(--verifier-url "https://explorer.plume.org/api")
+                params+=(--etherscan-api-key ${!blockscan_key})
+            elif [ $network_upper == "KATANA"]; then
+                params+=(--verifier-url "https://explorer.katanarpc.com/api")
+<<<<<<< HEAD
+>>>>>>> 3975f88 (feat: added EnsoCCIPReceiver tests)
             else
                 printf '%s\n' "Invalid routescan network" >&2
                 exit 1
@@ -54,11 +73,23 @@ if [ $broadcast == "broadcast" ]; then
                 else
                     params+=(--verifier-url "https://${network}.blockscout.com/api")
                 fi
+=======
+                params+=(--etherscan-api-key ${!blockscan_key})
+            else
+                params+=(--verifier-url "https://${network}.blockscout.com/api")
+                params+=(--etherscan-api-key ${!blockscan_key})
+            fi
+        elif [ $verifier == "sourcify"]; then
+            if [ $network_upper == "MONAD"]; then
+                params+=(--verifier-url "https://sourcify-api-monad.blockvision.org/")
+>>>>>>> b00c98f (chore" deploy on Monad)
             fi
         fi
     fi
     params+=(-vvvv)
 fi
 
-set -x
-forge script script/${script} --private-key $PRIVATE_KEY --rpc-url ${!rpc} "${params[@]}"
+{ set +x; } 2>/dev/null
+
+PRIVATE_KEY="$PRIVATE_KEY" \
+forge script "script/${script}" --rpc-url "${!rpc}" "${params[@]}"
