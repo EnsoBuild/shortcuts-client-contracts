@@ -6,7 +6,7 @@ import { Test } from "forge-std-1.9.7/Test.sol"; // THIS
 import "../src/delegate/DelegateEnsoShortcuts.sol";
 import "../src/flashloan/AbstractEnsoFlashloan.sol";
 import "../src/flashloan/EnsoSafeFlashloanAdapter.sol";
-import "../src/flashloan/EnsoFlashloanInterfaces.sol";
+import "../src/interfaces/IEnsoFlashloan.sol";
 
 import "./utils/WeirollPlanner.sol";
 
@@ -75,7 +75,7 @@ contract EnsoSafeFlashloanAdapterTest is Test, SafeTestTools {
         lenders[4] = uniswapV3Factory;
         protocols[4] = LenderProtocol.UniswapV3;
 
-        adapter = new EnsoSafeFlashloanAdapter(lenders, protocols, address(shortcuts));
+        adapter = new EnsoSafeFlashloanAdapter(lenders, protocols, address(shortcuts), address(this));
 
         // Setup Safe wallet with single owner (user_bob)
         uint256[] memory ownerPKs = new uint256[](1);
