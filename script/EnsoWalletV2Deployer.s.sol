@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/factory/EnsoWalletV2Factory.sol";
-import "../src/wallet/EnsoWalletV2.sol";
-import "forge-std/Script.sol";
+import { EnsoWalletV2Factory } from "../src/factory/EnsoWalletV2Factory.sol";
+import { EnsoWalletV2 } from "../src/wallet/EnsoWalletV2.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract EnsoWalletV2Deployer is Script {
     function run() public returns (EnsoWalletV2 implementation, EnsoWalletV2Factory factory) {
