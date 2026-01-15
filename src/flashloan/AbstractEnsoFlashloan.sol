@@ -33,7 +33,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     error UnsupportedProtocol();
     error NotAuthorized();
     error UnknownLender();
-    error IncorrectPaybackAmount(uint256 amount, uint256 requiredAmount);
+    error IncorrectPaybackAmount(address asset, uint256 amount, uint256 requiredAmount);
     error WrongConstrutorParams();
 
     event LenderRemoved(address indexed lender);
@@ -280,14 +280,11 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
             bytes[] memory state
         ) = abi.decode(data, (address, IERC20, bytes32, bytes32, bytes32[], bytes[]));
 
-        token.safeTransfer(wallet, amount);
-        uint256 balanceBefore = token.balanceOf(address(this));
-
-        executeShortcut(wallet, accountId, requestId, commands, state);
+        uint256 balanceBefore = executeShortcut(wallet, accountId, requestId, commands, state, address(token), amount);
 
         uint256 balanceAfter = token.balanceOf(address(this));
         if (balanceAfter < amount + balanceBefore) {
-            revert IncorrectPaybackAmount(balanceAfter, amount);
+            revert IncorrectPaybackAmount(address(token), balanceAfter, amount);
         }
 
         token.forceApprove(msg.sender, amount);
@@ -298,23 +295,28 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     function onBalancerV3Flashloan(BalancerV3FlashloanParams memory flashloanParams) external {
         _verifyLender(msg.sender, LenderProtocol.BalancerV3);
 
-        uint256[] memory balancesBefore = new uint256[](flashloanParams.tokens.length);
-        for (uint256 i = 0; i < flashloanParams.tokens.length; i++) {
-            balancesBefore[i] = IERC20(flashloanParams.tokens[i]).balanceOf(address(this));
-            IBalancerV3Vault(msg.sender)
-                .sendTo(flashloanParams.tokens[i], flashloanParams.wallet, flashloanParams.amounts[i]);
+        uint256 length = flashloanParams.tokens.length;
+
+        for (uint256 i; i < length; ++i) {
+            IBalancerV3Vault(msg.sender).sendTo(flashloanParams.tokens[i], address(this), flashloanParams.amounts[i]);
         }
 
-        executeShortcut(
+        uint256[] memory balancesBefore = executeShortcutMulti(
             flashloanParams.wallet,
             flashloanParams.accountId,
             flashloanParams.requestId,
             flashloanParams.commands,
-            flashloanParams.state
+            flashloanParams.state,
+            flashloanParams.tokens,
+            flashloanParams.amounts
         );
 
-        for (uint256 i = 0; i < flashloanParams.tokens.length; i++) {
+        for (uint256 i; i < length; ++i) {
             uint256 amountBorrowed = flashloanParams.amounts[i];
+            uint256 balanceAfter = IERC20(flashloanParams.tokens[i]).balanceOf(address(this));
+            if (balanceAfter < amountBorrowed + balancesBefore[i]) {
+                revert IncorrectPaybackAmount(flashloanParams.tokens[i], balanceAfter, amountBorrowed);
+            }
             IERC20(flashloanParams.tokens[i]).safeTransfer(msg.sender, amountBorrowed);
             IBalancerV3Vault(msg.sender).settle(flashloanParams.tokens[i], amountBorrowed);
         }
@@ -341,15 +343,12 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         (address wallet, bytes32 accountId, bytes32 requestId, bytes32[] memory commands, bytes[] memory state) =
             abi.decode(data, (address, bytes32, bytes32, bytes32[], bytes[]));
 
-        token.safeTransfer(wallet, amount);
-        uint256 balanceBefore = token.balanceOf(address(this));
-
-        executeShortcut(wallet, accountId, requestId, commands, state);
+        uint256 balanceBefore = executeShortcut(wallet, accountId, requestId, commands, state, address(token), amount);
 
         uint256 balanceAfter = token.balanceOf(address(this));
         uint256 repaymentAmount = amount + premium;
         if (balanceAfter < repaymentAmount + balanceBefore) {
-            revert IncorrectPaybackAmount(balanceAfter, repaymentAmount);
+            revert IncorrectPaybackAmount(address(token), balanceAfter, repaymentAmount);
         }
 
         token.forceApprove(msg.sender, repaymentAmount);
@@ -374,17 +373,19 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
 
         DolomiteFlashloanParams memory params = abi.decode(data, (DolomiteFlashloanParams));
 
-        IERC20 token = IERC20(params.token);
-        uint256 amount = params.amount;
+        uint256 balanceBefore = executeShortcut(
+            params.wallet,
+            params.accountId,
+            params.requestId,
+            params.commands,
+            params.state,
+            params.token,
+            params.amount
+        );
 
-        token.safeTransfer(params.wallet, amount);
-        uint256 balanceBefore = token.balanceOf(address(this));
-
-        executeShortcut(params.wallet, params.accountId, params.requestId, params.commands, params.state);
-
-        uint256 balanceAfter = token.balanceOf(address(this));
-        if (balanceAfter < amount + balanceBefore) {
-            revert IncorrectPaybackAmount(balanceAfter, amount);
+        uint256 balanceAfter = IERC20(params.token).balanceOf(address(this));
+        if (balanceAfter < params.amount + balanceBefore) {
+            revert IncorrectPaybackAmount(params.token, balanceAfter, params.amount);
         }
 
         // approval already done in _executeDolomiteFlashLoan, deposit action pulls tokens
@@ -406,39 +407,51 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
             revert UnknownLender();
         }
 
-        if (params.amount0 > 0) {
-            IERC20(params.token0).safeTransfer(params.wallet, params.amount0);
-        }
-        if (params.amount1 > 0) {
-            IERC20(params.token1).safeTransfer(params.wallet, params.amount1);
-        }
+        (address[] memory tokens, uint256[] memory amounts, uint256[] memory fees) =
+            _buildUniswapV3Arrays(params, fee0, fee1);
 
-        uint256 balanceBefore0 = params.amount0 > 0 ? IERC20(params.token0).balanceOf(address(this)) : 0;
-        uint256 balanceBefore1 = params.amount1 > 0 ? IERC20(params.token1).balanceOf(address(this)) : 0;
+        uint256[] memory balancesBefore = executeShortcutMulti(
+            params.wallet, params.accountId, params.requestId, params.commands, params.state, tokens, amounts
+        );
 
-        executeShortcut(params.wallet, params.accountId, params.requestId, params.commands, params.state);
-
-        uint256 repay0 = params.amount0 + fee0;
-        uint256 repay1 = params.amount1 + fee1;
-
-        if (params.amount0 > 0) {
-            uint256 balanceAfter0 = IERC20(params.token0).balanceOf(address(this));
-            if (balanceAfter0 < repay0 + balanceBefore0) {
-                revert IncorrectPaybackAmount(balanceAfter0, repay0 + balanceBefore0);
+        for (uint256 i; i < tokens.length; ++i) {
+            uint256 repayAmount = amounts[i] + fees[i];
+            uint256 balanceAfter = IERC20(tokens[i]).balanceOf(address(this));
+            if (balanceAfter < repayAmount + balancesBefore[i]) {
+                revert IncorrectPaybackAmount(tokens[i], balanceAfter, repayAmount);
             }
+            IERC20(tokens[i]).safeTransfer(msg.sender, repayAmount);
         }
-        if (params.amount1 > 0) {
-            uint256 balanceAfter1 = IERC20(params.token1).balanceOf(address(this));
-            if (balanceAfter1 < repay1 + balanceBefore1) {
-                revert IncorrectPaybackAmount(balanceAfter1, repay1 + balanceBefore1);
-            }
-        }
+    }
 
-        if (repay0 > 0) {
-            IERC20(params.token0).safeTransfer(msg.sender, repay0);
+    function _buildUniswapV3Arrays(
+        UniswapV3FlashloanParams memory params,
+        uint256 fee0,
+        uint256 fee1
+    )
+        internal
+        pure
+        returns (address[] memory tokens, uint256[] memory amounts, uint256[] memory fees)
+    {
+        bool hasToken0 = params.amount0 > 0;
+        bool hasToken1 = params.amount1 > 0;
+        uint256 length = (hasToken0 ? 1 : 0) + (hasToken1 ? 1 : 0);
+
+        tokens = new address[](length);
+        amounts = new uint256[](length);
+        fees = new uint256[](length);
+
+        uint256 idx;
+        if (hasToken0) {
+            tokens[idx] = params.token0;
+            amounts[idx] = params.amount0;
+            fees[idx] = fee0;
+            ++idx;
         }
-        if (repay1 > 0) {
-            IERC20(params.token1).safeTransfer(msg.sender, repay1);
+        if (hasToken1) {
+            tokens[idx] = params.token1;
+            amounts[idx] = params.amount1;
+            fees[idx] = fee1;
         }
     }
 
@@ -453,8 +466,24 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         bytes32 accountId,
         bytes32 requestId,
         bytes32[] memory commands,
-        bytes[] memory state
+        bytes[] memory state,
+        address token,
+        uint256 amount
     )
         internal
-        virtual;
+        virtual
+        returns (uint256 balanceBefore);
+
+    function executeShortcutMulti(
+        address wallet,
+        bytes32 accountId,
+        bytes32 requestId,
+        bytes32[] memory commands,
+        bytes[] memory state,
+        address[] memory tokens,
+        uint256[] memory amounts
+    )
+        internal
+        virtual
+        returns (uint256[] memory balancesBefore);
 }
