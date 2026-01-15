@@ -4,7 +4,7 @@
   "description": "Client contracts for running Enso Shortcuts",
   "main": "index.js",
   "scripts": {
-    "foundry:update": "foundryup && forge soldeer update && forge remappings",
+    "foundry:update": "foundryup && forge soldeer update --recursive-deps && forge remappings",
     "prepare": "husky",
     "format": "prettier --check . && forge fmt --check",
     "format:fix": "prettier --write . && forge fmt",
