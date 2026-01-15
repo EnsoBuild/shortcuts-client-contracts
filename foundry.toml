@@ -157,6 +157,7 @@ linea = "${LINEA_RPC_URL}"
 mainnet = "${ETHEREUM_RPC_URL}"
 monad = "${MONAD_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
+plume = "${PLUME_RPC_URL}"
 polygon = "${POLYGON_RPC_URL}"
 sonic = "${SONIC_RPC_URL}"
 zksync = "${ZKSYNC_RPC_URL}"
@@ -172,6 +173,7 @@ linea = { key = "${LINEA_BLOCKSCAN_KEY}" }
 mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
 monad = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
 optimism = { key = "${OPTIMISM_BLOCKSCAN_KEY}" }
+plume = { key = "${PLUME_BLOCKSCAN_KEY}" }
 polygon = { key = "${POLYGON_BLOCKSCAN_KEY}" }
 sonic = { key = "${SONIC_BLOCKSCAN_KEY}" }
 zksync = { key = "${ZKSYNC_BLOCKSCAN_KEY}" }

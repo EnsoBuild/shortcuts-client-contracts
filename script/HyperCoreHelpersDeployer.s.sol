@@ -9,6 +9,7 @@ contract HyperCoreHelpersDeployer is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployerPrivateKey);
+
         // NOTE: replace version in `salt`
         hyperCoreHelpers = new HyperCoreHelpers{ salt: "HyperCoreHelpers_v1" }();
 
