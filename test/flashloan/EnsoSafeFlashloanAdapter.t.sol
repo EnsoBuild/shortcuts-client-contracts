@@ -3,13 +3,14 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std-1.9.7/Test.sol"; // THIS
 
-import "../src/factory/EnsoWalletV2Factory.sol";
-import "../src/flashloan/AbstractEnsoFlashloan.sol";
-import "../src/flashloan/EnsoWalletFlashloanAdapter.sol";
-import "../src/interfaces/IEnsoFlashloan.sol";
-import "../src/wallet/EnsoWalletV2.sol";
+import "../../src/delegate/DelegateEnsoShortcuts.sol";
+import "../../src/flashloan/AbstractEnsoFlashloan.sol";
+import "../../src/flashloan/EnsoSafeFlashloanAdapter.sol";
+import "../../src/interfaces/IEnsoFlashloan.sol";
 
-import "./utils/WeirollPlanner.sol";
+import "../utils/WeirollPlanner.sol";
+
+import { SafeInstance, SafeTestLib, SafeTestTools } from "safe-tools/SafeTestTools.sol";
 
 interface IWETH {
     function deposit() external payable;
@@ -23,11 +24,12 @@ interface IERC20Minimal {
     function balanceOf(address) external view returns (uint256);
 }
 
-contract EnsoWalletFlashloanAdapterTest is Test {
-    EnsoWalletFlashloanAdapter public adapter;
-    EnsoWalletV2 public walletImplementation;
-    EnsoWalletV2Factory public walletFactory;
-    EnsoWalletV2 public wallet;
+contract EnsoSafeFlashloanAdapterTest is Test, SafeTestTools {
+    using SafeTestLib for SafeInstance;
+
+    EnsoSafeFlashloanAdapter public adapter;
+    DelegateEnsoShortcuts public shortcuts;
+    SafeInstance public safeInstance;
 
     address user_bob = makeAddr("bob");
     address receiver = makeAddr("receiver");
@@ -48,12 +50,11 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         _ethereumFork = vm.createFork(_rpcURL);
         vm.selectFork(_ethereumFork);
 
-        // Deploy wallet infrastructure
-        walletImplementation = new EnsoWalletV2();
-        walletFactory = new EnsoWalletV2Factory(address(walletImplementation));
+        // Initialize safe tools (deploys singleton, proxy factory, handler)
+        _initializeSafeTools();
 
-        // Deploy wallet for user_bob
-        wallet = EnsoWalletV2(payable(walletFactory.deploy(user_bob)));
+        // Deploy shortcuts executor for delegatecall
+        shortcuts = new DelegateEnsoShortcuts();
 
         // Deploy adapter with trusted lenders
         address[] memory lenders = new address[](5);
@@ -74,11 +75,15 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         lenders[4] = uniswapV3Factory;
         protocols[4] = LenderProtocol.UniswapV3;
 
-        adapter = new EnsoWalletFlashloanAdapter(lenders, protocols, address(this));
+        adapter = new EnsoSafeFlashloanAdapter(lenders, protocols, address(shortcuts), address(this));
 
-        // Set the adapter as executor on the wallet so it can call executeShortcut
-        vm.prank(user_bob);
-        wallet.setExecutor(address(adapter), true);
+        // Setup Safe wallet with single owner (user_bob)
+        uint256[] memory ownerPKs = new uint256[](1);
+        ownerPKs[0] = uint256(keccak256("bob"));
+        safeInstance = _setupSafe(ownerPKs, 1, 0);
+
+        // Enable the adapter as a module on the Safe
+        safeInstance.enableModule(address(adapter));
     }
 
     // Morpho test:
@@ -129,7 +134,8 @@ contract EnsoWalletFlashloanAdapterTest is Test {
 
         bytes memory morphoData = abi.encode(morpho, token, amount);
 
-        // Wallet must be the msg.sender when calling executeFlashloan
+        // Safe must be the msg.sender when calling executeFlashloan
+        // Execute via Safe transaction
         bytes memory callData = abi.encodeWithSelector(
             adapter.executeFlashloan.selector,
             LenderProtocol.Morpho,
@@ -140,8 +146,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
             state
         );
 
-        vm.prank(user_bob);
-        wallet.execute(address(adapter), 0, callData);
+        safeInstance.execTransaction(address(adapter), 0, callData);
     }
 
     // Aave V3 test:
@@ -159,12 +164,10 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         uint256 premium = (amount * totalFee) / BPS;
         uint256 repayAmount = amount + premium;
 
-        // Fund the wallet with premium amount (user needs to provide this)
-        vm.deal(user_bob, premium);
-        vm.prank(user_bob);
+        // Fund the Safe with premium amount
+        vm.deal(address(this), premium);
         token.deposit{ value: premium }();
-        vm.prank(user_bob);
-        token.transfer(address(wallet), premium);
+        token.transfer(address(safeInstance.safe), premium);
 
         // Build weiroll commands:
         // 1. Unwrap flashloaned WETH to ETH
@@ -206,7 +209,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
 
         bytes memory aaveData = abi.encode(aaveV3Pool, token, amount);
 
-        // Wallet must be the msg.sender when calling executeFlashloan
+        // Execute via Safe transaction
         bytes memory callData = abi.encodeWithSelector(
             adapter.executeFlashloan.selector,
             LenderProtocol.AaveV3,
@@ -217,8 +220,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
             state
         );
 
-        vm.prank(user_bob);
-        wallet.execute(address(adapter), 0, callData);
+        safeInstance.execTransaction(address(adapter), 0, callData);
     }
 
     // BalancerV3 test:
@@ -274,7 +276,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
 
         bytes memory balancerData = abi.encode(balancerV3Vault, tokens, amounts);
 
-        // Wallet must be the msg.sender when calling executeFlashloan
+        // Execute via Safe transaction
         bytes memory callData = abi.encodeWithSelector(
             adapter.executeFlashloan.selector,
             LenderProtocol.BalancerV3,
@@ -285,8 +287,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
             state
         );
 
-        vm.prank(user_bob);
-        wallet.execute(address(adapter), 0, callData);
+        safeInstance.execTransaction(address(adapter), 0, callData);
     }
 
     // Dolomite test:
@@ -338,7 +339,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
 
         bytes memory dolomiteData = abi.encode(dolomiteMargin, token, amount);
 
-        // Wallet must be the msg.sender when calling executeFlashloan
+        // Execute via Safe transaction
         bytes memory callData = abi.encodeWithSelector(
             adapter.executeFlashloan.selector,
             LenderProtocol.Dolomite,
@@ -349,8 +350,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
             state
         );
 
-        vm.prank(user_bob);
-        wallet.execute(address(adapter), 0, callData);
+        safeInstance.execTransaction(address(adapter), 0, callData);
     }
 
     // UniswapV3 test:
@@ -372,12 +372,10 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         if (fee == 0) fee = 1; // minimum 1 wei
         uint256 repayAmount = amount + fee;
 
-        // Fund the wallet with fee amount
-        vm.deal(user_bob, fee);
-        vm.prank(user_bob);
+        // Fund the Safe with fee amount
+        vm.deal(address(this), fee);
         token.deposit{ value: fee }();
-        vm.prank(user_bob);
-        token.transfer(address(wallet), fee);
+        token.transfer(address(safeInstance.safe), fee);
 
         // Build weiroll commands:
         // 1. Unwrap WETH to ETH
@@ -424,7 +422,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         (uint256 amount0, uint256 amount1) = usdc < weth ? (uint256(0), amount) : (amount, uint256(0));
         bytes memory uniswapData = abi.encode(pool, token0, token1, amount0, amount1);
 
-        // Wallet must be the msg.sender when calling executeFlashloan
+        // Execute via Safe transaction
         bytes memory callData = abi.encodeWithSelector(
             adapter.executeFlashloan.selector,
             LenderProtocol.UniswapV3,
@@ -435,8 +433,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
             state
         );
 
-        vm.prank(user_bob);
-        wallet.execute(address(adapter), 0, callData);
+        safeInstance.execTransaction(address(adapter), 0, callData);
     }
 
     // Test that unauthorized lender cannot call callbacks
@@ -450,18 +447,33 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         adapter.onMorphoFlashLoan(1 ether, "");
     }
 
-    // Test that non-executor cannot call wallet's executeShortcut
-    function testNonExecutorCannotCallWallet() public {
+    // Test that non-module cannot trigger shortcut execution
+    function testNonModuleCannotExecute() public {
         vm.selectFork(_ethereumFork);
 
-        address randomCaller = makeAddr("random");
+        // Disable the adapter module
+        safeInstance.disableModule(address(adapter));
+
+        IWETH token = IWETH(weth);
+        uint256 amount = 1 ether;
 
         bytes32[] memory commands = new bytes32[](0);
         bytes[] memory state = new bytes[](0);
 
-        vm.prank(randomCaller);
-        vm.expectRevert(abi.encodeWithSelector(IEnsoWalletV2.EnsoWalletV2_InvalidSender.selector, randomCaller));
-        wallet.executeShortcut(bytes32(0), bytes32(0), commands, state);
+        bytes memory morphoData = abi.encode(morpho, token, amount);
+
+        bytes memory callData = abi.encodeWithSelector(
+            adapter.executeFlashloan.selector,
+            LenderProtocol.Morpho,
+            morphoData,
+            bytes32(0),
+            bytes32(0),
+            commands,
+            state
+        );
+
+        // This should fail because adapter is no longer a module
+        vm.expectRevert();
+        safeInstance.execTransaction(address(adapter), 0, callData);
     }
 }
-
