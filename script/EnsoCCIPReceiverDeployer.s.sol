@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/bridge/EnsoCCIPReceiver.sol";
-import "../src/libraries/DataTypes.sol";
-import "forge-std/Script.sol";
+import { EnsoCCIPReceiver } from "../src/bridge/EnsoCCIPReceiver.sol";
+import { ChainId } from "../src/libraries/DataTypes.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract EnsoCCIPReceiverDeployer is Script {
     error EnsoRouterIsNotSet();
