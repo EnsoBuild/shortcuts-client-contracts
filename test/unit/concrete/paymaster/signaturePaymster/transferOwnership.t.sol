@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymaster.sol";
 import { SignaturePaymaster_Unit_Concrete_Test } from "./SignaturePaymaster.t.sol";
 
-import { console2 } from "forge-std-1.9.7/Test.sol";
+import { console2 } from "forge-std/Test.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable2Step.sol";
 
 contract SignaturePaymaster_TransferOwnership_Unit_Concrete_Test is SignaturePaymaster_Unit_Concrete_Test {

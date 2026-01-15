@@ -8,7 +8,7 @@ import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { TokenBalanceHelper } from "../../../../utils/TokenBalanceHelper.sol";
 import { TokenBalanceHelper } from "../../../../utils/TokenBalanceHelper.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
-import { console2 } from "forge-std-1.9.7/Test.sol";
+import { console2 } from "forge-std/Test.sol";
 import { IERC20Errors } from "openzeppelin-contracts/interfaces/draft-IERC6093.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 

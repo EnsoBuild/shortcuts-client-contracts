@@ -8,7 +8,7 @@ import { EnsoRouter } from "../../../../../src/router/EnsoRouter.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { WETH9 } from "../../../../mocks/WETH9.sol";
 import { MockCCIPRouter } from "chainlink-ccip/test/mocks/MockRouter.sol";
-import { Test } from "forge-std-1.9.7/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
 abstract contract EnsoCCIPReceiver_Unit_Concrete_Test is Test {
     address payable internal s_deployer;

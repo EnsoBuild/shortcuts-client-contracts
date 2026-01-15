@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
-import { console2 } from "forge-std-1.9.7/Test.sol";
+import { console2 } from "forge-std/Test.sol";
 
 contract EnsoReceiver_SetSigner_Unit_Concrete_Test is EnsoReceiver_Unit_Concrete_Test {
     function test_RevertWhen_CallerIsNotOwner() external {

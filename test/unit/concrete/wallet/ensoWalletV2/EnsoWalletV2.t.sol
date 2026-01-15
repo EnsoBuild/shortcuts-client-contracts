@@ -8,7 +8,7 @@ import { MockERC1155 } from "../../../../mocks/MockERC1155.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockERC721 } from "../../../../mocks/MockERC721.sol";
 
-import { Test } from "forge-std-1.9.7/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { IERC1155 } from "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
 
 abstract contract EnsoWalletV2_Unit_Concrete_Test is Test {

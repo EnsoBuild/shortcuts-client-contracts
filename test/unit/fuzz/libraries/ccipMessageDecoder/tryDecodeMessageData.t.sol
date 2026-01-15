@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { CCIPMessageDecoder } from "../../../../../src/libraries/CCIPMessageDecoder.sol";
-import { Test } from "forge-std-1.9.7/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
 contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Fuzz_Test is Test {
     function testFuzz_unsuccessfulResult_lengthLt96Bytes(bytes memory _data) external pure {

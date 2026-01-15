@@ -11,7 +11,7 @@ import { ExecuteShortcutParams, ShortcutsEthereum } from "../../../../shortcuts/
 
 import { ShortcutsEthereum } from "../../../../shortcuts/ShortcutsEthereum.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
-import { Vm, console2 } from "forge-std-1.9.7/Test.sol";
+import { Vm, console2 } from "forge-std/Test.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
