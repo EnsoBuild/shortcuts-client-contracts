@@ -18,9 +18,6 @@ via_ir = true
 max_test_rejects = 1_000_000 # Number of times `vm.assume` can fail
 runs = 1_000
 
-[profile.linea]
-evm_version = "london"
-
 [fmt]
 bracket_spacing = true
 contract_new_lines = false
