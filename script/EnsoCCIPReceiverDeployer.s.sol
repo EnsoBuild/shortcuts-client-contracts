@@ -50,6 +50,9 @@ contract EnsoCCIPReceiverDeployer is Script {
         } else if (chainId == ChainId.HYPER) {
             ccipRouter = 0x13b3332b66389B1467CA6eBd6fa79775CCeF65ec;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
+        } else if (chainId == ChainId.SONEIUM) {
+            ccipRouter = 0x8C8B88d827Fe14Df2bc6392947d513C86afD6977;
+            ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         } else if (chainId == ChainId.BASE) {
             ccipRouter = 0x881e3A65B4d4a04dD529061dd0071cf975F58bCD;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;

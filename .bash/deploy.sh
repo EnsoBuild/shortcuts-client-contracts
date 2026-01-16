@@ -32,7 +32,7 @@ if [ "$broadcast" == "broadcast" ]; then
         if [ "$verifier" == "etherscan" ]; then
             params+=(--etherscan-api-key "${!blockscan_key}")
         elif [ "$verifier" == "routescan" ]; then
-            params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan")
+            params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/${chain_id}/etherscan")
             params+=(--etherscan-api-key "verifyContract")
         elif [ "$verifier" == "blockscout" ]; then
             if [ "$network_upper" == "INK" ]; then
@@ -45,7 +45,6 @@ if [ "$broadcast" == "broadcast" ]; then
                 printf '%s\n' "Invalid routescan network" >&2
                 exit 1
             fi
-            params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/${chain_id}/etherscan")
             params+=(--etherscan-api-key "verifyContract")
         else
             params+=(--verifier "${verifier}")

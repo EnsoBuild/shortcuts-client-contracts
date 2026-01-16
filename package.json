@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "foundry:update": "foundryup && forge soldeer update --recursive-deps && forge remappings",
+    "foundry:zksync:update": "foundryup-zksync && forge soldeer update --recursive-deps && forge remappings",
     "prepare": "husky",
     "format": "prettier --check . && forge fmt --check",
     "format:fix": "prettier --write . && forge fmt",
