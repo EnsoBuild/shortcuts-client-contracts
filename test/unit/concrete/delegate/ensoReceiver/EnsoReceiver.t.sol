@@ -5,7 +5,7 @@ import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
 import { EnsoShortcutsHelpers } from "../../../../../src/helpers/EnsoShortcutsHelpers.sol";
 import { WETH9 } from "../../../../mocks/WETH9.sol";
 import { EntryPoint } from "account-abstraction-v7/core/EntryPoint.sol";
-import { Test } from "forge-std-1.9.7/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
 abstract contract EnsoReceiver_Unit_Concrete_Test is Test {
     address payable internal constant EOA_1 = payable(0xE150e171dDf7ef6785e2c6fBBbE9eCd0f2f63682);

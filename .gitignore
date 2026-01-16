@@ -10,6 +10,7 @@ zkout/
 
 # Dependencies
 node_modules/
+dependencies/
 
 # Deprecated submodule folder
 lib/

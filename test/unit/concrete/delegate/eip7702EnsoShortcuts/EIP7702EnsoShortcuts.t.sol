@@ -4,9 +4,9 @@ pragma solidity ^0.8.28;
 import {
     EIP7702EnsoShortcutsDeployer,
     EIP7702EnsoShortcutsDeployerResult
-} from "../script/EIP7702EnsoShortcutsDeployer.s.sol";
-import { EIP7702EnsoShortcuts } from "../src/delegate/EIP7702EnsoShortcuts.sol";
-import { WeirollPlanner } from "./utils/WeirollPlanner.sol";
+} from "../../../../../script/EIP7702EnsoShortcutsDeployer.s.sol";
+import { EIP7702EnsoShortcuts } from "../../../../../src/delegate/EIP7702EnsoShortcuts.sol";
+import { WeirollPlanner } from "../../../../utils/WeirollPlanner.sol";
 import { Test } from "forge-std/Test.sol";
 import { WETH } from "solady/tokens/WETH.sol";
 

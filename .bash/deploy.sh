@@ -18,9 +18,7 @@ if [ $network_upper == "ZKSYNC" ]; then
     params+=(--zksync)
     params+=(--slow)
 fi
-if [[ $network_upper == "LINEA" ]]; then
-    params+=(--evm-version "london")
-fi
+
 if [[ $network_upper == "POLYGON" ]]; then
     params+=(--gas-estimate-multiplier 300)
 fi
@@ -32,6 +30,8 @@ if [ $broadcast == "broadcast" ]; then
             params+=(--verifier custom)
             if [ $network_upper == "BERACHAIN" ]; then
                 chain_id=80094
+            elif [ $network_upper == "MONAD" ]; then
+                chain_id=143
             elif [ $network_upper == "PLASMA" ]; then
                 chain_id=9745
             else
@@ -60,5 +60,7 @@ if [ $broadcast == "broadcast" ]; then
     params+=(-vvvv)
 fi
 
-set -x
-forge script script/${script} --private-key $PRIVATE_KEY --rpc-url ${!rpc} "${params[@]}"
+{ set +x; } 2>/dev/null
+
+PRIVATE_KEY="$PRIVATE_KEY" \
+forge script "script/${script}" --rpc-url "${!rpc}" "${params[@]}"

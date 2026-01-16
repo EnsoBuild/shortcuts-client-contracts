@@ -14,6 +14,13 @@ src = "src"
 test = "test"
 via_ir = true
 
+[profile.default.fuzz]
+max_test_rejects = 1_000_000 # Number of times `vm.assume` can fail
+runs = 1_000
+
+[profile.linea]
+evm_version = "london"
+
 [fmt]
 bracket_spacing = true
 contract_new_lines = false
@@ -128,6 +135,8 @@ remappings_location = "txt"
 
 [dependencies]
 account-abstraction-v7 = { version = "0.7.0", git = "https://github.com/eth-infinitism/account-abstraction.git", rev = "7af70c8993a6f42973f520ae0752386a5032abe7" }
+chainlink-ccip = { version = "1.6.2", git = "https://github.com/smartcontractkit/chainlink-ccip.git", rev = "0e3e0fc5c0f70f0d50dca66b139142ddf3009294"}
+chainlink-evm = { version = "1.5.0", git = "https://github.com/smartcontractkit/chainlink-evm.git", rev = "86aa5a1d34b20eda8d18fe6eb0e4882948e545ba"}
 devtools = { version = "0.0.1", git = "https://github.com/LayerZero-Labs/devtools.git", rev = "ac8912867862f6dd737b0febabd8d3cb8f142df7" }
 enso-weiroll = { version = "1.4.1", git = "https://github.com/EnsoBuild/enso-weiroll.git", rev = "900250114203727ff236d3f6313673c17c2d90dd" }
 forge-std = { version = "1.9.7", git = "https://github.com/foundry-rs/forge-std.git", tag = "v1.9.7" }
@@ -147,13 +156,16 @@ berachain = "${BERACHAIN_RPC_URL}"
 bsc = "${BSC_RPC_URL}"
 gnosis = "${GNOSIS_RPC_URL}"
 hyper = "${HYPER_RPC_URL}"
+ink = "${INK_RPC_URL}"
 linea = "${LINEA_RPC_URL}"
 mainnet = "${ETHEREUM_RPC_URL}"
 monad = "${MONAD_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 plume = "${PLUME_RPC_URL}"
 polygon = "${POLYGON_RPC_URL}"
+soneium = "${SONEIUM_RPC_URL}"
 sonic = "${SONIC_RPC_URL}"
+world = "${WORLD_RPC_URL}"
 zksync = "${ZKSYNC_RPC_URL}"
 
 [etherscan]
@@ -163,13 +175,17 @@ base = { key = "${BASE_BLOCKSCAN_KEY}" }
 berachain = { key = "verifyContract" }
 bsc = { key = "${BSC_BLOCKSCAN_KEY}" }
 gnosis = { key = "${GNOSIS_BLOCKSCAN_KEY}" }
+hyper = { key = "${HYPER_BLOCKSCAN_KEY}" }
+ink = { key = "${INK_BLOCKSCAN_KEY}" }
 linea = { key = "${LINEA_BLOCKSCAN_KEY}" }
 mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
 monad = { key = "${MONAD_BLOCKSCAN_KEY}" }
 optimism = { key = "${OPTIMISM_BLOCKSCAN_KEY}" }
 plume = { key = "${PLUME_BLOCKSCAN_KEY}" }
 polygon = { key = "${POLYGON_BLOCKSCAN_KEY}" }
+soneium = { key = "${SONEIUM_BLOCKSCAN_KEY}" }
 sonic = { key = "${SONIC_BLOCKSCAN_KEY}" }
+world = { key = "${WORLD_BLOCKSCAN_KEY}" }
 zksync = { key = "${ZKSYNC_BLOCKSCAN_KEY}" }
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

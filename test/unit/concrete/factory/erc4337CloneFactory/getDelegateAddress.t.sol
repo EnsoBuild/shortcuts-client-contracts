@@ -1,7 +1,7 @@
 pragma solidity ^0.8.28;
 
 import { ERC4337CloneFactory_Unit_Concrete_Test } from "./ERC4337CloneFactory.t.sol";
-import { console2 } from "forge-std-1.9.7/Test.sol";
+import { console2 } from "forge-std/Test.sol";
 
 contract ERC4337CloneFactory_GetDelegateAddress_Unit_Concrete_Test is ERC4337CloneFactory_Unit_Concrete_Test {
     function test_ShouldReturnCounterfactualEnsoReceiverAddress() external view {

@@ -8,7 +8,7 @@ import { ExecuteShortcutParams, ShortcutsEthereum } from "../../../../shortcuts/
 import { TokenBalanceHelper } from "../../../../utils/TokenBalanceHelper.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
 import { VM as WeirollVM } from "enso-weiroll-1.4.1/VM.sol";
-import { console2 } from "forge-std-1.9.7/Test.sol";
+import { console2 } from "forge-std/Test.sol";
 
 contract EnsoReceiver_ExecuteShortcut_SenderIsEnsoReceiver_Unit_Concrete_Test is
     EnsoReceiver_Unit_Concrete_Test,

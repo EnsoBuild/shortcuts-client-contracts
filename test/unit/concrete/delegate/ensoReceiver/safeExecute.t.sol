@@ -11,7 +11,7 @@ import { ExecuteShortcutParams, ShortcutsEthereum } from "../../../../shortcuts/
 
 import { ShortcutsEthereum } from "../../../../shortcuts/ShortcutsEthereum.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
-import { Vm, console2 } from "forge-std-1.9.7/Test.sol";
+import { Vm, console2 } from "forge-std/Test.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
@@ -191,8 +191,9 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
         whenTokenInIsNotNativeToken
     {
         // Get shortcut
-        Shortcut memory shortcut =
-            ShortcutsEthereum.getShortcut2(address(s_weth), address(s_ensoShortcutsHelpers), s_owner);
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut2(
+            address(s_weth), address(s_ensoShortcutsHelpers), s_owner, 0x6AA68C46eD86161eB318b1396F7b79E386e88676
+        );
 
         // Top-up EnsoReceiver with WETH (as EntryPoint)
         s_weth.deposit{ value: shortcut.amountsIn[0] }(); // NOTE: as EntryPoint
@@ -211,7 +212,9 @@ contract EnsoReceiver_SafeExecute_SenderIsEntryPoint_Unit_Concrete_Test is
     {
         // Get shortcut
         // NOTE: force shortcut failure by replacing `EnsoShortcutsHelpers` address with Zero address
-        Shortcut memory shortcut = ShortcutsEthereum.getShortcut2(address(s_weth), address(0), s_owner);
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut2(
+            address(s_weth), address(0), s_owner, 0x6AA68C46eD86161eB318b1396F7b79E386e88676
+        );
 
         // Top-up EnsoReceiver with WETH (as EntryPoint)
         s_weth.deposit{ value: shortcut.amountsIn[0] }(); // NOTE: as EntryPoint
@@ -438,8 +441,9 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
         whenTokenInIsNotNativeToken
     {
         // Get shortcut
-        Shortcut memory shortcut =
-            ShortcutsEthereum.getShortcut2(address(s_weth), address(s_ensoShortcutsHelpers), s_owner);
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut2(
+            address(s_weth), address(s_ensoShortcutsHelpers), s_owner, 0x6AA68C46eD86161eB318b1396F7b79E386e88676
+        );
 
         // Top-up EnsoReceiver with WETH (as owner)
         s_weth.deposit{ value: shortcut.amountsIn[0] }(); // NOTE: as owner
@@ -458,7 +462,9 @@ contract EnsoReceiver_SafeExecute_SenderIsOwner_Unit_Concrete_Test is
     {
         // Get shortcut
         // NOTE: force shortcut failure by replacing `EnsoShortcutsHelpers` address with Zero address
-        Shortcut memory shortcut = ShortcutsEthereum.getShortcut2(address(s_weth), address(0), s_owner);
+        Shortcut memory shortcut = ShortcutsEthereum.getShortcut2(
+            address(s_weth), address(0), s_owner, 0x6AA68C46eD86161eB318b1396F7b79E386e88676
+        );
 
         // Top-up EnsoReceiver with WETH (as owner)
         s_weth.deposit{ value: shortcut.amountsIn[0] }(); // NOTE: as owner
