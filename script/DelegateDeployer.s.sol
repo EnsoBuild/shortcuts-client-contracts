@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import "../src/delegate/DelegateEnsoShortcuts.sol";
-import "forge-std/Script.sol";
+import { DelegateEnsoShortcuts } from "../src/delegate/DelegateEnsoShortcuts.sol";
+import { Script } from "forge-std/Script.sol";
 
 struct DelegateDeployerResult {
     DelegateEnsoShortcuts delegate;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/delegate/EIP7702EnsoShortcuts.sol";
-import "forge-std/Script.sol";
+import { EIP7702EnsoShortcuts } from "../src/delegate/EIP7702EnsoShortcuts.sol";
+import { Script } from "forge-std/Script.sol";
 
 struct EIP7702EnsoShortcutsDeployerResult {
     EIP7702EnsoShortcuts shortcuts;

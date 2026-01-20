@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../src/EnsoShortcuts.sol";
-import "forge-std/Script.sol";
+import { EnsoShortcuts } from "../src/EnsoShortcuts.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract Deployer is Script {
     mapping(uint256 => address) socketReceivers;

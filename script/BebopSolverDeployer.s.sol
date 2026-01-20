@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/solvers/BebopSolver.sol";
-import "forge-std/Script.sol";
+import { BebopSolver } from "../src/solvers/BebopSolver.sol";
+import { Script } from "forge-std/Script.sol";
 
 struct BebopSolverResult {
     BebopSolver shortcuts;
