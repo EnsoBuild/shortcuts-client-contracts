@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
 import { ERC4337CloneFactory } from "../../../../../src/factory/ERC4337CloneFactory.sol";
-import { Test } from "forge-std-1.9.7/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
 abstract contract ERC4337CloneFactory_Unit_Concrete_Test is Test {
     address payable internal s_deployer;

@@ -5,7 +5,7 @@ import { SignaturePaymaster } from "../../../../../src/paymaster/SignaturePaymas
 import { SignaturePaymaster_Unit_Concrete_Test } from "./SignaturePaymaster.t.sol";
 import { IStakeManager } from "account-abstraction-v7/interfaces/IStakeManager.sol";
 
-import { console2 } from "forge-std-1.9.7/Test.sol";
+import { console2 } from "forge-std/Test.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable2Step.sol";
 
 contract SignaturePaymaster_UnlockStake_Unit_Concrete_Test is SignaturePaymaster_Unit_Concrete_Test {

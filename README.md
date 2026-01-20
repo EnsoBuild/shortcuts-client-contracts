@@ -151,8 +151,8 @@ catch them.
 
 4. **(Optional) Automate with a Script**
 
-   For more complex or repeated runs, you can create a JS script in `test/scripts/`,
-   e.g.
+   For more complex or repeated runs, you can create a JS script in
+   `test/scripts/`, e.g.
    [`test/scripts/runEnsoCheckoutMutationTests.mjs`](./scripts/runEnsoCheckoutMutationTests.mjs).
 
 #### **Script Options and Advanced Usage**

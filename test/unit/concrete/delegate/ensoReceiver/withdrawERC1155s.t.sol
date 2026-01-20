@@ -7,7 +7,7 @@ import { MockERC1155 } from "../../../../mocks/MockERC1155.sol";
 import { TokenBalanceHelper } from "../../../../utils/TokenBalanceHelper.sol";
 import { TokenBalanceHelper } from "../../../../utils/TokenBalanceHelper.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
-import { console2 } from "forge-std-1.9.7/Test.sol";
+import { console2 } from "forge-std/Test.sol";
 import { IERC1155Errors } from "openzeppelin-contracts/interfaces/draft-IERC6093.sol";
 
 contract EnsoReceiver_WithdrawERC1155s_Unit_Concrete_Test is EnsoReceiver_Unit_Concrete_Test, TokenBalanceHelper {
