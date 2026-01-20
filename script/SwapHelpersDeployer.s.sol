@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { SwapHelpers } from "../src/helpers/SwapHelpers.sol";
-import "forge-std/Script.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract SwapHelpersDeployer is Script {
     function run() public returns (SwapHelpers swapHelpers) {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/solvers/BaseSolver.sol";
-import "forge-std/Script.sol";
+import { BaseSolver } from "../src/solvers/BaseSolver.sol";
+import { Script } from "forge-std/Script.sol";
 
 struct BaseSolverResult {
     BaseSolver shortcuts;

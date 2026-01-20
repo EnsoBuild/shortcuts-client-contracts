@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { HyperCoreHelpers } from "../src/helpers/HyperCoreHelpers.sol";
-import "forge-std/Script.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract HyperCoreHelpersDeployer is Script {
     function run() public returns (HyperCoreHelpers hyperCoreHelpers) {

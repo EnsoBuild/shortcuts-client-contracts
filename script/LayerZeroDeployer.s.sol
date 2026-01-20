@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/bridge/LayerZeroReceiver.sol";
-import "../src/libraries/DataTypes.sol";
-import "forge-std/Script.sol";
+import { LayerZeroReceiver } from "../src/bridge/LayerZeroReceiver.sol";
+import { ChainId } from "../src/libraries/DataTypes.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract LayerZeroDeployer is Script {
     function run() public returns (address lzReceiver, address endpoint, address router) {

@@ -12,8 +12,8 @@ interface IEnsoWalletV2Factory {
     /// @param account The account address that owns the wallet
     event EnsoWalletV2Deployed(address wallet, address indexed account);
 
-    /// @notice Thrown when an execution call fails
-    error EnsoWalletV2Factory_ExecutionFailed();
+    /// @notice Thrown when an execution call fails without revert reason
+    error EnsoWalletV2Factory_ExecutionFailedNoReason();
 
     /// @notice Thrown when an unsupported token type is provided
     /// @param tokenType The unsupported token type

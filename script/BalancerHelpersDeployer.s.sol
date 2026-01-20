@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { BalancerHelpers } from "../src/helpers/BalancerHelpers.sol";
-import "forge-std/Script.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract BalancerHelpersDeployer is Script {
     function run() public returns (BalancerHelpers balancerHelpers) {

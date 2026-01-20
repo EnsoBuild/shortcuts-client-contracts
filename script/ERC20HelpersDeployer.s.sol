@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { ERC20Helpers } from "../src/helpers/ERC20Helpers.sol";
-import "forge-std/Script.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract ERC20HelpersDeployer is Script {
     function run() public returns (ERC20Helpers erc20Helpers) {
