@@ -4,8 +4,8 @@ pragma solidity ^0.8.28;
 import { IPermit2 } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import { IUniversalRouter } from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 
-import "../src/helpers/UniswapV4SwapHelpers.sol";
-import "forge-std/Script.sol";
+import { UniswapV4SwapHelpers } from "../src/helpers/UniswapV4SwapHelpers.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract UniswapV4SwapHelpersDeployer is Script {
     IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);

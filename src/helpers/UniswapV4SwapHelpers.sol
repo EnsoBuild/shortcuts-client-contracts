@@ -45,12 +45,16 @@ contract UniswapV4SwapHelpers {
             abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
         bytes[] memory params = new bytes[](3);
 
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint128 amountIn128 = uint128(amountIn);
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint128 minAmountOut128 = uint128(minAmountOut);
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: poolKey,
                 zeroForOne: zeroForOne,
-                amountIn: uint128(amountIn),
-                amountOutMinimum: uint128(minAmountOut),
+                amountIn: amountIn128,
+                amountOutMinimum: minAmountOut128,
                 hookData: hookData
             })
         );
@@ -70,7 +74,7 @@ contract UniswapV4SwapHelpers {
                 revert InvalidValue();
             }
             address tokenIn = Currency.unwrap(currencyIn);
-            IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+            IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
             approveToken(tokenIn, amountIn);
         }
 
@@ -82,13 +86,14 @@ contract UniswapV4SwapHelpers {
         if (amountOut < minAmountOut) {
             revert InsufficientOutputAmount(amountOut, minAmountOut);
         }
-        IERC20(tokenOut).transfer(receiver, amountOut);
+        IERC20(tokenOut).safeTransfer(receiver, amountOut);
 
         return amountOut;
     }
 
     function approveToken(address token, uint256 amount) private {
         IERC20(token).forceApprove(address(PERMIT2), amount);
+        // forge-lint: disable-next-line(unsafe-typecast)
         PERMIT2.approve(token, address(UNIVERSAL_ROUTER), uint160(amount), type(uint48).max);
     }
 }
