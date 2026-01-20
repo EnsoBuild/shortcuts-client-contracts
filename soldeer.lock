@@ -47,6 +47,12 @@ git = "https://github.com/LayerZero-Labs/LayerZero-v2.git"
 rev = "9a4049ae3a374e1c0ef01ac9fb53dd83f4257a68"
 
 [[dependencies]]
+name = "permit2"
+version = "4.0.0"
+git = "https://github.com/uniswap/permit2"
+rev = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+
+[[dependencies]]
 name = "safe-smart-account"
 version = "1.5.0"
 git = "https://github.com/safe-global/safe-smart-account.git"
@@ -63,6 +69,12 @@ name = "solady"
 version = "0.1.22"
 git = "https://github.com/Vectorized/solady.git"
 rev = "65e87c72a5ee4a6708946b25611ec5f980ceba70"
+
+[[dependencies]]
+name = "universal-router"
+version = "4.0.0"
+git = "https://github.com/uniswap/universal-router"
+rev = "705f7bb9836ebc4f6ad1aad91629c3d0fc4128d4"
 
 [[dependencies]]
 name = "v4-core"
