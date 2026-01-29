@@ -72,7 +72,6 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         bytes[] calldata state
     )
         external
-        payable
         whenNotPaused
     {
         if (protocol == LenderProtocol.Morpho) {
