@@ -45,7 +45,7 @@ contract EnsoWalletFlashloanAdapterTest is Test {
     uint256 _ethereumFork;
 
     function setUp() public {
-        _ethereumFork = vm.createFork(_rpcURL);
+        _ethereumFork = vm.createFork(_rpcURL, 24239209);
         vm.selectFork(_ethereumFork);
 
         // Deploy wallet infrastructure

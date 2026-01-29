@@ -47,7 +47,7 @@ contract EnsoSafeFlashloanAdapterTest is Test, SafeTestTools {
     uint256 _ethereumFork;
 
     function setUp() public {
-        _ethereumFork = vm.createFork(_rpcURL);
+        _ethereumFork = vm.createFork(_rpcURL, 24239209);
         vm.selectFork(_ethereumFork);
 
         // Initialize safe tools (deploys singleton, proxy factory, handler)
