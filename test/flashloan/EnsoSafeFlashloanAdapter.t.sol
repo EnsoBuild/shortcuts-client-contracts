@@ -47,7 +47,7 @@ contract EnsoSafeFlashloanAdapterTest is Test, SafeTestTools {
     uint256 _ethereumFork;
 
     function setUp() public {
-        _ethereumFork = vm.createFork(_rpcURL, 24239209);
+        _ethereumFork = vm.createFork(_rpcURL, 24_239_209);
         vm.selectFork(_ethereumFork);
 
         // Initialize safe tools (deploys singleton, proxy factory, handler)
@@ -369,7 +369,9 @@ contract EnsoSafeFlashloanAdapterTest is Test, SafeTestTools {
 
         // Calculate fee: 0.05% = 500/1e6 = 0.0005
         uint256 fee = (amount * 500) / 1e6;
-        if (fee == 0) fee = 1; // minimum 1 wei
+        if (fee == 0) {
+            fee = 1; // minimum 1 wei
+        }
         uint256 repayAmount = amount + fee;
 
         // Fund the Safe with fee amount

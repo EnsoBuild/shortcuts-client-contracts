@@ -64,8 +64,10 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
 
         bytes memory executeData = _buildExecuteShortcutsCalldata(commands, state);
 
+        address[] memory executors = new address[](0);
+
         vm.startPrank(s_user);
-        (address walletAddress,) = s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData);
+        (address walletAddress,) = s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors);
 
         // it should deploy wallet
         assertTrue(walletAddress.code.length > 0);
@@ -110,8 +112,10 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         weth.deposit{ value: value }();
         weth.approve(address(s_walletFactory), value);
 
+        address[] memory executors = new address[](0);
+
         vm.startPrank(s_user);
-        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors);
 
         // it should deploy wallet
         assertTrue(walletAddress.code.length > 0);
@@ -123,6 +127,46 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
 
         // it should transfer value to wallet
         assertEq(weth.balanceOf(s_account1), value);
+    }
+
+    function test_executeShortcutWithExecutors() external {
+        Token[] memory tokensIn = new Token[](0);
+
+        bytes32[] memory commands = new bytes32[](0);
+        bytes[] memory state = new bytes[](0);
+        bytes memory executeData = _buildExecuteShortcutsCalldata(commands, state);
+
+        address[] memory executors = new address[](1);
+        executors[0] = s_account1;
+
+        vm.startPrank(s_user);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors);
+
+        EnsoWalletV2 wallet = EnsoWalletV2(payable(walletAddress));
+        assertTrue(wallet.executors(s_account1));
+    }
+
+    function test_executeShortcutWithExecutors_existingWallet() external {
+        Token[] memory tokensIn = new Token[](0);
+
+        bytes32[] memory commands = new bytes32[](0);
+        bytes[] memory state = new bytes[](0);
+        bytes memory executeData = _buildExecuteShortcutsCalldata(commands, state);
+
+        address[] memory emptyExecutors = new address[](0);
+
+        vm.startPrank(s_user);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, emptyExecutors);
+
+        EnsoWalletV2 wallet = EnsoWalletV2(payable(walletAddress));
+        assertFalse(wallet.executors(s_account2));
+
+        address[] memory executors = new address[](1);
+        executors[0] = s_account2;
+
+        (address walletAddress2,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors);
+        assertEq(walletAddress2, walletAddress);
+        assertTrue(wallet.executors(s_account2));
     }
 
     function test_revert_ERC20WithNativeValue() external {
@@ -140,10 +184,12 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         weth.deposit{ value: value }();
         weth.approve(address(s_walletFactory), value);
 
+        address[] memory executors = new address[](0);
+
         vm.expectRevert(
             abi.encodeWithSelector(IEnsoWalletV2Factory.EnsoWalletV2Factory_WrongMsgValue.selector, value, 0)
         );
-        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData);
+        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors);
     }
 
     function test_revert_executeShortcut() external {
@@ -169,9 +215,11 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
 
         bytes memory executeData = _buildExecuteShortcutsCalldata(commands, state);
 
+        address[] memory executors = new address[](0);
+
         vm.startPrank(s_user);
         vm.expectRevert();
-        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData);
+        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors);
     }
 
     function _buildExecuteShortcutsCalldata(

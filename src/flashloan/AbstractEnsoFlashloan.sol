@@ -399,7 +399,6 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         address factory = pool.factory();
         _verifyLender(factory, LenderProtocol.UniswapV3);
 
-        // NOTE: this might be redundant since we get the factory to verify lender
         uint24 poolFee = pool.fee();
         address expectedPool = IUniswapV3Factory(factory).getPool(params.token0, params.token1, poolFee);
         if (msg.sender != expectedPool) {

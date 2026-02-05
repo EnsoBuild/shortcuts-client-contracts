@@ -44,7 +44,7 @@ contract EnsoRouterFlashloanAdapterTest is Test {
     uint256 _ethereumFork;
 
     function setUp() public {
-        _ethereumFork = vm.createFork(_rpcURL, 24239209);
+        _ethereumFork = vm.createFork(_rpcURL, 24_239_209);
         vm.selectFork(_ethereumFork);
 
         // Deploy adapter with trusted lenders
