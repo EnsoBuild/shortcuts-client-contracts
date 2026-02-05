@@ -12,7 +12,7 @@ contract EnsoSafeFlashloanAdapter is AbstractEnsoFlashloan {
 
     error SafeExecutionFailed();
 
-    address public immutable shortcuts;
+    address public immutable SHORTCUTS;
 
     constructor(
         address[] memory lenders,
@@ -22,7 +22,7 @@ contract EnsoSafeFlashloanAdapter is AbstractEnsoFlashloan {
     )
         AbstractEnsoFlashloan(lenders, protocols, owner_)
     {
-        shortcuts = shortcuts_;
+        SHORTCUTS = shortcuts_;
     }
 
     function executeShortcut(
@@ -80,7 +80,7 @@ contract EnsoSafeFlashloanAdapter is AbstractEnsoFlashloan {
         bytes memory data =
             abi.encodeCall(AbstractEnsoShortcuts.executeShortcut, (accountId, requestId, commands, state));
 
-        bool success = ISafe(payable(wallet)).execTransactionFromModule(shortcuts, 0, data, Enum.Operation.DelegateCall);
+        bool success = ISafe(payable(wallet)).execTransactionFromModule(SHORTCUTS, 0, data, Enum.Operation.DelegateCall);
 
         if (!success) {
             revert SafeExecutionFailed();

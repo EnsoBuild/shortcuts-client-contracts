@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/flashloan/EnsoSafeFlashloanAdapter.sol";
-import "./FlashloanAdapterConfig.s.sol";
-import "forge-std/Script.sol";
+import { EnsoSafeFlashloanAdapter } from "../src/flashloan/EnsoSafeFlashloanAdapter.sol";
+import { FlashloanAdapterConfig, LenderProtocol } from "./FlashloanAdapterConfig.s.sol";
+import { Script } from "forge-std/Script.sol";
 
 contract EnsoSafeFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
     function run() public returns (EnsoSafeFlashloanAdapter adapter) {

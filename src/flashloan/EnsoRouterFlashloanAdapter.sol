@@ -9,7 +9,7 @@ import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/Safe
 contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
     using SafeERC20 for IERC20;
 
-    address public immutable router;
+    address public immutable ROUTER;
 
     constructor(
         address[] memory lenders,
@@ -19,7 +19,7 @@ contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
     )
         AbstractEnsoFlashloan(lenders, protocols, owner_)
     {
-        router = router_;
+        ROUTER = router_;
     }
 
     function executeShortcut(
@@ -37,13 +37,13 @@ contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
     {
         balanceBefore = IERC20(token).balanceOf(address(this)) - amount;
 
-        IERC20(token).forceApprove(router, amount);
+        IERC20(token).forceApprove(ROUTER, amount);
         Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(IERC20(token), amount) });
 
         bytes memory data =
             abi.encodeCall(AbstractEnsoShortcuts.executeShortcut, (accountId, requestId, commands, state));
 
-        IEnsoRouter(router).routeSingle(tokenIn, data);
+        IEnsoRouter(ROUTER).routeSingle(tokenIn, data);
     }
 
     function executeShortcutMulti(
@@ -66,7 +66,7 @@ contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
         for (uint256 i; i < length; ++i) {
             balancesBefore[i] = IERC20(tokens[i]).balanceOf(address(this)) - amounts[i];
 
-            IERC20(tokens[i]).forceApprove(router, amounts[i]);
+            IERC20(tokens[i]).forceApprove(ROUTER, amounts[i]);
 
             tokensIn[i] = Token({ tokenType: TokenType.ERC20, data: abi.encode(IERC20(tokens[i]), amounts[i]) });
         }
@@ -74,6 +74,6 @@ contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
         bytes memory data =
             abi.encodeCall(AbstractEnsoShortcuts.executeShortcut, (accountId, requestId, commands, state));
 
-        IEnsoRouter(router).routeMulti(tokensIn, data);
+        IEnsoRouter(ROUTER).routeMulti(tokensIn, data);
     }
 }

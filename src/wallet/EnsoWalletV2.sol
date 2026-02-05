@@ -25,9 +25,7 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
     }
 
     modifier onlyOwnerOrFactory() {
-        if (!_isOwnerOrFactory()) {
-            revert EnsoWalletV2_InvalidSender(msg.sender);
-        }
+        _onlyOwnerOrFactory();
         _;
     }
 
@@ -103,6 +101,12 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
 
     function _checkOwner() internal view override {
         if (msg.sender != owner()) {
+            revert EnsoWalletV2_InvalidSender(msg.sender);
+        }
+    }
+
+    function _onlyOwnerOrFactory() internal view {
+        if (!_isOwnerOrFactory()) {
             revert EnsoWalletV2_InvalidSender(msg.sender);
         }
     }

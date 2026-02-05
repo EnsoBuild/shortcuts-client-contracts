@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../src/flashloan/AbstractEnsoFlashloan.sol";
+import { LenderProtocol } from "../src/flashloan/AbstractEnsoFlashloan.sol";
 
 abstract contract FlashloanAdapterConfig {
     uint256 constant ETHEREUM = 1;
