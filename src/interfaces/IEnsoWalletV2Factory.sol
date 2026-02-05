@@ -40,12 +40,14 @@ interface IEnsoWalletV2Factory {
     /// @param tokensIn The tokens to transfer to the wallet
     /// @param data The calldata to execute on the wallet
     /// @param executors The executors to authorize on the wallet
+    /// @param revokeExecutorsAfterExecution If true, revoke executor permissions after execution
     /// @return wallet The deployed wallet address
     /// @return response The return data from the execution
     function deployAndExecute(
         Token[] calldata tokensIn,
         bytes calldata data,
-        address[] calldata executors
+        address[] calldata executors,
+        bool revokeExecutorsAfterExecution
     )
         external
         payable

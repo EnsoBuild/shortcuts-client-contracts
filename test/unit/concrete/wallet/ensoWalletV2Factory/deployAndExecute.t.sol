@@ -67,7 +67,8 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         address[] memory executors = new address[](0);
 
         vm.startPrank(s_user);
-        (address walletAddress,) = s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors);
+        (address walletAddress,) =
+            s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors, false);
 
         // it should deploy wallet
         assertTrue(walletAddress.code.length > 0);
@@ -115,7 +116,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         address[] memory executors = new address[](0);
 
         vm.startPrank(s_user);
-        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors, false);
 
         // it should deploy wallet
         assertTrue(walletAddress.code.length > 0);
@@ -140,7 +141,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         executors[0] = s_account1;
 
         vm.startPrank(s_user);
-        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors, false);
 
         EnsoWalletV2 wallet = EnsoWalletV2(payable(walletAddress));
         assertTrue(wallet.executors(s_account1));
@@ -156,7 +157,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         address[] memory emptyExecutors = new address[](0);
 
         vm.startPrank(s_user);
-        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, emptyExecutors);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, emptyExecutors, false);
 
         EnsoWalletV2 wallet = EnsoWalletV2(payable(walletAddress));
         assertFalse(wallet.executors(s_account2));
@@ -164,9 +165,47 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         address[] memory executors = new address[](1);
         executors[0] = s_account2;
 
-        (address walletAddress2,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors);
+        (address walletAddress2,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors, false);
         assertEq(walletAddress2, walletAddress);
         assertTrue(wallet.executors(s_account2));
+    }
+
+    function test_executeShortcutWithExecutors_resetExecutors() external {
+        Token[] memory tokensIn = new Token[](0);
+
+        bytes32[] memory commands = new bytes32[](0);
+        bytes[] memory state = new bytes[](0);
+        bytes memory executeData = _buildExecuteShortcutsCalldata(commands, state);
+
+        address[] memory executors = new address[](1);
+        executors[0] = s_account1;
+
+        vm.startPrank(s_user);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors, true);
+
+        EnsoWalletV2 wallet = EnsoWalletV2(payable(walletAddress));
+        // executor should be revoked after execution
+        assertFalse(wallet.executors(s_account1));
+    }
+
+    function test_executeShortcutWithExecutors_resetMultipleExecutors() external {
+        Token[] memory tokensIn = new Token[](0);
+
+        bytes32[] memory commands = new bytes32[](0);
+        bytes[] memory state = new bytes[](0);
+        bytes memory executeData = _buildExecuteShortcutsCalldata(commands, state);
+
+        address[] memory executors = new address[](2);
+        executors[0] = s_account1;
+        executors[1] = s_account2;
+
+        vm.startPrank(s_user);
+        (address walletAddress,) = s_walletFactory.deployAndExecute(tokensIn, executeData, executors, true);
+
+        EnsoWalletV2 wallet = EnsoWalletV2(payable(walletAddress));
+        // all executors should be revoked after execution
+        assertFalse(wallet.executors(s_account1));
+        assertFalse(wallet.executors(s_account2));
     }
 
     function test_revert_ERC20WithNativeValue() external {
@@ -189,7 +228,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         vm.expectRevert(
             abi.encodeWithSelector(IEnsoWalletV2Factory.EnsoWalletV2Factory_WrongMsgValue.selector, value, 0)
         );
-        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors);
+        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors, false);
     }
 
     function test_revert_executeShortcut() external {
@@ -219,7 +258,7 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
 
         vm.startPrank(s_user);
         vm.expectRevert();
-        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors);
+        s_walletFactory.deployAndExecute{ value: value }(tokensIn, executeData, executors, false);
     }
 
     function _buildExecuteShortcutsCalldata(
