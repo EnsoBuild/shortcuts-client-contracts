@@ -37,6 +37,9 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
     function initialize(address owner_) external initializer {
         _owner = owner_;
         factory = msg.sender;
+
+        executors[msg.sender] = true;
+        executors[owner_] = true;
     }
 
     /// @inheritdoc IEnsoWalletV2
@@ -72,12 +75,8 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
         return _owner;
     }
 
-    function _isOwnerOrFactory() internal view returns (bool) {
-        return msg.sender == owner() || msg.sender == factory;
-    }
-
     function _checkMsgSender() internal view override(AbstractEnsoShortcuts, AbstractMultiSend) {
-        if (!_isOwnerOrFactory() && !executors[msg.sender]) {
+        if (!executors[msg.sender]) {
             revert EnsoWalletV2_InvalidSender(msg.sender);
         }
     }
@@ -106,7 +105,7 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
     }
 
     function _onlyOwnerOrFactory() internal view {
-        if (!_isOwnerOrFactory()) {
+        if (msg.sender != owner() && msg.sender != factory) {
             revert EnsoWalletV2_InvalidSender(msg.sender);
         }
     }
