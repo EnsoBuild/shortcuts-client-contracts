@@ -30,9 +30,13 @@ enum LenderProtocol {
 abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     using SafeERC20 for IERC20;
 
+    bytes32 private constant _FLASHLOAN_CONTEXT_SLOT = keccak256("enso.flashloan.context");
+
     error UnsupportedProtocol();
     error NotAuthorized();
     error UnknownLender();
+    error FlashloanInProgress();
+    error FlashloanNotInProgress();
     error IncorrectPaybackAmount(address asset, uint256 amount, uint256 requiredAmount);
     error WrongConstrutorParams();
 
@@ -74,6 +78,8 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         external
         whenNotPaused
     {
+        _enterFlashloanContext(protocol);
+
         if (protocol == LenderProtocol.Morpho) {
             _executeMorphoFlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
         } else if (protocol == LenderProtocol.BalancerV3) {
@@ -87,6 +93,8 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         } else {
             revert UnsupportedProtocol();
         }
+
+        _clearFlashloanContext();
     }
 
     // --- Flashloan execution ---
@@ -268,6 +276,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     // LenderProtocol = Morpho
     // Morpho vault calls msg.sender, safe to check only msg.sender
     function onMorphoFlashLoan(uint256 amount, bytes calldata data) external {
+        _assertActiveCallback(LenderProtocol.Morpho);
         _verifyLender(msg.sender, LenderProtocol.Morpho);
 
         (
@@ -292,6 +301,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     // LenderProtocol = BalancerV3
     // BalancerV3 vault calls msg.sender, safe to check only msg.sender
     function onBalancerV3Flashloan(BalancerV3FlashloanParams memory flashloanParams) external {
+        _assertActiveCallback(LenderProtocol.BalancerV3);
         _verifyLender(msg.sender, LenderProtocol.BalancerV3);
 
         uint256 length = flashloanParams.tokens.length;
@@ -334,6 +344,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         external
         returns (bool)
     {
+        _assertActiveCallback(LenderProtocol.AaveV3);
         _verifyLender(msg.sender, LenderProtocol.AaveV3);
         if (initiator != address(this)) {
             revert NotAuthorized();
@@ -365,6 +376,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     )
         external
     {
+        _assertActiveCallback(LenderProtocol.Dolomite);
         _verifyLender(msg.sender, LenderProtocol.Dolomite);
         if (sender != address(this)) {
             revert NotAuthorized();
@@ -393,6 +405,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     // LenderProtocol = UniswapV3
     // UniswapV3 pool calls msg.sender. We verify the factory is trusted, then validate pool address.
     function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external {
+        _assertActiveCallback(LenderProtocol.UniswapV3);
         UniswapV3FlashloanParams memory params = abi.decode(data, (UniswapV3FlashloanParams));
 
         IUniswapV3Pool pool = IUniswapV3Pool(msg.sender);
@@ -456,6 +469,42 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     function _verifyLender(address lender, LenderProtocol expectedProtocol) internal view {
         if (trustedLenders[lender] != expectedProtocol) {
             revert UnknownLender();
+        }
+    }
+
+    function _enterFlashloanContext(LenderProtocol protocol) internal {
+        uint256 activeProtocol = _tloadUint256(_FLASHLOAN_CONTEXT_SLOT);
+        if (activeProtocol != uint256(LenderProtocol.None)) {
+            revert FlashloanInProgress();
+        }
+
+        _tstoreUint256(_FLASHLOAN_CONTEXT_SLOT, uint256(protocol));
+    }
+
+    function _assertActiveCallback(LenderProtocol expectedProtocol) internal view {
+        uint256 activeProtocol = _tloadUint256(_FLASHLOAN_CONTEXT_SLOT);
+        if (activeProtocol == uint256(LenderProtocol.None)) {
+            revert FlashloanNotInProgress();
+        }
+
+        if (activeProtocol != uint256(expectedProtocol)) {
+            revert NotAuthorized();
+        }
+    }
+
+    function _clearFlashloanContext() internal {
+        _tstoreUint256(_FLASHLOAN_CONTEXT_SLOT, uint256(LenderProtocol.None));
+    }
+
+    function _tstoreUint256(bytes32 slot, uint256 value) private {
+        assembly {
+            tstore(slot, value)
+        }
+    }
+
+    function _tloadUint256(bytes32 slot) private view returns (uint256 value) {
+        assembly {
+            value := tload(slot)
         }
     }
 

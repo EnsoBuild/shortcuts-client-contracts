@@ -405,14 +405,68 @@ contract EnsoRouterFlashloanAdapterTest is Test {
         );
     }
 
-    // Test that unauthorized lender cannot call callbacks
-    function testUnauthorizedLenderReverts() public {
+    // Test that callbacks cannot be called outside executeFlashloan context
+    function testCallbackWithoutActiveFlashloanReverts() public {
         vm.selectFork(_ethereumFork);
 
         address unauthorizedLender = makeAddr("unauthorized");
 
         vm.prank(unauthorizedLender);
-        vm.expectRevert(AbstractEnsoFlashloan.UnknownLender.selector);
+        vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
         adapter.onMorphoFlashLoan(1 ether, "");
+    }
+
+    function testMorphoCallbackFromTrustedLenderWithoutActiveFlashloanReverts() public {
+        vm.selectFork(_ethereumFork);
+
+        vm.prank(morpho);
+        vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
+        adapter.onMorphoFlashLoan(1 ether, "");
+    }
+
+    function testBalancerCallbackFromTrustedLenderWithoutActiveFlashloanReverts() public {
+        vm.selectFork(_ethereumFork);
+
+        BalancerV3FlashloanParams memory params = BalancerV3FlashloanParams({
+            wallet: address(this),
+            tokens: new address[](0),
+            amounts: new uint256[](0),
+            accountId: bytes32(0),
+            requestId: bytes32(0),
+            commands: new bytes32[](0),
+            state: new bytes[](0)
+        });
+
+        vm.prank(balancerV3Vault);
+        vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
+        adapter.onBalancerV3Flashloan(params);
+    }
+
+    function testAaveCallbackFromTrustedLenderWithoutActiveFlashloanReverts() public {
+        vm.selectFork(_ethereumFork);
+
+        vm.prank(aaveV3Pool);
+        vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
+        adapter.executeOperation(IERC20(weth), 1 ether, 0, address(this), "");
+    }
+
+    function testDolomiteCallbackFromTrustedLenderWithoutActiveFlashloanReverts() public {
+        vm.selectFork(_ethereumFork);
+
+        DolomiteTypes.AccountInfo memory accountInfo = DolomiteTypes.AccountInfo({ owner: address(this), number: 0 });
+        vm.prank(dolomiteMargin);
+        vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
+        adapter.callFunction(address(this), accountInfo, "");
+    }
+
+    function testUniswapCallbackFromTrustedPoolWithoutActiveFlashloanReverts() public {
+        vm.selectFork(_ethereumFork);
+
+        address pool = IUniswapV3Factory(uniswapV3Factory).getPool(weth, usdc, 500);
+        require(pool != address(0), "Pool not found");
+
+        vm.prank(pool);
+        vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
+        adapter.uniswapV3FlashCallback(0, 0, "");
     }
 }
