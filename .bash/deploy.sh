@@ -14,7 +14,7 @@ blockscan_key="ETHEREUM_BLOCKSCAN_KEY"
 
 source .env
 params=()
-if [ $network_upper == "ZKSYNC" ]; then
+if [[ $network_upper == "ZKSYNC" ]]; then
     params+=(--zksync)
     params+=(--slow)
 fi
@@ -24,17 +24,17 @@ fi
 if [[ $network_upper == "TEMPO" ]]; then
     params+=(--tempo.fee-token "0x20c000000000000000000000b9537d11c60e8b50")
 fi
-if [ $broadcast == "broadcast" ]; then
+if [[ $broadcast == "broadcast" ]]; then
     params+=(--broadcast)
     if [ -n "$verifier" ]; then
         params+=(--verify)
-        if [ $verifier == "routescan" ]; then
+        if [[ $verifier == "routescan" ]]; then
             params+=(--verifier custom)
-            if [ $network_upper == "BERACHAIN" ]; then
+            if [[ $network_upper == "BERACHAIN" ]]; then
                 chain_id=80094
-            elif [ $network_upper == "MONAD" ]; then
+            elif [[ $network_upper == "MONAD" ]]; then
                 chain_id=143
-            elif [ $network_upper == "PLASMA" ]; then
+            elif [[ $network_upper == "PLASMA" ]]; then
                 chain_id=9745
             else
                 printf '%s\n' "Invalid routescan network" >&2
@@ -46,14 +46,14 @@ if [ $broadcast == "broadcast" ]; then
             params+=(--verifier-url "https://contracts.tempo.xyz")
         else
             params+=(--verifier "${verifier}")
-            if [ $verifier == "etherscan" ]; then
+            if [[ $verifier == "etherscan" ]]; then
                 params+=(--etherscan-api-key ${!blockscan_key})
             elif [ $verifier == "blockscout" ]; then
-                if [ $network_upper == "INK"]; then
+                if [[ $network_upper == "INK" ]]; then
                     params+=(--verifier-url "https://explorer.inkonchain.com/api")
-                elif [ $network_upper == "PLUME"]; then
+                elif [[ $network_upper == "PLUME" ]]; then
                     params+=(--verifier-url "https://explorer.plume.org/api")
-                elif [ $network_upper == "KATANA"]; then
+                elif [[ $network_upper == "KATANA" ]]; then
                     params+=(--verifier-url "https://explorer.katanarpc.com/api")
                 else
                     params+=(--verifier-url "https://${network}.blockscout.com/api")

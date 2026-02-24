@@ -12,6 +12,7 @@ contract EnsoWalletV2Deployer is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         implementation = new EnsoWalletV2{ salt: "EnsoWalletV2" }();
+        //implementation = EnsoWalletV2(payable(0xA04df79c7e91f393B64e7BfECbfFA13A9f9F2829));
         factory = new EnsoWalletV2Factory{ salt: "EnsoWalletV2Factory" }(address(implementation));
 
         vm.stopBroadcast();

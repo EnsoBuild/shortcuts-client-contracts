@@ -29,6 +29,7 @@ abstract contract FlashloanAdapterConfig {
     mapping(uint256 chainId => address[] lenders) internal _lenders;
     mapping(uint256 chainId => LenderProtocol[] protocols) internal _protocols;
     mapping(uint256 chainId => address shortcuts) internal _shortcuts;
+    mapping(uint256 chainId => address router) internal _router;
 
     function _initConfigs() internal {
         //
@@ -47,6 +48,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[ETHEREUM].push(LenderProtocol.Dolomite);
 
         _shortcuts[ETHEREUM] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[ETHEREUM] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         _lenders[ETHEREUM].push(0x1F98431c8aD98523631AE4a59f267346ea31F984); // UniswapV3 Factory
         _protocols[ETHEREUM].push(LenderProtocol.UniswapV3);
@@ -61,6 +63,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[BERACHAIN].push(LenderProtocol.Dolomite);
 
         _shortcuts[BERACHAIN] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[BERACHAIN] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         _lenders[BERACHAIN].push(0xD84CBf0B02636E7f53dB9E5e45A616E05d710990); // Kodiak (UniswapV3 fork) Factory
         _protocols[BERACHAIN].push(LenderProtocol.UniswapV3);
@@ -81,6 +84,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[BASE].push(LenderProtocol.Dolomite);
 
         _shortcuts[BASE] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[BASE] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         _lenders[BASE].push(0x33128a8fC17869897dcE68Ed026d694621f6FDfD); // UniswapV3 Factory
         _protocols[BASE].push(LenderProtocol.UniswapV3);
@@ -98,6 +102,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[HYPER_EVM].push(LenderProtocol.BalancerV3);
 
         _shortcuts[HYPER_EVM] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[HYPER_EVM] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         //
         // Arbitrum
@@ -115,6 +120,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[ARBITRUM].push(LenderProtocol.Dolomite);
 
         _shortcuts[ARBITRUM] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[ARBITRUM] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         _lenders[ARBITRUM].push(0x1F98431c8aD98523631AE4a59f267346ea31F984); // UniswapV3 Factory
         _protocols[ARBITRUM].push(LenderProtocol.UniswapV3);
@@ -126,6 +132,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[INK].push(LenderProtocol.Dolomite);
 
         _shortcuts[INK] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[INK] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         //
         // Optimism
@@ -140,6 +147,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[OPTIMISM].push(LenderProtocol.UniswapV3);
 
         _shortcuts[OPTIMISM] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[OPTIMISM] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         //
         // Polygon
@@ -151,6 +159,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[POLYGON].push(LenderProtocol.Morpho);
 
         _shortcuts[POLYGON] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[POLYGON] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         _lenders[POLYGON].push(0x1F98431c8aD98523631AE4a59f267346ea31F984); // UniswapV3 Factory
         _protocols[POLYGON].push(LenderProtocol.UniswapV3);
@@ -165,6 +174,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[SONIC].push(LenderProtocol.Morpho);
 
         _shortcuts[SONIC] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[SONIC] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         //
         // Unichain
@@ -173,6 +183,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[UNICHAIN].push(LenderProtocol.Morpho);
 
         _shortcuts[UNICHAIN] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[UNICHAIN] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         _lenders[UNICHAIN].push(0x1F98400000000000000000000000000000000003); // UniswapV3 Factory
         _protocols[UNICHAIN].push(LenderProtocol.UniswapV3);
@@ -184,6 +195,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[WORLD].push(LenderProtocol.Morpho);
 
         _shortcuts[WORLD] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[WORLD] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         _lenders[WORLD].push(0x7a5028BDa40e7B173C278C5342087826455ea25a); // UniswapV3 Factory
         _protocols[WORLD].push(LenderProtocol.UniswapV3);
@@ -195,6 +207,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[SONEIUM].push(LenderProtocol.Morpho);
 
         _shortcuts[SONEIUM] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[SONEIUM] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         //
         // Plume
@@ -203,6 +216,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[PLUME].push(LenderProtocol.Morpho);
 
         _shortcuts[PLUME] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[PLUME] = 0x3067BDBa0e6628497d527bEF511c22DA8b32cA3F; // EnsoRouter
 
         //
         // Katana
@@ -211,6 +225,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[KATANA].push(LenderProtocol.Morpho);
 
         _shortcuts[KATANA] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[KATANA] = 0x3067BDBa0e6628497d527bEF511c22DA8b32cA3F; // EnsoRouter
 
         //
         // Monad
@@ -219,6 +234,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[MONAD].push(LenderProtocol.Morpho);
 
         _shortcuts[MONAD] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[MONAD] = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // EnsoRouter
 
         //
         // Binance
@@ -227,6 +243,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[BINANCE].push(LenderProtocol.AaveV3);
 
         _shortcuts[BINANCE] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[BINANCE] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         _lenders[BINANCE].push(0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7); // UniswapV3 Factory
         _protocols[BINANCE].push(LenderProtocol.UniswapV3);
@@ -238,6 +255,7 @@ abstract contract FlashloanAdapterConfig {
         _protocols[AVALANCHE].push(LenderProtocol.AaveV3);
 
         _shortcuts[AVALANCHE] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[AVALANCHE] = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // EnsoRouter
 
         //
         // Plasma
@@ -246,5 +264,6 @@ abstract contract FlashloanAdapterConfig {
         _protocols[PLASMA].push(LenderProtocol.AaveV3);
 
         _shortcuts[PLASMA] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[PLASMA] = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // EnsoRouter
     }
 }
