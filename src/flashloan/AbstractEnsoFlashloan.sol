@@ -78,8 +78,6 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         external
         whenNotPaused
     {
-        _enterFlashloanContext(protocol);
-
         if (protocol == LenderProtocol.Morpho) {
             _executeMorphoFlashLoan(protocolFlashloanData, accountId, requestId, commands, state);
         } else if (protocol == LenderProtocol.BalancerV3) {
@@ -93,8 +91,6 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         } else {
             revert UnsupportedProtocol();
         }
-
-        _clearFlashloanContext();
     }
 
     // --- Flashloan execution ---
@@ -109,9 +105,12 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         private
     {
         (IMorpho morpho, address token, uint256 amount) = abi.decode(data, (IMorpho, address, uint256));
-        bytes memory morphoCallback = abi.encode(msg.sender, token, accountId, requestId, commands, state);
+        _enterFlashloanContext(LenderProtocol.Morpho, address(morpho), token);
 
+        bytes memory morphoCallback = abi.encode(msg.sender, token, accountId, requestId, commands, state);
         morpho.flashLoan(token, amount, morphoCallback);
+
+        _clearFlashloanContext(LenderProtocol.Morpho, address(morpho), token);
     }
 
     function _executeAaveV3FlashLoan(
@@ -124,9 +123,12 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         private
     {
         (IAaveV3Pool pool, address token, uint256 amount) = abi.decode(data, (IAaveV3Pool, address, uint256));
-        bytes memory aaveCallback = abi.encode(msg.sender, accountId, requestId, commands, state);
+        _enterFlashloanContext(LenderProtocol.AaveV3, address(pool), token);
 
+        bytes memory aaveCallback = abi.encode(msg.sender, accountId, requestId, commands, state);
         pool.flashLoanSimple(address(this), token, amount, aaveCallback, 0);
+
+        _clearFlashloanContext(LenderProtocol.AaveV3, address(pool), token);
     }
 
     function _executeBalancerV3FlashLoan(
@@ -141,6 +143,8 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         (IBalancerV3Vault vault, address[] memory tokens, uint256[] memory amounts) =
             abi.decode(data, (IBalancerV3Vault, address[], uint256[]));
 
+        _enterFlashloanContext(LenderProtocol.BalancerV3, address(vault), address(0));
+
         BalancerV3FlashloanParams memory params = BalancerV3FlashloanParams({
             wallet: msg.sender,
             tokens: tokens,
@@ -152,6 +156,8 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         });
 
         vault.unlock(abi.encodeWithSelector(this.onBalancerV3Flashloan.selector, params));
+
+        _clearFlashloanContext(LenderProtocol.BalancerV3, address(vault), address(0));
     }
 
     function _executeDolomiteFlashLoan(
@@ -165,6 +171,8 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     {
         (IDolomiteMargin dolomiteMargin, address token, uint256 amount) =
             abi.decode(data, (IDolomiteMargin, address, uint256));
+
+        _enterFlashloanContext(LenderProtocol.Dolomite, address(dolomiteMargin), address(0));
 
         uint256 marketId = dolomiteMargin.getMarketIdByTokenAddress(token);
 
@@ -240,6 +248,8 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
 
         IERC20(token).forceApprove(address(dolomiteMargin), amount);
         dolomiteMargin.operate(accounts, actions);
+
+        _clearFlashloanContext(LenderProtocol.Dolomite, address(dolomiteMargin), address(0));
     }
 
     function _executeUniswapV3FlashLoan(
@@ -253,6 +263,8 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     {
         (IUniswapV3Pool pool, address token0, address token1, uint256 amount0, uint256 amount1) =
             abi.decode(data, (IUniswapV3Pool, address, address, uint256, uint256));
+
+        _enterFlashloanContext(LenderProtocol.UniswapV3, address(pool), address(0));
 
         bytes memory callbackData = abi.encode(
             UniswapV3FlashloanParams({
@@ -269,6 +281,8 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         );
 
         pool.flash(address(this), amount0, amount1, callbackData);
+
+        _clearFlashloanContext(LenderProtocol.UniswapV3, address(pool), address(0));
     }
 
     // --- Flashloan callbacks ---
@@ -276,9 +290,6 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     // LenderProtocol = Morpho
     // Morpho vault calls msg.sender, safe to check only msg.sender
     function onMorphoFlashLoan(uint256 amount, bytes calldata data) external {
-        _assertActiveCallback(LenderProtocol.Morpho);
-        _verifyLender(msg.sender, LenderProtocol.Morpho);
-
         (
             address wallet,
             IERC20 token,
@@ -287,6 +298,9 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
             bytes32[] memory commands,
             bytes[] memory state
         ) = abi.decode(data, (address, IERC20, bytes32, bytes32, bytes32[], bytes[]));
+
+        _assertActiveCallback(LenderProtocol.Morpho, msg.sender, address(token));
+        _verifyLender(msg.sender, LenderProtocol.Morpho);
 
         uint256 balanceBefore = executeShortcut(wallet, accountId, requestId, commands, state, address(token), amount);
 
@@ -301,11 +315,10 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     // LenderProtocol = BalancerV3
     // BalancerV3 vault calls msg.sender, safe to check only msg.sender
     function onBalancerV3Flashloan(BalancerV3FlashloanParams memory flashloanParams) external {
-        _assertActiveCallback(LenderProtocol.BalancerV3);
+        _assertActiveCallback(LenderProtocol.BalancerV3, msg.sender, address(0));
         _verifyLender(msg.sender, LenderProtocol.BalancerV3);
 
         uint256 length = flashloanParams.tokens.length;
-
         for (uint256 i; i < length; ++i) {
             IBalancerV3Vault(msg.sender).sendTo(flashloanParams.tokens[i], address(this), flashloanParams.amounts[i]);
         }
@@ -344,7 +357,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         external
         returns (bool)
     {
-        _assertActiveCallback(LenderProtocol.AaveV3);
+        _assertActiveCallback(LenderProtocol.AaveV3, msg.sender, address(token));
         _verifyLender(msg.sender, LenderProtocol.AaveV3);
         if (initiator != address(this)) {
             revert NotAuthorized();
@@ -376,13 +389,13 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     )
         external
     {
-        _assertActiveCallback(LenderProtocol.Dolomite);
+        DolomiteFlashloanParams memory params = abi.decode(data, (DolomiteFlashloanParams));
+
+        _assertActiveCallback(LenderProtocol.Dolomite, msg.sender, address(0));
         _verifyLender(msg.sender, LenderProtocol.Dolomite);
         if (sender != address(this)) {
             revert NotAuthorized();
         }
-
-        DolomiteFlashloanParams memory params = abi.decode(data, (DolomiteFlashloanParams));
 
         uint256 balanceBefore = executeShortcut(
             params.wallet,
@@ -405,7 +418,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     // LenderProtocol = UniswapV3
     // UniswapV3 pool calls msg.sender. We verify the factory is trusted, then validate pool address.
     function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external {
-        _assertActiveCallback(LenderProtocol.UniswapV3);
+        _assertActiveCallback(LenderProtocol.UniswapV3, msg.sender, address(0));
         UniswapV3FlashloanParams memory params = abi.decode(data, (UniswapV3FlashloanParams));
 
         IUniswapV3Pool pool = IUniswapV3Pool(msg.sender);
@@ -472,28 +485,27 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         }
     }
 
-    function _enterFlashloanContext(LenderProtocol protocol) internal {
-        uint256 activeProtocol = _tloadUint256(_FLASHLOAN_CONTEXT_SLOT);
-        if (activeProtocol != uint256(LenderProtocol.None)) {
+    function _flashloanSlot(LenderProtocol protocol, address lender, address token) private pure returns (bytes32) {
+        return keccak256(abi.encode(_FLASHLOAN_CONTEXT_SLOT, protocol, lender, token));
+    }
+
+    function _enterFlashloanContext(LenderProtocol protocol, address lender, address token) internal {
+        bytes32 slot = _flashloanSlot(protocol, lender, token);
+        if (_tloadUint256(slot) != 0) {
             revert FlashloanInProgress();
         }
-
-        _tstoreUint256(_FLASHLOAN_CONTEXT_SLOT, uint256(protocol));
+        _tstoreUint256(slot, 1);
     }
 
-    function _assertActiveCallback(LenderProtocol expectedProtocol) internal view {
-        uint256 activeProtocol = _tloadUint256(_FLASHLOAN_CONTEXT_SLOT);
-        if (activeProtocol == uint256(LenderProtocol.None)) {
+    function _assertActiveCallback(LenderProtocol protocol, address lender, address token) internal view {
+        bytes32 slot = _flashloanSlot(protocol, lender, token);
+        if (_tloadUint256(slot) == 0) {
             revert FlashloanNotInProgress();
         }
-
-        if (activeProtocol != uint256(expectedProtocol)) {
-            revert NotAuthorized();
-        }
     }
 
-    function _clearFlashloanContext() internal {
-        _tstoreUint256(_FLASHLOAN_CONTEXT_SLOT, uint256(LenderProtocol.None));
+    function _clearFlashloanContext(LenderProtocol protocol, address lender, address token) internal {
+        _tstoreUint256(_flashloanSlot(protocol, lender, token), 0);
     }
 
     function _tstoreUint256(bytes32 slot, uint256 value) private {

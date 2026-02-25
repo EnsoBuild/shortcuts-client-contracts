@@ -446,18 +446,23 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         vm.selectFork(_ethereumFork);
 
         address unauthorizedLender = makeAddr("unauthorized");
+        bytes memory callbackData =
+            abi.encode(address(0), IERC20(weth), bytes32(0), bytes32(0), new bytes32[](0), new bytes[](0));
 
         vm.prank(unauthorizedLender);
         vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
-        adapter.onMorphoFlashLoan(1 ether, "");
+        adapter.onMorphoFlashLoan(1 ether, callbackData);
     }
 
     function testMorphoCallbackFromTrustedLenderWithoutActiveFlashloanReverts() public {
         vm.selectFork(_ethereumFork);
 
+        bytes memory callbackData =
+            abi.encode(address(0), IERC20(weth), bytes32(0), bytes32(0), new bytes32[](0), new bytes[](0));
+
         vm.prank(morpho);
         vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
-        adapter.onMorphoFlashLoan(1 ether, "");
+        adapter.onMorphoFlashLoan(1 ether, callbackData);
     }
 
     function testBalancerCallbackFromTrustedLenderWithoutActiveFlashloanReverts() public {
@@ -490,9 +495,20 @@ contract EnsoWalletFlashloanAdapterTest is Test {
         vm.selectFork(_ethereumFork);
 
         DolomiteTypes.AccountInfo memory accountInfo = DolomiteTypes.AccountInfo({ owner: address(this), number: 0 });
+        bytes memory callbackData = abi.encode(
+            DolomiteFlashloanParams({
+                wallet: address(this),
+                token: weth,
+                amount: 1 ether,
+                accountId: bytes32(0),
+                requestId: bytes32(0),
+                commands: new bytes32[](0),
+                state: new bytes[](0)
+            })
+        );
         vm.prank(dolomiteMargin);
         vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
-        adapter.callFunction(address(this), accountInfo, "");
+        adapter.callFunction(address(this), accountInfo, callbackData);
     }
 
     function testUniswapCallbackFromTrustedPoolWithoutActiveFlashloanReverts() public {
