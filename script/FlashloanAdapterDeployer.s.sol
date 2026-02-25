@@ -8,7 +8,14 @@ import { FlashloanAdapterConfig, LenderProtocol } from "./FlashloanAdapterConfig
 import { Script } from "forge-std/Script.sol";
 
 contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
-    function run() public returns (EnsoRouterFlashloanAdapter routerAdapter, EnsoSafeFlashloanAdapter safeAdapter, EnsoWalletFlashloanAdapter walletAdapter) {
+    function run()
+        public
+        returns (
+            EnsoRouterFlashloanAdapter routerAdapter,
+            EnsoSafeFlashloanAdapter safeAdapter,
+            EnsoWalletFlashloanAdapter walletAdapter
+        )
+    {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
         _initConfigs();
@@ -25,14 +32,14 @@ contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
         address owner = vm.envOr("OWNER", vm.addr(deployerPrivateKey));
 
         if (router != address(0)) {
-            routerAdapter = new EnsoRouterFlashloanAdapter{ salt: "EnsoRouterFlashloanAdapter" }(lenders, protocols, router, owner);
+            routerAdapter =
+                new EnsoRouterFlashloanAdapter{ salt: "EnsoRouterFlashloanAdapter" }(lenders, protocols, router, owner);
         }
         if (shortcuts != address(0)) {
-            safeAdapter = new EnsoSafeFlashloanAdapter{ salt: "EnsoSafeFlashloanAdapter" }(lenders, protocols, shortcuts, owner);
+            safeAdapter =
+                new EnsoSafeFlashloanAdapter{ salt: "EnsoSafeFlashloanAdapter" }(lenders, protocols, shortcuts, owner);
         }
         walletAdapter = new EnsoWalletFlashloanAdapter{ salt: "EnsoWalletFlashloanAdapter" }(lenders, protocols, owner);
-    
-        
 
         vm.stopBroadcast();
     }
