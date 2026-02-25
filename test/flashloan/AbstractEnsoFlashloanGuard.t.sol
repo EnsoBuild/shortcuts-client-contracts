@@ -23,6 +23,24 @@ interface IAaveFlashloanCallbackReceiverLike {
         returns (bool);
 }
 
+contract MockAaveV3PoolForGuard is IAaveV3Pool {
+    function FLASHLOAN_PREMIUM_TOTAL() external pure returns (uint128) {
+        return 0;
+    }
+
+    function flashLoanSimple(
+        address receiverAddress,
+        address asset,
+        uint256 amount,
+        bytes calldata params,
+        uint16
+    )
+        external
+    {
+        IAaveFlashloanCallbackReceiverLike(receiverAddress).executeOperation(asset, amount, 0, address(0xdead), params);
+    }
+}
+
 contract MockMorphoForGuard is IMorpho {
     bool public triggerAaveCallback;
     bool public skipPrimaryCallback;
@@ -100,16 +118,20 @@ contract FlashloanGuardHarness is AbstractEnsoFlashloan {
 contract AbstractEnsoFlashloanGuardTest is Test {
     FlashloanGuardHarness public adapter;
     MockMorphoForGuard public morphoPrimary;
+    MockAaveV3PoolForGuard public aaveMock;
     MockERC20 public token;
 
     function setUp() public {
         morphoPrimary = new MockMorphoForGuard();
+        aaveMock = new MockAaveV3PoolForGuard();
         token = new MockERC20("Mock Token", "MOCK");
 
-        address[] memory lenders = new address[](1);
-        LenderProtocol[] memory protocols = new LenderProtocol[](1);
+        address[] memory lenders = new address[](2);
+        LenderProtocol[] memory protocols = new LenderProtocol[](2);
         lenders[0] = address(morphoPrimary);
         protocols[0] = LenderProtocol.Morpho;
+        lenders[1] = address(aaveMock);
+        protocols[1] = LenderProtocol.AaveV3;
 
         adapter = new FlashloanGuardHarness(lenders, protocols, address(this));
     }
@@ -124,14 +146,23 @@ contract AbstractEnsoFlashloanGuardTest is Test {
         );
     }
 
-    function testProtocolMismatchCallbackRevertsWithNotAuthorized() external {
+    function testProtocolMismatchCallbackRevertsWithFlashloanNotInProgress() external {
         bytes memory protocolData = abi.encode(IMorpho(address(morphoPrimary)), address(token), 1 ether);
 
         morphoPrimary.configureCallbackBehavior(true, true);
 
-        vm.expectRevert(AbstractEnsoFlashloan.NotAuthorized.selector);
+        vm.expectRevert(AbstractEnsoFlashloan.FlashloanNotInProgress.selector);
         adapter.executeFlashloan(
             LenderProtocol.Morpho, protocolData, bytes32(0), bytes32(0), new bytes32[](0), new bytes[](0)
+        );
+    }
+
+    function testAaveCallbackWithWrongInitiatorRevertsWithNotAuthorized() external {
+        bytes memory protocolData = abi.encode(IAaveV3Pool(address(aaveMock)), address(token), 1 ether);
+
+        vm.expectRevert(AbstractEnsoFlashloan.NotAuthorized.selector);
+        adapter.executeFlashloan(
+            LenderProtocol.AaveV3, protocolData, bytes32(0), bytes32(0), new bytes32[](0), new bytes[](0)
         );
     }
 }
