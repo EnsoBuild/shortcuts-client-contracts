@@ -486,6 +486,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
     }
 
     function _flashloanSlot(LenderProtocol protocol, address lender, address token) private pure returns (bytes32) {
+        /// forge-lint: disable-next-item(asm-keccak256)
         return keccak256(abi.encode(_FLASHLOAN_CONTEXT_SLOT, protocol, lender, token));
     }
 
