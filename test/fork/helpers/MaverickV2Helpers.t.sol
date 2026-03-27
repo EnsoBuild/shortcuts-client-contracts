@@ -24,7 +24,7 @@ contract MaverickV2HelpersTest is Test {
     uint256 public constant PUSD_AMOUNT = 10 ** 10;
 
     function setUp() public {
-        _plumeFork = vm.createFork(_rpcURL);
+        _plumeFork = vm.createFork(_rpcURL, 24_698_807);
         vm.selectFork(_plumeFork);
         maverickHelpers = new MaverickV2Helpers();
         vm.startPrank(usdce_holder);

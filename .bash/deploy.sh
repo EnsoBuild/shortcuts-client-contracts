@@ -18,9 +18,11 @@ if [ $network_upper == "ZKSYNC" ]; then
     params+=(--zksync)
     params+=(--slow)
 fi
-
 if [[ $network_upper == "POLYGON" ]]; then
     params+=(--gas-estimate-multiplier 300)
+fi
+if [[ $network_upper == "TEMPO" ]]; then
+    params+=(--tempo.fee-token "0x20c000000000000000000000b9537d11c60e8b50")
 fi
 if [ $broadcast == "broadcast" ]; then
     params+=(--broadcast)
@@ -40,6 +42,8 @@ if [ $broadcast == "broadcast" ]; then
             fi
             params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/${chain_id}/etherscan")
             params+=(--etherscan-api-key "verifyContract")
+        elif [[ $verifier == "tempo" ]]; then
+            params+=(--verifier-url "https://contracts.tempo.xyz")
         else
             params+=(--verifier "${verifier}")
             if [ $verifier == "etherscan" ]; then
