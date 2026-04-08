@@ -36,14 +36,18 @@ interface IEnsoWalletV2Factory {
     /// @return wallet The deployed wallet address
     function deploy(address account) external returns (address wallet);
 
-    /// @notice Deploys a wallet, transfers token, and executes calldata in one transaction
+    /// @notice Deploys a wallet, transfers token, sets executors, and executes calldata in one transaction
     /// @param tokensIn The tokens to transfer to the wallet
     /// @param data The calldata to execute on the wallet
+    /// @param executors The executors to authorize on the wallet
+    /// @param revokeExecutorsAfterExecution If true, revoke executor permissions after execution
     /// @return wallet The deployed wallet address
     /// @return response The return data from the execution
     function deployAndExecute(
         Token[] calldata tokensIn,
-        bytes calldata data
+        bytes calldata data,
+        address[] calldata executors,
+        bool revokeExecutorsAfterExecution
     )
         external
         payable
@@ -54,4 +58,3 @@ interface IEnsoWalletV2Factory {
     /// @return The wallet address that would be deployed for this account
     function getAddress(address account) external view returns (address);
 }
-

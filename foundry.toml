@@ -168,24 +168,4 @@ zksync = "${ZKSYNC_RPC_URL}"
 unichain = "${UNICHAIN_RPC_URL}"
 world = "${WORLD_RPC_URL}"
 
-[etherscan]
-arbitrum = { key = "${ARBITRUM_BLOCKSCAN_KEY}" }
-avalanche = { key = "${AVALANCHE_BLOCKSCAN_KEY}" }
-base = { key = "${BASE_BLOCKSCAN_KEY}" }
-berachain = { key = "verifyContract" }
-bsc = { key = "${BSC_BLOCKSCAN_KEY}" }
-gnosis = { key = "${GNOSIS_BLOCKSCAN_KEY}" }
-hyper = { key = "${HYPER_BLOCKSCAN_KEY}" }
-ink = { key = "${INK_BLOCKSCAN_KEY}" }
-linea = { key = "${LINEA_BLOCKSCAN_KEY}" }
-mainnet = { key = "${ETHEREUM_BLOCKSCAN_KEY}" }
-monad = { key = "${MONAD_BLOCKSCAN_KEY}" }
-optimism = { key = "${OPTIMISM_BLOCKSCAN_KEY}" }
-plume = { key = "${PLUME_BLOCKSCAN_KEY}" }
-polygon = { key = "${POLYGON_BLOCKSCAN_KEY}" }
-soneium = { key = "${SONEIUM_BLOCKSCAN_KEY}" }
-sonic = { key = "${SONIC_BLOCKSCAN_KEY}" }
-world = { key = "${WORLD_BLOCKSCAN_KEY}" }
-zksync = { key = "${ZKSYNC_BLOCKSCAN_KEY}" }
-
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

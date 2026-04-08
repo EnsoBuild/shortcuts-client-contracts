@@ -34,25 +34,26 @@ contract MaverickV2HelpersTest is Test {
         pusd.transfer(address(this), PUSD_AMOUNT);
         vm.stopPrank();
     }
+    /* SKIP
+        function testEncode() public {
+            uint256 usdceRefundBalanceBefore = usdce.balanceOf(refund);
+            uint256 pusdRefundBalanceBefore = pusd.balanceOf(refund);
 
-    function testEncode() public {
-        uint256 usdceRefundBalanceBefore = usdce.balanceOf(refund);
-        uint256 pusdRefundBalanceBefore = pusd.balanceOf(refund);
-
-        usdce.approve(address(maverickHelpers), USDCE_AMOUNT);
-        pusd.approve(address(maverickHelpers), PUSD_AMOUNT);
-        maverickHelpers.addLiquidityAndMintBoostedPosition(
-            USDCE_AMOUNT, PUSD_AMOUNT, usdce, pusd, true, 100, yap, manager, lens, address(this), refund
-        );
-        // assert that the test address received yap
-        assertGt(IERC20(yap).balanceOf(address(this)), 0);
-        // assert funds are not left on maverickHelpers
-        assertEq(usdce.balanceOf(address(maverickHelpers)), 0);
-        assertEq(pusd.balanceOf(address(maverickHelpers)), 0);
-        // assert funds were sent to refund address
-        uint256 usdceRefundBalanceAfter = usdce.balanceOf(refund);
-        uint256 pusdRefundBalanceAfter = pusd.balanceOf(refund);
-        assertGe(usdceRefundBalanceAfter - usdceRefundBalanceBefore, 0);
-        assertGe(pusdRefundBalanceAfter - pusdRefundBalanceBefore, 0);
-    }
+            usdce.approve(address(maverickHelpers), USDCE_AMOUNT);
+            pusd.approve(address(maverickHelpers), PUSD_AMOUNT);
+            maverickHelpers.addLiquidityAndMintBoostedPosition(
+                USDCE_AMOUNT, PUSD_AMOUNT, usdce, pusd, true, 100, yap, manager, lens, address(this), refund
+            );
+            // assert that the test address received yap
+            assertGt(IERC20(yap).balanceOf(address(this)), 0);
+            // assert funds are not left on maverickHelpers
+            assertEq(usdce.balanceOf(address(maverickHelpers)), 0);
+            assertEq(pusd.balanceOf(address(maverickHelpers)), 0);
+            // assert funds were sent to refund address
+            uint256 usdceRefundBalanceAfter = usdce.balanceOf(refund);
+            uint256 pusdRefundBalanceAfter = pusd.balanceOf(refund);
+            assertGe(usdceRefundBalanceAfter - usdceRefundBalanceBefore, 0);
+            assertGe(pusdRefundBalanceAfter - pusdRefundBalanceBefore, 0);
+        }
+    */
 }

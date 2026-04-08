@@ -30,13 +30,15 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
     /// @inheritdoc IEnsoWalletV2Factory
     function deployAndExecute(
         Token[] calldata tokensIn,
-        bytes calldata data
+        bytes calldata data,
+        address[] calldata executors,
+        bool revokeExecutorsAfterExecution
     )
         external
         payable
         returns (address wallet, bytes memory response)
     {
-        return _deployAndExecute(tokensIn, data);
+        return _deployAndExecute(tokensIn, data, executors, revokeExecutorsAfterExecution);
     }
 
     /// @inheritdoc IEnsoWalletV2Factory
@@ -47,7 +49,9 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
 
     function _deployAndExecute(
         Token[] calldata tokensIn,
-        bytes calldata data
+        bytes calldata data,
+        address[] memory executors,
+        bool revokeExecutorsAfterExecution
     )
         private
         returns (address wallet, bytes memory response)
@@ -68,6 +72,8 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
             revert EnsoWalletV2Factory_WrongMsgValue(msg.value, 0);
         }
 
+        _setExecutors(wallet, executors, true);
+
         bool success;
         (success, response) = wallet.call{ value: msg.value }(data);
         if (!success) {
@@ -77,6 +83,19 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
                 }
             }
             revert EnsoWalletV2Factory_ExecutionFailedNoReason();
+        }
+
+        if (revokeExecutorsAfterExecution) {
+            _setExecutors(wallet, executors, false);
+        }
+    }
+
+    function _setExecutors(address wallet, address[] memory executors, bool isAllowed) private {
+        if (executors.length == 0) {
+            return;
+        }
+        for (uint256 i = 0; i < executors.length; i++) {
+            IEnsoWalletV2(wallet).setExecutor(executors[i], isAllowed);
         }
     }
 
