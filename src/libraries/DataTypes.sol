@@ -20,6 +20,7 @@ library ChainId {
     uint256 public constant BASE = 8453;
     uint256 public constant PLASMA = 9745;
     uint256 public constant ARBITRUM = 42_161;
+    uint256 public constant ETHERLINK = 42_793;
     uint256 public constant AVALANCHE = 43_114;
     uint256 public constant ETHERLINK = 42_793;
     uint256 public constant INK = 57_073;
