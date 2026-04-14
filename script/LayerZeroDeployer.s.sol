@@ -49,6 +49,9 @@ contract LayerZeroDeployer is Script {
         } else if (chainId == ChainId.TEMPO) {
             endpoint = 0x20Bb7C2E2f4e5ca2B4c57060d1aE2615245dCc9C;
             router = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;
+        } else if (chainId == ChainId.SEI) {
+            endpoint = 0x1a44076050125825900e736c501f859c50fE728c;
+            router = 0x300b3D30aaBf46b05983284f0297D966E92bbeB2;
         } else {
             endpoint = 0x1a44076050125825900e736c501f859c50fE728c; // default
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;

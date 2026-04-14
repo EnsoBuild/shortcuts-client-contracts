@@ -15,7 +15,7 @@ contract MinimalERC1271 {
 
     function isValidSignature(
         bytes32, // hash
-        bytes memory //  signature
+        bytes memory // signature
     )
         public
         pure

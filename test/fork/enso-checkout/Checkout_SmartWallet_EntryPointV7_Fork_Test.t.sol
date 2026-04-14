@@ -116,15 +116,15 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         address payable safePaymentReceiver = payable(address(0)); // Address that should receive the payment (or 0 if
         // tx.origin)
         // s_safe.setup(
-        //     safeOwners,
-        //     safeThreshold,
-        //     safeTo,
-        //     safeData,
-        //     safeFallbackHandler,
-        //     safePaymentToken,
-        //     safePayment,
-        //     safePaymentReceiver
-        // );
+        // safeOwners,
+        // safeThreshold,
+        // safeTo,
+        // safeData,
+        // safeFallbackHandler,
+        // safePaymentToken,
+        // safePayment,
+        // safePaymentReceiver
+        //);
         bytes memory safeSetupData = abi.encodeCall(
             Safe.setup,
             (
@@ -164,7 +164,7 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         // *** Arrange ***
         // --- Shortcut ---
         Shortcut memory shortcut = ShortcutsEthereum.getShortcut1(address(s_safe));
-        //shortcut.receiver = address(s_safe); // NOTE: override receiver to smart wallet
+        // shortcut.receiver = address(s_safe); // NOTE: override receiver to smart wallet
 
         // --- UserOp parameters ---
         PackedUserOperation memory userOp;

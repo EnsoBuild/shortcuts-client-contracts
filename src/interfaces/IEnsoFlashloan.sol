@@ -2,16 +2,16 @@
 pragma solidity ^0.8.20;
 
 // interface IERC3156FlashBorrower {
-//     function onFlashLoan(
-//         address initiator,
-//         address token,
-//         uint256 amount,
-//         uint256 fee,
-//         bytes calldata data
-//     )
-//         external
-//         returns (bytes32);
-// }
+// function onFlashLoan(
+// address initiator,
+// address token,
+// uint256 amount,
+// uint256 fee,
+// bytes calldata data
+//)
+// external
+// returns (bytes32);
+//}
 
 interface IMorpho {
     function flashLoan(address token, uint256 assets, bytes calldata data) external;
