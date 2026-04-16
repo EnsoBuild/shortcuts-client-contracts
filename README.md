@@ -129,7 +129,7 @@ catch them.
    You can run mutation tests using the provided script:
 
    ```sh
-   node ./mutationTest.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test'
+   node ./testGambitMutations.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test'
    ```
 
    - Use the `--matchContract` flag with a regex to select which test contracts
@@ -140,7 +140,7 @@ catch them.
    **Example:**
 
    ```sh
-   node ./mutationTest.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test' --matchMutant EnsoReceiver
+   node ./testGambitMutations.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test' --matchMutant EnsoReceiver
    ```
 
    This will run all test contracts matching the pattern against all mutants of
@@ -153,11 +153,11 @@ catch them.
 
    For more complex or repeated runs, you can create a JS script in
    `test/scripts/`, e.g.
-   [`test/scripts/runEnsoCheckoutMutationTests.mjs`](./scripts/runEnsoCheckoutMutationTests.mjs).
+   [`test/scripts/runEnsoCheckoutMutationTests.mjs`](./test/scripts/runEnsoCheckoutMutationTests.mjs).
 
 #### **Script Options and Advanced Usage**
 
-The `mutationTest.mjs` script is based on
+The `testGambitMutations.mjs` script is based on
 [ibourn/gambit-mutation-testing](https://github.com/ibourn/gambit-mutation-testing?tab=readme-ov-file#script-options-to-refine-test-execution).
 **For a full list of available options and advanced usage, see the
 [original script documentation](https://github.com/ibourn/gambit-mutation-testing?tab=readme-ov-file#script-options-to-refine-test-execution).**
