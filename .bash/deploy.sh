@@ -32,6 +32,8 @@ if [[ $broadcast == "broadcast" ]]; then
             params+=(--verifier custom)
             if [[ $network_upper == "BERACHAIN" ]]; then
                 chain_id=80094
+            elif [[ $network_upper == "MEGAETH" ]]; then
+                chain_id=4326
             elif [[ $network_upper == "MONAD" ]]; then
                 chain_id=143
             elif [[ $network_upper == "PLASMA" ]]; then

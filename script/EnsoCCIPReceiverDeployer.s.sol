@@ -50,9 +50,18 @@ contract EnsoCCIPReceiverDeployer is Script {
         } else if (chainId == ChainId.HYPER) {
             ccipRouter = 0x13b3332b66389B1467CA6eBd6fa79775CCeF65ec;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
+        } else if (chainId == ChainId.SEI) {
+            ccipRouter = 0xAba60dA7E88F7E8f5868C2B6dE06CB759d693af0;
+            ensoRouter = 0x300b3D30aaBf46b05983284f0297D966E92bbeB2; // NOTE: different router for Sei
         } else if (chainId == ChainId.SONEIUM) {
             ccipRouter = 0x8C8B88d827Fe14Df2bc6392947d513C86afD6977;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
+        } else if (chainId == ChainId.TEMPO) {
+            ccipRouter = 0xa132F089492CcE5f1D79483a9e4552f37266ed01;
+            ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // NOTE: different router for Tempo
+        } else if (chainId == ChainId.MEGAETH) {
+            ccipRouter = 0xfa546248C54939AA6C48279CdC1EAf9A1125c411;
+            ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // NOTE: different router for Megaeth
         } else if (chainId == ChainId.BASE) {
             ccipRouter = 0x881e3A65B4d4a04dD529061dd0071cf975F58bCD;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
@@ -65,6 +74,9 @@ contract EnsoCCIPReceiverDeployer is Script {
         } else if (chainId == ChainId.AVALANCHE) {
             ccipRouter = 0xF4c7E640EdA248ef95972845a62bdC74237805dB;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
+        } else if (chainId == ChainId.ETHERLINK) {
+            ccipRouter = 0x1912C3cFafE8A76A32a92861d815aC2837F237Ca;
+            ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // NOTE: different router for Etherlink
         } else if (chainId == ChainId.INK) {
             ccipRouter = 0xca7c90A52B44E301AC01Cb5EB99b2fD99339433A;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;

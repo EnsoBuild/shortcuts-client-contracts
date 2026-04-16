@@ -13,11 +13,15 @@ library ChainId {
     uint256 public constant ZKSYNC = 324;
     uint256 public constant WORLD = 480;
     uint256 public constant HYPER = 999;
+    uint256 public constant SEI = 1329;
     uint256 public constant SONEIUM = 1868;
+    uint256 public constant TEMPO = 4217;
+    uint256 public constant MEGAETH = 4326;
     uint256 public constant BASE = 8453;
     uint256 public constant PLASMA = 9745;
     uint256 public constant ARBITRUM = 42_161;
     uint256 public constant AVALANCHE = 43_114;
+    uint256 public constant ETHERLINK = 42_793;
     uint256 public constant INK = 57_073;
     uint256 public constant LINEA = 59_144;
     uint256 public constant BERACHAIN = 80_094;
