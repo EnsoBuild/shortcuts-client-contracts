@@ -43,7 +43,7 @@ if [[ $broadcast == "broadcast" ]]; then
             params+=(--verifier-url "https://api.routescan.io/v2/network/mainnet/evm/${chain_id}/etherscan")
             params+=(--etherscan-api-key "verifyContract")
         elif [[ $verifier == "tempo" ]]; then
-            params+=(--verifier-url "https://contracts.tempo.xyz")
+            params+=(--verifier-url "https://contracts.tempo.xyz/")
         else
             params+=(--verifier "${verifier}")
             if [[ $verifier == "etherscan" ]]; then
