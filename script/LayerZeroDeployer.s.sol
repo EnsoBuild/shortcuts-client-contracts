@@ -40,9 +40,18 @@ contract LayerZeroDeployer is Script {
         } else if (chainId == ChainId.PLUME) {
             endpoint = 0xC1b15d3B262bEeC0e3565C11C9e0F6134BdaCB36; // plume
             router = 0x3067BDBa0e6628497d527bEF511c22DA8b32cA3F;
-        } else if (chainId == ChainId.PLASMA || chainId == ChainId.MONAD) {
+        } else if (chainId == ChainId.PLASMA || chainId == ChainId.MONAD || chainId == ChainId.MEGAETH) {
             endpoint = 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B;
             router = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;
+        } else if (chainId == ChainId.ETHERLINK) {
+            endpoint = 0xAaB5A48CFC03Efa9cC34A2C1aAcCCB84b4b770e4;
+            router = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;
+        } else if (chainId == ChainId.TEMPO) {
+            endpoint = 0x20Bb7C2E2f4e5ca2B4c57060d1aE2615245dCc9C;
+            router = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;
+        } else if (chainId == ChainId.SEI) {
+            endpoint = 0x1a44076050125825900e736c501f859c50fE728c;
+            router = 0x300b3D30aaBf46b05983284f0297D966E92bbeB2;
         } else {
             endpoint = 0x1a44076050125825900e736c501f859c50fE728c; // default
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;

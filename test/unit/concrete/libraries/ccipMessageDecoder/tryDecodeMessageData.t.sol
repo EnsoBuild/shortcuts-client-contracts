@@ -5,7 +5,7 @@ import { CCIPMessageDecoder } from "../../../../../src/libraries/CCIPMessageDeco
 import { Test } from "forge-std/Test.sol";
 
 contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                HELPERS
     //////////////////////////////////////////////////////////////*/
 
@@ -36,7 +36,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             TESTS: < 96 bytes
     //////////////////////////////////////////////////////////////*/
 
@@ -55,7 +55,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         assertEq(shortcutData, "");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         MOD: ≥ 96 bytes (valid base)
     //////////////////////////////////////////////////////////////*/
 
@@ -81,7 +81,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         assertEq(shortcutData, "");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                    MOD: offset is word-aligned (but not valid)
     //////////////////////////////////////////////////////////////*/
 
@@ -106,7 +106,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         assertEq(shortcutData, "");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                  MOD: offset is after the 2-word head (≥ 64)
     //////////////////////////////////////////////////////////////*/
 
@@ -124,7 +124,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         // Arrange
         bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, bytes(""));
         // Start from valid base and set offset to the canonical value (64)
-        _setOffset(msgData, HEAD_SIZE); // 64
+        _setOffset(msgData, HEAD_SIZE); //64
         // Make offset so large that data.length < off + 32.
         // Current msgData.length == 96 and word-aligned, so set off = 96.
         _setOffset(msgData, msgData.length);
@@ -140,7 +140,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         assertEq(shortcutData, "");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
          MOD: enough room for tail length, but tail may/may not fit
     //////////////////////////////////////////////////////////////*/
 
@@ -159,7 +159,7 @@ contract CCIPMessageDecoder_TryDecodeMessageData_Unit_Concrete_Test is Test {
         // Arrange
         bytes memory msgData = _encodeValid(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, bytes(""));
         // Set offset = 64 so the length word is within bounds (96 >= 64+32)
-        _setOffset(msgData, HEAD_SIZE); // 64
+        _setOffset(msgData, HEAD_SIZE); //64
         // With base length=96 and off=64, avail = 96 - (64+32) = 0
         // Writing len=1 makes it overflow the available tail → should fail
         _setTailLenAtOffset(msgData, HEAD_SIZE, 1);

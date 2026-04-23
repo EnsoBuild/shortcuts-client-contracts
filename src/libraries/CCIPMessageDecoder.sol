@@ -34,7 +34,7 @@ library CCIPMessageDecoder {
         uint256 baseLen = _data.length;
 
         // Off must be at/after 2-word head and leave room for tail length word
-        // i.e.  off >= 64  &&  off <= baseLen - 32  (avoid off+32 overflow)
+        // i.e. off >= 64 && off <= baseLen - 32 (avoid off+32 overflow)
         if (off < 64 || off > baseLen - 32) {
             return (false, address(0), bytes(""));
         }

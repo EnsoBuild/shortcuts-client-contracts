@@ -273,93 +273,93 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
     }
 
     // function test_WhenCalledWithERC20() external {
-    //     // it should deploy wallet and execute with ERC20 token
-    //     uint256 tokenAmount = 100 * 1e18;
-    //     s_erc20.mint(s_user, tokenAmount);
+    // // it should deploy wallet and execute with ERC20 token
+    // uint256 tokenAmount = 100 * 1e18;
+    // s_erc20.mint(s_user, tokenAmount);
     //
-    //     Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(s_erc20, tokenAmount) });
+    // Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(s_erc20, tokenAmount) });
     //
-    //     bytes memory executeData = abi.encodeWithSelector(Target.func.selector);
+    // bytes memory executeData = abi.encodeWithSelector(Target.func.selector);
     //
-    //     vm.startPrank(s_user);
-    //     s_erc20.approve(address(s_walletFactory), tokenAmount);
-    //     (address walletAddress, bool success) = s_walletFactory.deployAndExecute(tokenIn, executeData);
+    // vm.startPrank(s_user);
+    // s_erc20.approve(address(s_walletFactory), tokenAmount);
+    // (address walletAddress, bool success) = s_walletFactory.deployAndExecute(tokenIn, executeData);
     //
-    //     // it should return success
-    //     assertTrue(success);
+    // // it should return success
+    // assertTrue(success);
     //
-    //     // it should transfer tokens to wallet
-    //     assertEq(s_erc20.balanceOf(walletAddress), tokenAmount);
-    //     assertEq(s_erc20.balanceOf(s_user), 0);
-    // }
+    // // it should transfer tokens to wallet
+    // assertEq(s_erc20.balanceOf(walletAddress), tokenAmount);
+    // assertEq(s_erc20.balanceOf(s_user), 0);
+    //}
     //
     // function test_WhenCalledWithERC721() external {
-    //     // it should deploy wallet and execute with ERC721 token
-    //     uint256 tokenId = 123;
-    //     s_erc721.mint(s_user, tokenId);
+    // // it should deploy wallet and execute with ERC721 token
+    // uint256 tokenId = 123;
+    // s_erc721.mint(s_user, tokenId);
     //
-    //     Token memory tokenIn = Token({ tokenType: TokenType.ERC721, data: abi.encode(s_erc721, tokenId) });
+    // Token memory tokenIn = Token({ tokenType: TokenType.ERC721, data: abi.encode(s_erc721, tokenId) });
     //
-    //     bytes memory executeData = abi.encodeWithSelector(Target.func.selector);
+    // bytes memory executeData = abi.encodeWithSelector(Target.func.selector);
     //
-    //     vm.startPrank(s_user);
-    //     s_erc721.approve(address(s_walletFactory), tokenId);
-    //     (address walletAddress, bool success) = s_walletFactory.deployAndExecute(tokenIn, executeData);
+    // vm.startPrank(s_user);
+    // s_erc721.approve(address(s_walletFactory), tokenId);
+    // (address walletAddress, bool success) = s_walletFactory.deployAndExecute(tokenIn, executeData);
     //
-    //     // it should return success
-    //     assertTrue(success);
+    // // it should return success
+    // assertTrue(success);
     //
-    //     // it should transfer NFT to wallet
-    //     assertEq(s_erc721.ownerOf(tokenId), walletAddress);
-    // }
+    // // it should transfer NFT to wallet
+    // assertEq(s_erc721.ownerOf(tokenId), walletAddress);
+    //}
     //
     // function test_WhenCalledWithERC1155() external {
-    //     // it should deploy wallet and execute with ERC1155 token
-    //     uint256 tokenId = 456;
-    //     uint256 tokenAmount = 50;
-    //     s_erc1155.mint(s_user, tokenId, tokenAmount);
+    // // it should deploy wallet and execute with ERC1155 token
+    // uint256 tokenId = 456;
+    // uint256 tokenAmount = 50;
+    // s_erc1155.mint(s_user, tokenId, tokenAmount);
     //
-    //     Token memory tokenIn =
-    //         Token({ tokenType: TokenType.ERC1155, data: abi.encode(s_erc1155, tokenId, tokenAmount) });
+    // Token memory tokenIn =
+    // Token({ tokenType: TokenType.ERC1155, data: abi.encode(s_erc1155, tokenId, tokenAmount) });
     //
-    //     bytes memory executeData = abi.encodeWithSelector(Target.func.selector);
+    // bytes memory executeData = abi.encodeWithSelector(Target.func.selector);
     //
-    //     vm.startPrank(s_user);
-    //     s_erc1155.setApprovalForAll(address(s_walletFactory), true);
-    //     (address walletAddress, bool success) = s_walletFactory.deployAndExecute(tokenIn, executeData);
+    // vm.startPrank(s_user);
+    // s_erc1155.setApprovalForAll(address(s_walletFactory), true);
+    // (address walletAddress, bool success) = s_walletFactory.deployAndExecute(tokenIn, executeData);
     //
-    //     // it should return success
-    //     assertTrue(success);
+    // // it should return success
+    // assertTrue(success);
     //
-    //     // it should transfer tokens to wallet
-    //     assertEq(s_erc1155.balanceOf(walletAddress, tokenId), tokenAmount);
-    //     assertEq(s_erc1155.balanceOf(s_user, tokenId), 0);
-    // }
+    // // it should transfer tokens to wallet
+    // assertEq(s_erc1155.balanceOf(walletAddress, tokenId), tokenAmount);
+    // assertEq(s_erc1155.balanceOf(s_user, tokenId), 0);
+    //}
     //
     // function test_ExecuteReverts() external {
-    //     // it should revert when execute data reverts
-    //     Token memory tokenIn = Token({ tokenType: TokenType.Native, data: "" });
+    // // it should revert when execute data reverts
+    // Token memory tokenIn = Token({ tokenType: TokenType.Native, data: "" });
     //
-    //     bytes memory executeData = abi.encodeWithSelector(Target.revert.selector);
+    // bytes memory executeData = abi.encodeWithSelector(Target.revert.selector);
     //
-    //     vm.startPrank(s_user);
-    //     (, bool success) = s_walletFactory.deployAndExecute(tokenIn, executeData);
-    //     assertFalse(success);
-    // }
+    // vm.startPrank(s_user);
+    // (, bool success) = s_walletFactory.deployAndExecute(tokenIn, executeData);
+    // assertFalse(success);
+    //}
     //
     // function test_RevertWhen_WrongMsgValue() external {
-    //     // it should revert when msg.value is provided for non-native tokens
-    //     uint256 tokenAmount = 100 * 1e18;
-    //     s_erc20.mint(s_user, tokenAmount);
+    // // it should revert when msg.value is provided for non-native tokens
+    // uint256 tokenAmount = 100 * 1e18;
+    // s_erc20.mint(s_user, tokenAmount);
     //
-    //     Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(s_erc20, tokenAmount) });
+    // Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(s_erc20, tokenAmount) });
     //
-    //     bytes memory executeData = abi.encodeWithSelector(Target.func.selector);
-    //     uint256 wrongValue = 0.1 ether;
+    // bytes memory executeData = abi.encodeWithSelector(Target.func.selector);
+    // uint256 wrongValue = 0.1 ether;
     //
-    //     vm.startPrank(s_user);
-    //     s_erc20.approve(address(s_walletFactory), tokenAmount);
-    //     vm.expectRevert(abi.encodeWithSelector(EnsoWalletV2Factory.WrongMsgValue.selector, wrongValue, 0));
-    //     s_walletFactory.deployAndExecute{ value: wrongValue }(tokenIn, executeData);
-    // }
+    // vm.startPrank(s_user);
+    // s_erc20.approve(address(s_walletFactory), tokenAmount);
+    // vm.expectRevert(abi.encodeWithSelector(EnsoWalletV2Factory.WrongMsgValue.selector, wrongValue, 0));
+    // s_walletFactory.deployAndExecute{ value: wrongValue }(tokenIn, executeData);
+    //}
 }

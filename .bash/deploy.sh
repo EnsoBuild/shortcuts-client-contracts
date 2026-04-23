@@ -26,7 +26,7 @@ if [[ $network_upper == "TEMPO" ]]; then
 fi
 if [[ $broadcast == "broadcast" ]]; then
     params+=(--broadcast)
-    if [ -n "$verifier" ]; then
+    if [[ -n "$verifier" ]]; then
         params+=(--verify)
         if [[ $verifier == "routescan" ]]; then
             params+=(--verifier custom)
@@ -48,13 +48,15 @@ if [[ $broadcast == "broadcast" ]]; then
             params+=(--verifier "${verifier}")
             if [[ $verifier == "etherscan" ]]; then
                 params+=(--etherscan-api-key ${!blockscan_key})
-            elif [ $verifier == "blockscout" ]; then
+            elif [[ $verifier == "blockscout" ]]; then
                 if [[ $network_upper == "INK" ]]; then
                     params+=(--verifier-url "https://explorer.inkonchain.com/api")
                 elif [[ $network_upper == "PLUME" ]]; then
                     params+=(--verifier-url "https://explorer.plume.org/api")
                 elif [[ $network_upper == "KATANA" ]]; then
                     params+=(--verifier-url "https://explorer.katanarpc.com/api")
+                elif [[ $network_upper == "ETHERLINK" ]]; then
+                    params+=(--verifier-url "https://explorer.etherlink.com/api")
                 else
                     params+=(--verifier-url "https://${network}.blockscout.com/api")
                 fi
