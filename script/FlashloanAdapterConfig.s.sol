@@ -10,6 +10,7 @@ abstract contract FlashloanAdapterConfig {
     uint256 constant OPTIMISM = 10;
     uint256 constant ARBITRUM = 42_161;
     uint256 constant HYPER_EVM = 999;
+    uint256 constant MEGAETH = 4326;
     uint256 constant INK = 57_073;
     uint256 constant POLYGON = 137;
     uint256 constant SONIC = 146;
@@ -88,6 +89,18 @@ abstract contract FlashloanAdapterConfig {
 
         _lenders[BASE].push(0x33128a8fC17869897dcE68Ed026d694621f6FDfD); // UniswapV3 Factory
         _protocols[BASE].push(LenderProtocol.UniswapV3);
+
+        //
+        // MegaETH
+        //
+        _lenders[MEGAETH].push(0x7e324AbC5De01d112AfC03a584966ff199741C28); // Aave V3
+        _protocols[MEGAETH].push(LenderProtocol.AaveV3);
+
+        _lenders[MEGAETH].push(0x68b34591f662508076927803c567Cc8006988a09); // Kumbaya (UniswapV3 fork) Factory
+        _protocols[MEGAETH].push(LenderProtocol.UniswapV3);
+
+        _shortcuts[MEGAETH] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[MEGAETH] = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // EnsoRouter
 
         //
         // HyperEVM
