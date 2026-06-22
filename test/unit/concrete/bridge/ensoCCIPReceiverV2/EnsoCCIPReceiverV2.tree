@@ -1,0 +1,153 @@
+EnsoCCIPReceiverV2::AcceptOwnership
+├── when caller is not pending owner
+│   └── it should revert
+└── when caller is pending owner
+    └── it should transfer ownership
+
+EnsoCCIPReceiverV2::CcipReceive
+├── when caller is not ccipRouter
+│   └── it should revert
+└── when caller is ccipRouter
+    ├── when message was already executed
+    │   ├── it should emit MessageValidationFailed
+    │   └── it should keep executedMessage set
+    └── when message was not executed
+        ├── when message has no tokens
+        │   ├── it should emit MessageValidationFailed
+        │   ├── it should emit MessageQuarantined
+        │   └── it should update executedMessage
+        ├── when message has more than max tokens
+        │   ├── it should emit MessageValidationFailed
+        │   ├── it should emit MessageQuarantined
+        │   ├── it should update executedMessage
+        │   └── it should escrow message tokens
+        ├── when message has two tokens
+        │   ├── when tokens are duplicated
+        │   │   ├── it should emit MessageValidationFailed
+        │   │   ├── it should emit MessageQuarantined
+        │   │   ├── it should update executedMessage
+        │   │   └── it should escrow message tokens
+        │   ├── when a token amount is zero
+        │   │   ├── it should emit MessageValidationFailed
+        │   │   ├── it should emit MessageQuarantined
+        │   │   └── it should update executedMessage
+        │   ├── when message data is malformed
+        │   │   ├── it should emit MessageValidationFailed
+        │   │   ├── it should emit MessageQuarantined
+        │   │   ├── it should update executedMessage
+        │   │   └── it should escrow message tokens
+        │   ├── when message data receiver is zero address
+        │   │   ├── it should emit MessageValidationFailed
+        │   │   ├── it should emit MessageQuarantined
+        │   │   ├── it should update executedMessage
+        │   │   └── it should escrow message tokens
+        │   ├── when contract is paused
+        │   │   ├── it should emit MessageValidationFailed
+        │   │   ├── it should update executedMessage
+        │   │   └── it should safe transfer both token amounts to receiver
+        │   ├── when shortcut execution succeeded
+        │   │   ├── it should emit ShortcutExecutionSuccessful
+        │   │   ├── it should update executedMessage
+        │   │   └── it should apply shortcut state changes via routeMulti
+        │   └── when shortcut execution failed
+        │       ├── it should emit ShortcutExecutionFailed
+        │       ├── it should update executedMessage
+        │       └── it should safe transfer both token amounts to receiver
+        └── when message has single token
+            ├── when message token amount is zero
+            │   ├── it should emit MessageValidationFailed
+            │   ├── it should emit MessageQuarantined
+            │   └── it should update executedMessage
+            ├── when message data is malformed
+            │   ├── it should emit MessageValidationFailed
+            │   ├── it should emit MessageQuarantined
+            │   ├── it should update executedMessage
+            │   └── it should escrow message token
+            ├── when message data receiver is zero address
+            │   ├── it should emit MessageValidationFailed
+            │   ├── it should emit MessageQuarantined
+            │   ├── it should update executedMessage
+            │   └── it should escrow message token
+            ├── when contract is paused
+            │   ├── it should emit MessageValidationFailed
+            │   ├── it should update executedMessage
+            │   └── it should safe transfer token amount to receiver
+            ├── when shortcut execution succeeded
+            │   ├── it should emit ShortcutExecutionSuccessful
+            │   ├── it should update executedMessage
+            │   └── it should apply shortcut state changes via routeSingle
+            └── when shortcut execution failed
+                ├── it should emit ShortcutExecutionFailed
+                ├── it should update executedMessage
+                └── it should safe transfer token amount to receiver
+
+EnsoCCIPReceiverV2::Constructor
+└── when deployed
+    ├── it should set owner
+    ├── it should set ccipRouter
+    └── it should set ensoRouter
+
+EnsoCCIPReceiverV2::Execute
+├── when caller is not self
+│   └── it should revert
+└── when caller is self
+    ├── when tokens length is below min
+    │   └── it should revert
+    ├── when tokens length exceeds max
+    │   └── it should revert
+    ├── when shortcut execution failed
+    │   └── it should revert
+    └── when shortcut execution succeeded
+        ├── when single token
+        │   └── it should apply shortcut state changes via routeSingle
+        └── when two tokens
+            └── it should apply shortcut state changes via routeMulti
+
+EnsoCCIPReceiverV2::GetEnsoRouter
+└── it should return EnsoRouter address
+
+EnsoCCIPReceiverV2::Pause
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should pause the contract
+
+EnsoCCIPReceiverV2::RecoverTokens
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    ├── it should safe transfer amount to recipient
+    └── it should emit TokensRecovered
+
+EnsoCCIPReceiverV2::RenounceOwnership
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should transfer ownership to zero address
+
+EnsoCCIPReceiverV2::SupportsInterface
+├── when interfaceId is type IAny2EVMMessageReceiver
+│   └── it should return true
+└── when interfaceId is not type IAny2EVMMessageReceiver
+    ├── when interfaceId is type IERC165
+    │   └── it should return true
+    └── when interfaceId is not type IERC165
+        └── it should return false
+
+EnsoCCIPReceiverV2::TransferOwnership
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should start ownership transfer
+
+EnsoCCIPReceiverV2::TypeAndVersion
+└── it should return current type and semantic version
+
+EnsoCCIPReceiverV2::Unpause
+├── when caller is not owner
+│   └── it should revert
+└── when caller is owner
+    └── it should unpause the contract
+
+EnsoCCIPReceiverV2::WasMessageExecuted
+└── it should return whether message was executed
