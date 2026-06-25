@@ -8,7 +8,7 @@ contract SmardexSwapHelpers {
 
     uint8 private constant PAYMENT_TRANSFER_FROM = 2;
 
-    function encodeSwapInputs(
+    function encodeSwapInput(
         address tokenIn,
         address tokenOut,
         uint256 amountIn,
@@ -17,13 +17,12 @@ contract SmardexSwapHelpers {
     )
         external
         pure
-        returns (bytes[] memory inputs)
+        returns (bytes memory)
     {
         address[] memory path = new address[](2);
         path[0] = tokenIn;
         path[1] = tokenOut;
 
-        inputs = new bytes[](1);
-        inputs[0] = abi.encode(amountIn.toUint128(), minAmountOut.toUint128(), path, to, PAYMENT_TRANSFER_FROM);
+        return abi.encode(amountIn.toUint128(), minAmountOut.toUint128(), path, to, PAYMENT_TRANSFER_FROM);
     }
 }

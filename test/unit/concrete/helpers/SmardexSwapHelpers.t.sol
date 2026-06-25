@@ -17,29 +17,27 @@ contract SmardexSwapHelpersTest is Test {
         helpers = new SmardexSwapHelpers();
     }
 
-    function test_encodeSwapInputs_matchesRouterEncoding() public view {
+    function test_encodeSwapInput_matchesRouterEncoding() public view {
         uint256 amountIn = 1 ether;
         uint256 minAmountOut = 0.9 ether;
 
-        bytes[] memory inputs = helpers.encodeSwapInputs(TOKEN_IN, TOKEN_OUT, amountIn, minAmountOut, TO);
-
-        assertEq(inputs.length, 1, "single input");
+        bytes memory swapInput = helpers.encodeSwapInput(TOKEN_IN, TOKEN_OUT, amountIn, minAmountOut, TO);
 
         address[] memory path = new address[](2);
         path[0] = TOKEN_IN;
         path[1] = TOKEN_OUT;
         bytes memory expected = abi.encode(uint128(amountIn), uint128(minAmountOut), path, TO, PAYMENT_TRANSFER_FROM);
-        assertEq(inputs[0], expected, "encoding must match the SmarDex swapInput layout");
+        assertEq(swapInput, expected, "encoding must match the SmarDex swapInput layout");
     }
 
-    function test_encodeSwapInputs_decodesRoundTrip() public view {
+    function test_encodeSwapInput_decodesRoundTrip() public view {
         uint256 amountIn = 12_345;
         uint256 minAmountOut = 678;
 
-        bytes[] memory inputs = helpers.encodeSwapInputs(TOKEN_IN, TOKEN_OUT, amountIn, minAmountOut, TO);
+        bytes memory swapInput = helpers.encodeSwapInput(TOKEN_IN, TOKEN_OUT, amountIn, minAmountOut, TO);
 
         (uint128 dAmountIn, uint128 dMinAmountOut, address[] memory dPath, address dTo, uint8 dPayment) =
-            abi.decode(inputs[0], (uint128, uint128, address[], address, uint8));
+            abi.decode(swapInput, (uint128, uint128, address[], address, uint8));
 
         assertEq(dAmountIn, uint128(amountIn), "amountIn");
         assertEq(dMinAmountOut, uint128(minAmountOut), "minAmountOut");
@@ -50,15 +48,15 @@ contract SmardexSwapHelpersTest is Test {
         assertEq(dPayment, PAYMENT_TRANSFER_FROM, "payment");
     }
 
-    function test_encodeSwapInputs_revertsOnAmountInOverflow() public {
+    function test_encodeSwapInput_revertsOnAmountInOverflow() public {
         uint256 tooBig = uint256(type(uint128).max) + 1;
         vm.expectRevert();
-        helpers.encodeSwapInputs(TOKEN_IN, TOKEN_OUT, tooBig, 0, TO);
+        helpers.encodeSwapInput(TOKEN_IN, TOKEN_OUT, tooBig, 0, TO);
     }
 
-    function test_encodeSwapInputs_revertsOnMinAmountOutOverflow() public {
+    function test_encodeSwapInput_revertsOnMinAmountOutOverflow() public {
         uint256 tooBig = uint256(type(uint128).max) + 1;
         vm.expectRevert();
-        helpers.encodeSwapInputs(TOKEN_IN, TOKEN_OUT, 1 ether, tooBig, TO);
+        helpers.encodeSwapInput(TOKEN_IN, TOKEN_OUT, 1 ether, tooBig, TO);
     }
 }
