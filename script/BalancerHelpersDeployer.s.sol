@@ -6,9 +6,8 @@ import { Script } from "forge-std/Script.sol";
 
 contract BalancerHelpersDeployer is Script {
     function run() public returns (BalancerHelpers balancerHelpers) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         balancerHelpers = new BalancerHelpers{ salt: "BalancerHelpers" }();
 

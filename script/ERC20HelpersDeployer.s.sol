@@ -6,9 +6,8 @@ import { Script } from "forge-std/Script.sol";
 
 contract ERC20HelpersDeployer is Script {
     function run() public returns (ERC20Helpers erc20Helpers) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         erc20Helpers = new ERC20Helpers{ salt: "ERC20Helpers" }();
 

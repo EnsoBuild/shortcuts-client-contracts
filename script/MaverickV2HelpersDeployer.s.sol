@@ -6,9 +6,8 @@ import { Script } from "forge-std/Script.sol";
 
 contract SwapHelpersDeployer is Script {
     function run() public returns (MaverickV2Helpers maverickV2Helpers) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         maverickV2Helpers = new MaverickV2Helpers{ salt: "MaverickV2Helpers" }();
 

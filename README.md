@@ -208,10 +208,38 @@ Some useful options include:
 
 ## Deployment
 
-Copy `.env.example` to `.env`, fill out required values.
+### Signing key (Foundry keystore)
+
+This repo **never** reads a raw private key from `.env`. Deployer scripts
+broadcast keylessly (`vm.startBroadcast()` with no argument) and the signer is
+supplied on the CLI via an encrypted
+[Foundry keystore](https://getfoundry.sh/reference/cast/cast-wallet-import),
+selected by name with `--account`. Create it once (the key is entered at a
+hidden prompt — never in argv or shell history):
 
 ```bash
-$ forge script Deployer --broadcast --fork-url <network>
+cast wallet import enso-deployer --interactive
+cast wallet address --account enso-deployer   # public address
+```
+
+Put that public address in `.env` as `DEPLOYER_ADDRESS` (some scripts, e.g. the
+CCIP receiver and flashloan adapter deployers, use it as the constructor
+`owner`). Then copy `.env.example` to `.env` and fill in RPC URLs / verifier keys.
+
+### Deploy
+
+Preferred — the wrapper picks the right per-network flags and uses the
+`enso-deployer` keystore (override with `DEPLOYER_ACCOUNT`):
+
+```bash
+$ ./.bash/deploy.sh <Deployer.s.sol> <network> broadcast <verifier>
+```
+
+Or invoke `forge script` directly — pass `--account`, and forge prompts for the
+keystore password only when `--broadcast` is present:
+
+```bash
+$ forge script Deployer --account enso-deployer --broadcast --fork-url <network>
 ```
 
 ---

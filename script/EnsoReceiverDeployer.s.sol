@@ -13,9 +13,8 @@ contract EnsoReceiverDeployer is Script {
     address BACKEND_SIGNER = 0xFE503EE14863F6aCEE10BCdc66aC5e2301b3A946;
 
     function run() public returns (EnsoReceiver implementation, ERC4337CloneFactory factory) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         address entryPoint = ENTRY_POINT_V7;
         implementation = new EnsoReceiver{ salt: "EnsoReceiver" }();

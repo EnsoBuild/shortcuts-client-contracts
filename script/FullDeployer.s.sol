@@ -34,9 +34,8 @@ struct DeployerResult {
 
 contract FullDeployer is Script {
     function run() public returns (DeployerResult memory result) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         result.router = new EnsoRouter{ salt: "EnsoRouter" }();
         result.shortcuts = EnsoShortcuts(payable(result.router.shortcuts()));

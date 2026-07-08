@@ -10,9 +10,8 @@ struct EIP7702EnsoShortcutsDeployerResult {
 
 contract EIP7702EnsoShortcutsDeployer is Script {
     function run() public returns (EIP7702EnsoShortcutsDeployerResult memory result) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         result.shortcuts = new EIP7702EnsoShortcuts{ salt: "EIP7702EnsoShortcuts" }();
 

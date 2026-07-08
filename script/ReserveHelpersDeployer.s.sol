@@ -6,9 +6,8 @@ import { Script } from "forge-std/Script.sol";
 
 contract ReserveHelpersDeployer is Script {
     function run() public returns (ReserveHelpers reserveHelpers) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         reserveHelpers = new ReserveHelpers{ salt: "ReserveHelpers" }();
 

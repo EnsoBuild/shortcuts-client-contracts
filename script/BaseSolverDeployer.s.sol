@@ -10,9 +10,8 @@ struct BaseSolverResult {
 
 contract BaseSolverDeployer is Script {
     function run() public returns (BaseSolverResult memory result) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.broadcast(deployerPrivateKey);
+        vm.broadcast();
         result.shortcuts = new BaseSolver{ salt: "BaseSolver" }(vm.envAddress("OWNER"), vm.envAddress("EXECUTOR"));
     }
 }

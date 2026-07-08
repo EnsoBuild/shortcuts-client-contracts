@@ -13,6 +13,12 @@ rpc="${network_upper}_RPC_URL"
 blockscan_key="ETHEREUM_BLOCKSCAN_KEY"
 
 source .env
+
+# Signer comes from an encrypted Foundry keystore, never a raw key in .env.
+# Create once: cast wallet import enso-deployer --interactive
+# Override the account name via DEPLOYER_ACCOUNT if needed.
+account="${DEPLOYER_ACCOUNT:-enso-deployer}"
+
 params=()
 if [[ $network_upper == "ZKSYNC" ]]; then
     params+=(--zksync)
@@ -68,5 +74,6 @@ fi
 
 { set +x; } 2>/dev/null
 
-PRIVATE_KEY="$PRIVATE_KEY" \
-forge script "script/${script}" --rpc-url "${!rpc}" "${params[@]}"
+# --account resolves the sender address from the keystore JSON; forge only
+# prompts for the password when --broadcast is present (dry-runs don't sign).
+forge script "script/${script}" --rpc-url "${!rpc}" --account "$account" "${params[@]}"

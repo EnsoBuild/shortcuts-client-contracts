@@ -10,9 +10,8 @@ struct DelegateDeployerResult {
 
 contract DelegateDeployer is Script {
     function run() public returns (DelegateDeployerResult memory result) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         result.delegate = new DelegateEnsoShortcuts{ salt: "DelegateEnsoShortcuts" }();
 
