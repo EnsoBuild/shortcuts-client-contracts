@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { EnsoCCIPReceiver } from "../src/bridge/EnsoCCIPReceiver.sol";
-import { ChainId } from "../src/libraries/DataTypes.sol";
+import { ChainId, ChainOwner } from "../src/libraries/ChainOwner.sol";
 import { Script } from "forge-std/Script.sol";
 
 contract EnsoCCIPReceiverDeployer is Script {
@@ -14,7 +14,7 @@ contract EnsoCCIPReceiverDeployer is Script {
     function run() public returns (address ensoCcipReceiver, address owner, address ccipRouter, address ensoRouter) {
         uint256 chainId = block.chainid;
 
-        owner = vm.envAddress("DEPLOYER_ADDRESS"); // NOTE: owner is deployer
+        owner = ChainOwner.ownerFor(chainId);
         if (chainId == ChainId.ETHEREUM) {
             ccipRouter = 0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;

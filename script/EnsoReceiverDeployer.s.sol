@@ -9,9 +9,6 @@ import { Script } from "forge-std/Script.sol";
 contract EnsoReceiverDeployer is Script {
     address ENTRY_POINT_V7 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
-    address OWNER = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA;
-    address BACKEND_SIGNER = 0xFE503EE14863F6aCEE10BCdc66aC5e2301b3A946;
-
     function run() public returns (EnsoReceiver implementation, ERC4337CloneFactory factory) {
         vm.startBroadcast();
 

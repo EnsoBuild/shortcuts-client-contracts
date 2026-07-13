@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { EnsoRouterFlashloanAdapter } from "../src/flashloan/EnsoRouterFlashloanAdapter.sol";
 import { EnsoSafeFlashloanAdapter } from "../src/flashloan/EnsoSafeFlashloanAdapter.sol";
 import { EnsoWalletFlashloanAdapter } from "../src/flashloan/EnsoWalletFlashloanAdapter.sol";
+import { ChainOwner } from "../src/libraries/ChainOwner.sol";
 import { FlashloanAdapterConfig, LenderProtocol } from "./FlashloanAdapterConfig.s.sol";
 import { Script } from "forge-std/Script.sol";
 
@@ -27,7 +28,7 @@ contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
 
         vm.startBroadcast();
 
-        address owner = vm.envAddress("DEPLOYER_ADDRESS");
+        address owner = ChainOwner.ownerFor(block.chainid);
 
         if (router != address(0)) {
             routerAdapter =
