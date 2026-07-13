@@ -2,15 +2,15 @@
 pragma solidity ^0.8.28;
 
 import { LayerZeroReceiver } from "../src/bridge/LayerZeroReceiver.sol";
-import { ChainId } from "../src/libraries/DataTypes.sol";
+import { ChainId, ChainOwner } from "../src/libraries/ChainOwner.sol";
 import { Script } from "forge-std/Script.sol";
 
 contract LayerZeroDeployer is Script {
     function run() public returns (address lzReceiver, address endpoint, address router) {
         vm.startBroadcast();
 
-        address deployer = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA;
         uint256 chainId = block.chainid;
+        address owner = ChainOwner.ownerFor(chainId);
         if (chainId == ChainId.ZKSYNC) {
             endpoint = 0xd07C30aF3Ff30D96BDc9c6044958230Eb797DDBF; // zksync
             router = 0x1BD8CefD703CF6b8fF886AD2E32653C32bc62b5C;
@@ -55,7 +55,7 @@ contract LayerZeroDeployer is Script {
             router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
         }
 
-        lzReceiver = address(new LayerZeroReceiver{ salt: "LayerZeroReceiver" }(endpoint, router, deployer));
+        lzReceiver = address(new LayerZeroReceiver{ salt: "LayerZeroReceiver" }(endpoint, router, owner));
 
         vm.stopBroadcast();
     }

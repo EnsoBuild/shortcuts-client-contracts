@@ -4,6 +4,7 @@ auto_detect_solc = false
 bytecode_hash = "none" # Disables the metadata
 cbor_metadata = false # Diasbles the metadata
 evm_version = "cancun"
+fs_permissions = [{ access = "read", path = "./broadcast" }] # RoleMigration reads deployed addresses from broadcast logs
 libs = ["lib", "dependencies"]
 optimizer = true
 optimizer-runs = 200
