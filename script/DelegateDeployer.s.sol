@@ -10,7 +10,6 @@ struct DelegateDeployerResult {
 
 contract DelegateDeployer is Script {
     function run() public returns (DelegateDeployerResult memory result) {
-
         vm.startBroadcast();
 
         result.delegate = new DelegateEnsoShortcuts{ salt: "DelegateEnsoShortcuts" }();

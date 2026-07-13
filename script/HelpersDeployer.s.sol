@@ -25,7 +25,6 @@ struct DeployerResult {
 
 contract HelpersDeployer is Script {
     function run() public returns (DeployerResult memory result) {
-
         vm.startBroadcast();
 
         result.decimalHelpers = new DecimalHelpers{ salt: "DecimalHelpers" }();

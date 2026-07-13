@@ -28,7 +28,6 @@ contract Deployer is Script {
     }
 
     function run() public returns (EnsoShortcuts socketEnsoShortcuts) {
-
         address socketReceiver = socketReceivers[block.chainid];
 
         vm.broadcast();

@@ -10,7 +10,6 @@ struct BebopSolverResult {
 
 contract BebopSolverDeployer is Script {
     function run() public returns (BebopSolverResult memory result) {
-
         vm.broadcast();
         result.shortcuts = new BebopSolver{ salt: "BebopSolver" }(
             vm.envAddress("OWNER"),

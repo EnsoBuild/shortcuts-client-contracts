@@ -7,7 +7,6 @@ import { Script } from "forge-std/Script.sol";
 
 contract EnsoWalletV2Deployer is Script {
     function run() public returns (EnsoWalletV2 implementation, EnsoWalletV2Factory factory) {
-
         vm.startBroadcast();
 
         implementation = new EnsoWalletV2{ salt: "EnsoWalletV2" }();

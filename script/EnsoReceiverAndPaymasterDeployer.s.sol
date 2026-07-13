@@ -17,7 +17,6 @@ contract EnsoReceiverAndPaymasterDeployer is Script {
         public
         returns (EnsoReceiver implementation, ERC4337CloneFactory factory, SignaturePaymaster paymaster)
     {
-
         vm.startBroadcast();
 
         address entryPoint = ENTRY_POINT_V7;

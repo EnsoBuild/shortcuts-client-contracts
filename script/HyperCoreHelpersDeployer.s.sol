@@ -6,7 +6,6 @@ import { Script } from "forge-std/Script.sol";
 
 contract HyperCoreHelpersDeployer is Script {
     function run() public returns (HyperCoreHelpers hyperCoreHelpers) {
-
         vm.startBroadcast();
 
         // NOTE: replace version in `salt`

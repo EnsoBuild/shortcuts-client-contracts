@@ -16,7 +16,6 @@ contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
             EnsoWalletFlashloanAdapter walletAdapter
         )
     {
-
         _initConfigs();
 
         address[] storage lenders = _lenders[block.chainid];

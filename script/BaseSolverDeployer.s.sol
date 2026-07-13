@@ -10,7 +10,6 @@ struct BaseSolverResult {
 
 contract BaseSolverDeployer is Script {
     function run() public returns (BaseSolverResult memory result) {
-
         vm.broadcast();
         result.shortcuts = new BaseSolver{ salt: "BaseSolver" }(vm.envAddress("OWNER"), vm.envAddress("EXECUTOR"));
     }

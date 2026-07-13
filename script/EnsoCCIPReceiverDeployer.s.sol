@@ -12,7 +12,6 @@ contract EnsoCCIPReceiverDeployer is Script {
     error UnsupportedChainId(uint256 chainId);
 
     function run() public returns (address ensoCcipReceiver, address owner, address ccipRouter, address ensoRouter) {
-
         uint256 chainId = block.chainid;
 
         owner = vm.envAddress("DEPLOYER_ADDRESS"); // NOTE: owner is deployer

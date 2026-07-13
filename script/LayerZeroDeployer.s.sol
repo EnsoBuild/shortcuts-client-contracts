@@ -7,7 +7,6 @@ import { Script } from "forge-std/Script.sol";
 
 contract LayerZeroDeployer is Script {
     function run() public returns (address lzReceiver, address endpoint, address router) {
-
         vm.startBroadcast();
 
         address deployer = 0x826e0BB2276271eFdF2a500597f37b94f6c153bA;

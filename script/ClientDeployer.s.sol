@@ -15,7 +15,6 @@ struct DeployerResult {
 
 contract Deployer is Script {
     function run() public returns (DeployerResult memory result) {
-
         vm.startBroadcast();
 
         result.router = new EnsoRouter{ salt: "EnsoRouter" }();

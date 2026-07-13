@@ -6,7 +6,6 @@ import { Script } from "forge-std/Script.sol";
 
 contract SwapHelpersDeployer is Script {
     function run() public returns (SwapHelpers swapHelpers) {
-
         vm.startBroadcast();
 
         swapHelpers = new SwapHelpers{ salt: "SwapHelpers" }();

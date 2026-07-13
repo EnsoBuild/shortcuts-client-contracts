@@ -6,7 +6,6 @@ import { Script } from "forge-std/Script.sol";
 
 contract BalancerHelpersDeployer is Script {
     function run() public returns (BalancerHelpers balancerHelpers) {
-
         vm.startBroadcast();
 
         balancerHelpers = new BalancerHelpers{ salt: "BalancerHelpers" }();

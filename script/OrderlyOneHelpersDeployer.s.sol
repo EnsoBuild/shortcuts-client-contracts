@@ -6,7 +6,6 @@ import { Script } from "forge-std/Script.sol";
 
 contract OrderlyOneHelpersDeployer is Script {
     function run() public returns (OrderlyOneHelpers orderlyOneHelpers) {
-
         vm.startBroadcast();
         orderlyOneHelpers = new OrderlyOneHelpers{ salt: "OrderlyOneHelpers" }();
         vm.stopBroadcast();
