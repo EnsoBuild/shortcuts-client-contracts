@@ -25,9 +25,7 @@ struct DeployerResult {
 
 contract HelpersDeployer is Script {
     function run() public returns (DeployerResult memory result) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         result.decimalHelpers = new DecimalHelpers{ salt: "DecimalHelpers" }();
         result.shortcutsHelpers = new EnsoShortcutsHelpers{ salt: "EnsoShortcutsHelpers" }();

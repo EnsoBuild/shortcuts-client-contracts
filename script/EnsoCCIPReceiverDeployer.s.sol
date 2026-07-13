@@ -12,11 +12,9 @@ contract EnsoCCIPReceiverDeployer is Script {
     error UnsupportedChainId(uint256 chainId);
 
     function run() public returns (address ensoCcipReceiver, address owner, address ccipRouter, address ensoRouter) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
         uint256 chainId = block.chainid;
 
-        owner = vm.addr(deployerPrivateKey); // NOTE: owner is deployer
+        owner = vm.envAddress("DEPLOYER_ADDRESS"); // NOTE: owner is deployer
         if (chainId == ChainId.ETHEREUM) {
             ccipRouter = 0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
@@ -106,7 +104,7 @@ contract EnsoCCIPReceiverDeployer is Script {
             revert EnsoRouterIsNotSet();
         }
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         ensoCcipReceiver = address(new EnsoCCIPReceiver{ salt: "EnsoCCIPReceiver" }(owner, ccipRouter, ensoRouter));
 

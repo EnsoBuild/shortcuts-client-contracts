@@ -28,11 +28,9 @@ contract Deployer is Script {
     }
 
     function run() public returns (EnsoShortcuts socketEnsoShortcuts) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
         address socketReceiver = socketReceivers[block.chainid];
 
-        vm.broadcast(deployerPrivateKey);
+        vm.broadcast();
         socketEnsoShortcuts = new EnsoShortcuts{ salt: "SocketEnsoShortcuts" }(socketReceiver);
     }
 }

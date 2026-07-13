@@ -16,8 +16,6 @@ contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
             EnsoWalletFlashloanAdapter walletAdapter
         )
     {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
         _initConfigs();
 
         address[] storage lenders = _lenders[block.chainid];
@@ -27,9 +25,9 @@ contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
 
         require(lenders.length > 0, "Unsupported chain");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
-        address owner = vm.envOr("OWNER", vm.addr(deployerPrivateKey));
+        address owner = vm.envAddress("DEPLOYER_ADDRESS");
 
         if (router != address(0)) {
             routerAdapter =

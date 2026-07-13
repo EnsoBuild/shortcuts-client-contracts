@@ -17,9 +17,7 @@ contract EnsoReceiverAndPaymasterDeployer is Script {
         public
         returns (EnsoReceiver implementation, ERC4337CloneFactory factory, SignaturePaymaster paymaster)
     {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         address entryPoint = ENTRY_POINT_V7;
         implementation = new EnsoReceiver{ salt: "EnsoReceiver" }();

@@ -51,12 +51,10 @@ contract UniswapV4SwapHelpersDeployer is Script {
     }
 
     function run() public returns (UniswapV4SwapHelpers uniswapV4SwapHelpers, address universalRouter) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
         universalRouter = universalRouters[block.chainid];
         require(universalRouter != address(0), "No universal router set");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         uniswapV4SwapHelpers =
             new UniswapV4SwapHelpers{ salt: "UniswapV4SwapHelpers" }(IUniversalRouter(universalRouter), PERMIT2);
