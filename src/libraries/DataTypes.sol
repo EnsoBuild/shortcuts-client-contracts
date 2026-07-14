@@ -17,6 +17,7 @@ library ChainId {
     uint256 public constant SONEIUM = 1868;
     uint256 public constant TEMPO = 4217;
     uint256 public constant MEGAETH = 4326;
+    uint256 public constant ROBINHOOD = 4663;
     uint256 public constant BASE = 8453;
     uint256 public constant PLASMA = 9745;
     uint256 public constant ARBITRUM = 42_161;

@@ -90,6 +90,9 @@ contract EnsoCCIPReceiverDeployer is Script {
         } else if (chainId == ChainId.KATANA) {
             ccipRouter = 0x7c19b79D2a054114Ab36ad758A36e92376e267DA;
             ensoRouter = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
+        } else if (chainId == ChainId.ROBINHOOD) {
+            ccipRouter = 0x06fC836cf9839B1cd891C440A0a45242DA6Ae1c9;
+            ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;
         } else {
             revert UnsupportedChainId(chainId);
         }
