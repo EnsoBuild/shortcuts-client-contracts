@@ -89,6 +89,9 @@ library ChainOwner {
         if (chainId == ChainId.KATANA) {
             return ENSO_OWNER;
         }
+        if (chainId == ChainId.ROBINHOOD) {
+            return TODO_OWNER; // TODO: replace with multisig once available
+        }
         revert UnconfiguredChain(chainId);
     }
 }

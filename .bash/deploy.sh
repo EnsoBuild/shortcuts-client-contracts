@@ -63,6 +63,8 @@ if [[ $broadcast == "broadcast" ]]; then
                     params+=(--verifier-url "https://explorer.katanarpc.com/api")
                 elif [[ $network_upper == "ETHERLINK" ]]; then
                     params+=(--verifier-url "https://explorer.etherlink.com/api")
+                elif [[ $network_upper == "ROBINHOOD" ]]; then
+                    params+=(--verifier-url "https://robinhoodchain.blockscout.com/api")
                 else
                     params+=(--verifier-url "https://${network}.blockscout.com/api")
                 fi
