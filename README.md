@@ -129,7 +129,7 @@ catch them.
    You can run mutation tests using the provided script:
 
    ```sh
-   node ./mutationTest.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test'
+   node ./testGambitMutations.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test'
    ```
 
    - Use the `--matchContract` flag with a regex to select which test contracts
@@ -140,7 +140,7 @@ catch them.
    **Example:**
 
    ```sh
-   node ./mutationTest.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test' --matchMutant EnsoReceiver
+   node ./testGambitMutations.mjs --matchContract 'EnsoReceiver_.*_Unit_Concrete_Test' --matchMutant EnsoReceiver
    ```
 
    This will run all test contracts matching the pattern against all mutants of
@@ -153,11 +153,11 @@ catch them.
 
    For more complex or repeated runs, you can create a JS script in
    `test/scripts/`, e.g.
-   [`test/scripts/runEnsoCheckoutMutationTests.mjs`](./scripts/runEnsoCheckoutMutationTests.mjs).
+   [`test/scripts/runEnsoCheckoutMutationTests.mjs`](./test/scripts/runEnsoCheckoutMutationTests.mjs).
 
 #### **Script Options and Advanced Usage**
 
-The `mutationTest.mjs` script is based on
+The `testGambitMutations.mjs` script is based on
 [ibourn/gambit-mutation-testing](https://github.com/ibourn/gambit-mutation-testing?tab=readme-ov-file#script-options-to-refine-test-execution).
 **For a full list of available options and advanced usage, see the
 [original script documentation](https://github.com/ibourn/gambit-mutation-testing?tab=readme-ov-file#script-options-to-refine-test-execution).**
@@ -210,9 +210,8 @@ Some useful options include:
 
 ### Signing key (Foundry keystore)
 
-This repo **never** reads a raw private key from `.env`. Deployer scripts
-broadcast keylessly (`vm.startBroadcast()` with no argument) and the signer is
-supplied on the CLI via an encrypted
+Normal deployer scripts broadcast keylessly (`vm.startBroadcast()` with no
+argument), and the signer is supplied on the CLI via an encrypted
 [Foundry keystore](https://getfoundry.sh/reference/cast/cast-wallet-import),
 selected by name with `--account`. Create it once (the key is entered at a
 hidden prompt — never in argv or shell history):
@@ -224,7 +223,13 @@ cast wallet address --account enso-deployer   # public address
 
 Put that public address in `.env` as `DEPLOYER_ADDRESS` (some scripts, e.g. the
 CCIP receiver and flashloan adapter deployers, use it as the constructor
-`owner`). Then copy `.env.example` to `.env` and fill in RPC URLs / verifier keys.
+`owner`). Then copy `.env.example` to `.env` and fill in RPC URLs / verifier
+keys.
+
+Exceptions: `RoleMigration.s.sol`, `.bash/migrate-roles.sh`, and
+`SmardexSwapHelpersDeployer.s.sol` currently read `PRIVATE_KEY` from the
+environment. Treat these as sensitive operational paths and do not expose the
+value in argv, logs, or committed files.
 
 ### Deploy
 
@@ -246,16 +251,15 @@ $ forge script Deployer --account enso-deployer --broadcast --fork-url <network>
 
 ## Verification
 
-Example of how manually verifying a contract with constructor args after
-deployment:
+Generic form for manually verifying a deployed contract (append
+`--constructor-args <abi-encoded-hex>` when required):
 
 ```sh
 forge verify-contract \
 --watch \
---chain polygon \
-0xDb5b96dC4CE3E0E44d30279583F926363eFaE29f \
-src/helpers/FeeSplitter.sol:FeeSplitter \
---verifier etherscan \
---etherscan-api-key <string:etherscan-api-key> \
---constructor-args $(cast abi-encode "constructor(address,address[],uint16[])" "0x6AA68C46eD86161eB318b1396F7b79E386e88676" "[0xBfC330020E3267Cea008718f1712f1dA7F0d32A9,0x6AA68C46eD86161eB318b1396F7b79E386e88676]" "[1,1]")
+--chain <chain> \
+<deployed-address> \
+<source-path>:<contract-name> \
+--verifier <verifier> \
+--etherscan-api-key <api-key>
 ```
