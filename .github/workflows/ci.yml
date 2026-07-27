@@ -36,6 +36,7 @@ env:
   UNICHAIN_RPC_URL: ${{ secrets.UNICHAIN_RPC_URL }}
   WORLD_RPC_URL: ${{ secrets.WORLD_RPC_URL }}
   ZKSYNC_RPC_URL: ${{ secrets.ZKSYNC_RPC_URL }}
+  ROBINHOOD_RPC_URL: ${{ secrets.ROBINHOOD_RPC_URL }}
   SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
 
 jobs:
