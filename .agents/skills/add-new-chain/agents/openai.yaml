@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Contracts Chain"
+  short_description: "Deploy Enso contracts on a new chain"
+  default_prompt: "Use $add-new-chain to add or review a chain in shortcuts-client-contracts."
