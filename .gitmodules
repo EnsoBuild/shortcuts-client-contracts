@@ -1,3 +1,0 @@
-[submodule "lib/deepstate-contracts"]
-	path = lib/deepstate-contracts
-	url = git@github.com:Deepstate-Protocol/deepstate-contracts.git

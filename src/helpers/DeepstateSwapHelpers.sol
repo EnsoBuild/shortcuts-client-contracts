@@ -10,7 +10,8 @@ import { IDeepstateV1 } from "../interfaces/IDeepstateV1.sol";
 /// @dev The helper is deliberately separate from `SwapHelpers`, whose deployed bytecode is part of
 /// Enso's existing audited surface. Every route leg is forced to `noRest` so a partial swap cannot
 /// leave a maker order owned by this transient helper contract. Unspent input and all output are
-/// forwarded to `receiver` before the call returns.
+/// forwarded to `receiver` before the call returns. The route must net intermediate assets to zero,
+/// and its ERC-20 tokens must use conventional balance and transfer semantics.
 contract DeepstateSwapHelpers {
     using SafeERC20 for IERC20;
 
@@ -21,7 +22,11 @@ contract DeepstateSwapHelpers {
     IERC20 private constant _ETH = IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
 
     error IncorrectValue(uint256 expected, uint256 actual);
+    error InvalidEngine();
     error InvalidPair();
+    error InvalidReceiver();
+    error InvalidRoute();
+    error InvalidToken();
     error TransferFailed(address receiver);
 
     /// @notice Execute an atomic Deepstate route and forward its result.
@@ -32,6 +37,7 @@ contract DeepstateSwapHelpers {
     /// @param receiver Account receiving both output and any unspent input.
     /// @param fills Sequential Deepstate fill legs. Their `noRest` fields are overridden to true.
     /// @return amountOut Increase in the receiver's output-token balance.
+    /// @dev Enso's `safeRouteSingle` supplies the aggregate minimum-output check around this call.
     function swap(
         IDeepstateV1 deepstate,
         IERC20 tokenIn,
@@ -44,8 +50,20 @@ contract DeepstateSwapHelpers {
         payable
         returns (uint256 amountOut)
     {
+        if (address(deepstate) == address(0)) {
+            revert InvalidEngine();
+        }
+        if (receiver == address(0)) {
+            revert InvalidReceiver();
+        }
+        if (address(tokenIn) == address(0) || address(tokenOut) == address(0)) {
+            revert InvalidToken();
+        }
         if (tokenIn == tokenOut) {
             revert InvalidPair();
+        }
+        if (fills.length == 0) {
+            revert InvalidRoute();
         }
 
         uint256 receiverBalanceBefore = _balance(tokenOut, receiver);
@@ -75,7 +93,14 @@ contract DeepstateSwapHelpers {
 
         deepstate.fillRoute{ value: msg.value }(route);
 
-        _transfer(tokenOut, receiver, _balance(tokenOut, address(this)) - outputBalanceBefore);
+        if (tokenIn != _ETH) {
+            tokenIn.forceApprove(address(deepstate), 0);
+        }
+
+        uint256 output = _balance(tokenOut, address(this)) - outputBalanceBefore;
+        if (output != 0) {
+            _transfer(tokenOut, receiver, output);
+        }
         uint256 unspentInput = _balance(tokenIn, address(this)) - inputBalanceBefore;
         if (unspentInput != 0) {
             _transfer(tokenIn, receiver, unspentInput);

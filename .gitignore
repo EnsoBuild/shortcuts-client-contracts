@@ -13,9 +13,7 @@ node_modules/
 dependencies/
 
 # Deprecated submodule folder
-lib/*
-!lib/deepstate-contracts
-!lib/deepstate-contracts/**
+lib/
 
 # Certora Gambit & mutation tests runner
 gambit_out/
@@ -32,3 +30,4 @@ testLogs/
 
 # Cache files
 .prettiercache
+

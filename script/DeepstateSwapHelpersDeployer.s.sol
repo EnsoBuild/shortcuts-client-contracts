@@ -6,9 +6,7 @@ import { Script } from "forge-std/Script.sol";
 
 contract DeepstateSwapHelpersDeployer is Script {
     function run() public returns (DeepstateSwapHelpers deepstateSwapHelpers) {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         deepstateSwapHelpers = new DeepstateSwapHelpers{ salt: "DeepstateSwapHelpers" }();
 
