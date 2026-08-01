@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import { IDeepstateV1 } from "../interfaces/IDeepstateV1.sol";
 
 /**
  * @notice Helper contract to update swap data on-chain
@@ -14,7 +13,6 @@ contract SwapHelpers {
     IERC20 private constant _ETH = IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
 
     error IncorrectValue(uint256 expected, uint256 actual);
-    error InvalidPair();
     error TransferFailed(address receiver);
 
     function swapWithLimit(
@@ -81,50 +79,6 @@ contract SwapHelpers {
         returns (uint256)
     {
         return swap(primary, primary, tokenIn, tokenOut, amountIn, receiver, data, pointers);
-    }
-
-    function swapDeepstate(
-        IDeepstateV1 deepstate,
-        IERC20 tokenIn,
-        IERC20 tokenOut,
-        uint256 amountIn,
-        address receiver,
-        IDeepstateV1.FillParams[] calldata fills
-    )
-        external
-        payable
-        returns (uint256 amountOut)
-    {
-        if (tokenIn == tokenOut) revert InvalidPair();
-
-        uint256 receiverBalanceBefore = _balance(tokenOut, receiver);
-        uint256 inputBalanceBefore = _balance(tokenIn, address(this));
-        uint256 outputBalanceBefore = _balance(tokenOut, address(this));
-
-        if (tokenIn == _ETH) {
-            if (msg.value != amountIn) revert IncorrectValue(amountIn, msg.value);
-            inputBalanceBefore -= msg.value;
-        } else {
-            if (msg.value != 0) revert IncorrectValue(0, msg.value);
-            tokenIn.safeTransferFrom(msg.sender, address(this), amountIn);
-            tokenIn.forceApprove(address(deepstate), amountIn);
-        }
-
-        IDeepstateV1.FillParams[] memory route = fills;
-        for (uint256 i; i < route.length;) {
-            route[i].noRest = true;
-            unchecked {
-                ++i;
-            }
-        }
-
-        deepstate.fillRoute{ value: msg.value }(route);
-
-        _transfer(tokenOut, receiver, _balance(tokenOut, address(this)) - outputBalanceBefore);
-        uint256 unspentInput = _balance(tokenIn, address(this)) - inputBalanceBefore;
-        if (unspentInput != 0) _transfer(tokenIn, receiver, unspentInput);
-
-        amountOut = _balance(tokenOut, receiver) - receiverBalanceBefore;
     }
 
     function insertAmount(
