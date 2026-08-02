@@ -306,6 +306,35 @@ contract DeepstateSwapHelpersTest is Test {
         assertTrue(deepstate.allNoRest());
     }
 
+    function test_swap_ensoRouterMinimumOutputRevertsAtomically() public {
+        tokenIn.mint(address(this), 100 ether);
+        tokenOut.mint(address(deepstate), 70 ether);
+        tokenIn.approve(address(router), 100 ether);
+        deepstate.configure(tokenIn, tokenOut, 60 ether, 70 ether);
+
+        bytes32[] memory commands = new bytes32[](2);
+        bytes[] memory state = new bytes[](3);
+        commands[0] =
+            WeirollPlanner.buildCommand(tokenIn.approve.selector, 0x01, 0x0001ffffffff, 0xff, address(tokenIn));
+        commands[1] = WeirollPlanner.buildCommand(helper.swap.selector, 0x21, 0x02ffffffffff, 0xff, address(helper));
+        state[0] = abi.encode(address(helper));
+        state[1] = abi.encode(100 ether);
+        state[2] = abi.encodeCall(helper.swap, (deepstate, tokenIn, tokenOut, 100 ether, RECEIVER, _mockFills()));
+
+        bytes memory data = abi.encodeCall(shortcuts.executeShortcut, (bytes32(0), bytes32(0), commands, state));
+        Token memory routeInput = Token(TokenType.ERC20, abi.encode(address(tokenIn), 100 ether));
+        Token memory routeOutput = Token(TokenType.ERC20, abi.encode(address(tokenOut), 71 ether));
+
+        vm.expectRevert(abi.encodeWithSelector(EnsoRouter.AmountTooLow.selector, routeOutput, 70 ether, 71 ether));
+        router.safeRouteSingle(routeInput, routeOutput, RECEIVER, data);
+
+        assertEq(tokenIn.balanceOf(address(this)), 100 ether);
+        assertEq(tokenOut.balanceOf(RECEIVER), 0);
+        assertEq(tokenIn.balanceOf(RECEIVER), 0);
+        assertEq(tokenOut.balanceOf(address(deepstate)), 70 ether);
+        assertEq(deepstate.callCount(), 0);
+    }
+
     function test_swap_executesNativeInputThroughUnmodifiedEnsoRouter() public {
         vm.deal(address(this), 100 ether);
         tokenOut.mint(address(deepstate), 70 ether);
