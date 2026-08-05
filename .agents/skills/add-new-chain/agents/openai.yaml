@@ -1,4 +1,6 @@
 interface:
-  display_name: "Add Contracts Chain"
-  short_description: "Deploy Enso contracts on a new chain"
-  default_prompt: "Use $add-new-chain to add or review a chain in shortcuts-client-contracts."
+  display_name: 'Add Contracts Chain'
+  short_description: 'Prepare a human-gated chain rollout'
+  default_prompt:
+    'Use $add-new-chain to prepare or review a human-gated chain rollout in
+    shortcuts-client-contracts.'

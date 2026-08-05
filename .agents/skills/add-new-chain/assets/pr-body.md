@@ -2,14 +2,28 @@
 
 Issue: `{{TICKET}}`
 
-### Scope
+### Agent-preparable work
 
 - [ ] Add `{{CHAIN_ID}}` to the canonical chain ID library.
-- [ ] Configure the intended owner; do not leave an accidental placeholder owner.
+- [ ] Inventory owner-dependent configuration; leave it blocked until the
+      approved address is supplied.
 - [ ] Configure explorer verification behavior.
-- [ ] Configure only launch-scope deployers (core, flashloan, CCIP, LayerZero).
-- [ ] Add flashloan lenders only for verified protocol deployments.
-- [ ] Run actual deployments and commit truthful broadcast artifacts.
+- [ ] Research flashloan, CCIP, and LayerZero candidates from official
+      documentation and verified explorer pages.
+- [ ] Prepare only the deployers approved for launch scope.
+- [ ] Add focused tests and prepare deployment/verification commands.
+
+### Human decisions and execution
+
+- [ ] Approve the launch protocol and contract scope.
+- [ ] Create or select the Safe multisig owner, or approve a hardware-wallet
+      fallback when Safe is unavailable; final owner address: TBD
+- [ ] Approve signer/threshold and custody configuration.
+- [ ] Provide required RPC and explorer access through the team's approved
+      process.
+- [ ] Review and sign or approve actual deployment transactions.
+- [ ] Commit or approve truthful broadcast artifacts produced by those
+      transactions.
 - [ ] Verify deployed contracts on the explorer.
 - [ ] Confirm the configured owner and deployed contract state on-chain.
 
@@ -18,7 +32,12 @@ Issue: `{{TICKET}}`
 - [ ] Chain documentation: TBD
 - [ ] Deployment transactions: TBD
 - [ ] Verified contract pages: TBD
-- [ ] Optional integration provider documentation, or not-applicable reason: TBD
+- [ ] Flashloan provider deployment pages and verified addresses, or
+      not-applicable reason: TBD
+- [ ] CCIP directory entry, required lanes/tokens, and verified addresses, or
+      not-applicable reason: TBD
+- [ ] LayerZero EndpointV2/EID and Stargate asset/pathway evidence when
+      applicable, or not-applicable reason: TBD
 
 ### Validation
 
