@@ -14,6 +14,8 @@ struct Token {
 }
 
 interface IEnsoRouter {
+    function shortcuts() external view returns (address);
+
     function routeSingle(
         Token calldata tokenIn,
         bytes calldata data

@@ -10,7 +10,7 @@ import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
 contract EnsoRouter is IEnsoRouter {
     using SafeERC20 for IERC20;
 
-    address public immutable shortcuts;
+    address public immutable override shortcuts;
 
     error WrongMsgValue(uint256 value, uint256 expectedAmount);
     error AmountTooLow(Token token, uint256 amount, uint256 minAmount);
