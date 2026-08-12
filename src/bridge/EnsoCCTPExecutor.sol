@@ -61,7 +61,7 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
         CctpCallback memory callback = _decodeCallback(hookData);
         uint256 mintAmount = _mintThroughCctp(message, attestation);
 
-        if (callback.executionFee > mintAmount) {
+        if (callback.executionFee >= mintAmount) {
             revert ExecutionFeeExceedsMintAmount(callback.executionFee, mintAmount);
         }
         uint256 callbackAmount = mintAmount - callback.executionFee;
