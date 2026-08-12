@@ -25,6 +25,7 @@ interface IEnsoCCTPExecutor {
         uint256 refundAmount,
         uint256 executionFee
     );
+    event CctpMessageRecovered(address indexed receiver, uint256 mintAmount);
 
     error ExecutionFeeExceedsMintAmount(uint256 executionFee, uint256 mintAmount);
     error InvalidCallback();

@@ -102,6 +102,7 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
         uint256 mintAmount = _mintThroughCctp(message, attestation);
 
         USDC.safeTransfer(receiver, mintAmount);
+        emit CctpMessageRecovered(receiver, mintAmount);
     }
 
     function recoverTokens(address token, address receiver, uint256 amount) external onlyOwner {
