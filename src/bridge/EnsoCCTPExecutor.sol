@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import { IEnsoCCTPExecutor } from "../interfaces/IEnsoCCTPExecutor.sol";
 import { IEnsoRouter } from "../interfaces/IEnsoRouter.sol";
 import { IMessageTransmitterV2 } from "../vendor/cctp/interfaces/IMessageTransmitterV2.sol";
 import { ITokenMessengerV2 } from "../vendor/cctp/interfaces/ITokenMessengerV2.sol";
@@ -10,55 +11,19 @@ import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Ste
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 
-contract EnsoCCTPExecutor is Ownable2Step, Pausable {
+contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
 
-    bytes4 public constant HOOK_MAGIC = 0x454e534f; // a random bytes4 value
-    uint8 public constant HOOK_VERSION = 1;
+    bytes4 public constant override HOOK_MAGIC = 0x454e534f; // ascii-encoded "ENSO"
+    uint8 public constant override HOOK_VERSION = 1;
 
-    IMessageTransmitterV2 public immutable MESSAGE_TRANSMITTER;
-    ITokenMessengerV2 public immutable TOKEN_MESSENGER;
-    IERC20 public immutable USDC;
-    address public immutable ROUTER;
-    address public immutable SHORTCUTS;
-    uint32 public immutable SUPPORTED_MESSAGE_VERSION;
-    uint32 public immutable SUPPORTED_BURN_MESSAGE_VERSION;
-
-    struct CctpCallback {
-        bytes4 magic;
-        uint8 version;
-        bytes32 requestId;
-        address refundReceiver;
-        uint256 executionFee;
-        bytes callbackData;
-    }
-
-    event MessageExecuted(
-        bytes32 indexed requestId, address indexed submitter, uint256 mintAmount, uint256 executionFee
-    );
-    event MessageRefunded(
-        bytes32 indexed requestId,
-        address indexed submitter,
-        address refundReceiver,
-        uint256 refundAmount,
-        uint256 executionFee
-    );
-
-    error ExecutionFeeExceedsMintAmount(uint256 executionFee, uint256 mintAmount);
-    error InvalidCallback();
-    error InvalidDestinationCaller(address caller);
-    error InvalidMessageRecipient(address recipient);
-    error InvalidMintRecipient(address recipient);
-    error InvalidMintToken(address token);
-    error InvalidRecoveryReceiver(address receiver);
-    error InvalidRefundReceiver(address receiver);
-    error MessageTransmitterReturnedFalse();
-    error NoTokensMinted();
-    error NotSelf();
-    error RouterCallFailed();
-    error UnsupportedBurnMessageVersion(uint32 version);
-    error UnsupportedMessageVersion(uint32 version);
-    error ZeroAddress();
+    IMessageTransmitterV2 public immutable override MESSAGE_TRANSMITTER;
+    ITokenMessengerV2 public immutable override TOKEN_MESSENGER;
+    IERC20 public immutable override USDC;
+    address public immutable override ROUTER;
+    address public immutable override SHORTCUTS;
+    uint32 public immutable override SUPPORTED_MESSAGE_VERSION;
+    uint32 public immutable override SUPPORTED_BURN_MESSAGE_VERSION;
 
     constructor(
         address owner_,

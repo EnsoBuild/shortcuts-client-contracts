@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { EnsoCCTPExecutor } from "../../../../../src/bridge/EnsoCCTPExecutor.sol";
+import { IEnsoCCTPExecutor } from "../../../../../src/interfaces/IEnsoCCTPExecutor.sol";
 import {
     MockMessageTransmitterV2,
     MockTokenMessengerV2,
@@ -107,7 +108,7 @@ contract EnsoCCTPExecutorTest is Test {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(EnsoCCTPExecutor.ExecutionFeeExceedsMintAmount.selector, executionFee, MINT_AMOUNT)
+            abi.encodeWithSelector(IEnsoCCTPExecutor.ExecutionFeeExceedsMintAmount.selector, executionFee, MINT_AMOUNT)
         );
         vm.prank(s_submitter);
         s_executor.execute(message, "attestation");
@@ -120,15 +121,15 @@ contract EnsoCCTPExecutorTest is Test {
         bytes memory callback = _callback(0, "");
         address invalidAddress = makeAddr("invalidAddress");
 
-        vm.expectRevert(abi.encodeWithSelector(EnsoCCTPExecutor.InvalidMessageRecipient.selector, invalidAddress));
+        vm.expectRevert(abi.encodeWithSelector(IEnsoCCTPExecutor.InvalidMessageRecipient.selector, invalidAddress));
         s_executor.execute(_message(invalidAddress, address(s_executor), address(s_executor), callback), "attestation");
 
-        vm.expectRevert(abi.encodeWithSelector(EnsoCCTPExecutor.InvalidDestinationCaller.selector, invalidAddress));
+        vm.expectRevert(abi.encodeWithSelector(IEnsoCCTPExecutor.InvalidDestinationCaller.selector, invalidAddress));
         s_executor.execute(
             _message(address(s_tokenMessenger), invalidAddress, address(s_executor), callback), "attestation"
         );
 
-        vm.expectRevert(abi.encodeWithSelector(EnsoCCTPExecutor.InvalidMintRecipient.selector, invalidAddress));
+        vm.expectRevert(abi.encodeWithSelector(IEnsoCCTPExecutor.InvalidMintRecipient.selector, invalidAddress));
         s_executor.execute(
             _message(address(s_tokenMessenger), address(s_executor), invalidAddress, callback), "attestation"
         );
@@ -184,13 +185,13 @@ contract EnsoCCTPExecutorTest is Test {
     }
 
     function test_RevertWhen_ExecuteCallbackCallerIsNotExecutor() external {
-        vm.expectRevert(EnsoCCTPExecutor.NotSelf.selector);
+        vm.expectRevert(IEnsoCCTPExecutor.NotSelf.selector);
         s_executor.executeCallback(0, "");
     }
 
     function _callback(uint256 executionFee, bytes memory callbackData) private view returns (bytes memory) {
         return abi.encode(
-            EnsoCCTPExecutor.CctpCallback({
+            IEnsoCCTPExecutor.CctpCallback({
                 magic: s_executor.HOOK_MAGIC(),
                 version: s_executor.HOOK_VERSION(),
                 requestId: REQUEST_ID,
