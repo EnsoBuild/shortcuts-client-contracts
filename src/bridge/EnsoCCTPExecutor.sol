@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 import { IEnsoRouter } from "../interfaces/IEnsoRouter.sol";
-import { IMessageTransmitterV2 } from "../interfaces/IMessageTransmitterV2.sol";
-import { ITokenMessengerV2 } from "../interfaces/ITokenMessengerV2.sol";
-import { BurnMessageV2 } from "../libraries/cctp/BurnMessageV2.sol";
-import { MessageV2 } from "../libraries/cctp/MessageV2.sol";
+import { IMessageTransmitterV2 } from "../vendor/cctp/interfaces/IMessageTransmitterV2.sol";
+import { ITokenMessengerV2 } from "../vendor/cctp/interfaces/ITokenMessengerV2.sol";
+import { BurnMessageV2 } from "../vendor/cctp/libraries/BurnMessageV2.sol";
+import { MessageV2 } from "../vendor/cctp/libraries/MessageV2.sol";
 import { Ownable, Ownable2Step } from "openzeppelin-contracts/access/Ownable2Step.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";

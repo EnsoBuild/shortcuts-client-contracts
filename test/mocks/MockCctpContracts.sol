@@ -20,7 +20,7 @@
  */
 pragma solidity ^0.8.28;
 
-import { ITokenMinterV2 } from "../../src/interfaces/ITokenMessengerV2.sol";
+import { ITokenMinterV2 } from "../../src/vendor/cctp/interfaces/ITokenMessengerV2.sol";
 import { MockERC20 } from "./MockERC20.sol";
 
 contract MockMessageTransmitterV2 {
