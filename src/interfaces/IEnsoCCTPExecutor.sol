@@ -15,10 +15,10 @@ interface IEnsoCCTPExecutor {
         bytes callbackData;
     }
 
-    event MessageExecuted(
+    event ShortcutExecutionSuccessful(
         bytes32 indexed requestId, address indexed submitter, uint256 mintAmount, uint256 executionFee
     );
-    event MessageRefunded(
+    event ShortcutExecutionFailed(
         bytes32 indexed requestId,
         address indexed submitter,
         address refundReceiver,

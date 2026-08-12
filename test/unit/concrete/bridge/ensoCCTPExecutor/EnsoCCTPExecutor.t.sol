@@ -33,17 +33,6 @@ contract EnsoCCTPExecutorTest is Test {
     MockEnsoRouter private s_router;
     EnsoCCTPExecutor private s_executor;
 
-    event MessageExecuted(
-        bytes32 indexed requestId, address indexed submitter, uint256 mintAmount, uint256 executionFee
-    );
-    event MessageRefunded(
-        bytes32 indexed requestId,
-        address indexed submitter,
-        address refundReceiver,
-        uint256 refundAmount,
-        uint256 executionFee
-    );
-
     function setUp() external {
         s_owner = makeAddr("owner");
         s_submitter = makeAddr("submitter");
@@ -74,7 +63,7 @@ contract EnsoCCTPExecutorTest is Test {
 
         vm.expectCall(address(s_router), callbackData);
         vm.expectEmit(true, true, false, true, address(s_executor));
-        emit MessageExecuted(REQUEST_ID, s_submitter, MINT_AMOUNT, EXECUTION_FEE);
+        emit IEnsoCCTPExecutor.ShortcutExecutionSuccessful(REQUEST_ID, s_submitter, MINT_AMOUNT, EXECUTION_FEE);
         vm.prank(s_submitter);
         s_executor.execute(message, "attestation");
 
@@ -91,7 +80,9 @@ contract EnsoCCTPExecutorTest is Test {
 
         vm.expectCall(address(s_router), callbackData);
         vm.expectEmit(true, true, false, true, address(s_executor));
-        emit MessageRefunded(REQUEST_ID, s_submitter, s_refundReceiver, MINT_AMOUNT - EXECUTION_FEE, EXECUTION_FEE);
+        emit IEnsoCCTPExecutor.ShortcutExecutionFailed(
+            REQUEST_ID, s_submitter, s_refundReceiver, MINT_AMOUNT - EXECUTION_FEE, EXECUTION_FEE
+        );
         vm.prank(s_submitter);
         s_executor.execute(message, "attestation");
 

@@ -71,10 +71,10 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
         }
 
         try this.executeCallback(callbackAmount, callback.callbackData) {
-            emit MessageExecuted(callback.requestId, msg.sender, mintAmount, callback.executionFee);
+            emit ShortcutExecutionSuccessful(callback.requestId, msg.sender, mintAmount, callback.executionFee);
         } catch {
             USDC.safeTransfer(callback.refundReceiver, callbackAmount);
-            emit MessageRefunded(
+            emit ShortcutExecutionFailed(
                 callback.requestId, msg.sender, callback.refundReceiver, callbackAmount, callback.executionFee
             );
         }
