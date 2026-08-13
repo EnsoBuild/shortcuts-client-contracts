@@ -32,6 +32,7 @@ interface IEnsoCCTPExecutor {
     error InsufficientGas(bytes32 requestId, uint256 estimatedGas, uint256 availableGas);
     error InvalidCallback();
     error InvalidDestinationCaller(address caller);
+    error InvalidMessageTransmitter(address messageTransmitter);
     error InvalidMessageRecipient(address recipient);
     error InvalidMintRecipient(address recipient);
     error InvalidMintToken(address token);

@@ -25,9 +25,11 @@ import { MockERC20 } from "./MockERC20.sol";
 
 contract MockMessageTransmitterV2 {
     MockERC20 public immutable localToken;
+    uint32 public immutable version;
 
-    constructor(address localToken_) {
+    constructor(address localToken_, uint32 version_) {
         localToken = MockERC20(localToken_);
+        version = version_;
     }
 
     function receiveMessage(bytes calldata message, bytes calldata signature) external returns (bool) {
@@ -52,10 +54,14 @@ contract MockMessageTransmitterV2 {
 }
 
 contract MockTokenMessengerV2 {
+    address public immutable localMessageTransmitter;
     ITokenMinterV2 public immutable localMinter;
+    uint32 public immutable messageBodyVersion;
 
-    constructor(address localMinter_) {
+    constructor(address localMessageTransmitter_, address localMinter_, uint32 messageBodyVersion_) {
+        localMessageTransmitter = localMessageTransmitter_;
         localMinter = ITokenMinterV2(localMinter_);
+        messageBodyVersion = messageBodyVersion_;
     }
 }
 

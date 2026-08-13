@@ -6,5 +6,9 @@ interface ITokenMinterV2 {
 }
 
 interface ITokenMessengerV2 {
+    function localMessageTransmitter() external view returns (address);
+
     function localMinter() external view returns (ITokenMinterV2);
+
+    function messageBodyVersion() external view returns (uint32);
 }

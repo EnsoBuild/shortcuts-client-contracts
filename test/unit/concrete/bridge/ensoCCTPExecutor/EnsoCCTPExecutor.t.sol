@@ -3,6 +3,8 @@ pragma solidity ^0.8.28;
 
 import { EnsoCCTPExecutor } from "../../../../../src/bridge/EnsoCCTPExecutor.sol";
 import { IEnsoCCTPExecutor } from "../../../../../src/interfaces/IEnsoCCTPExecutor.sol";
+import { IMessageTransmitterV2 } from "../../../../../src/vendor/cctp/interfaces/IMessageTransmitterV2.sol";
+import { ITokenMessengerV2 } from "../../../../../src/vendor/cctp/interfaces/ITokenMessengerV2.sol";
 import {
     MockMessageTransmitterV2,
     MockTokenMessengerV2,
@@ -40,14 +42,15 @@ contract EnsoCCTPExecutorTest is Test {
         s_recoveryReceiver = makeAddr("recoveryReceiver");
 
         s_usdc = new MockERC20("USD Coin", "USDC");
-        s_messageTransmitter = new MockMessageTransmitterV2(address(s_usdc));
+        s_messageTransmitter = new MockMessageTransmitterV2(address(s_usdc), MESSAGE_VERSION);
         MockTokenMinterV2 tokenMinter = new MockTokenMinterV2(address(s_usdc));
-        s_tokenMessenger = new MockTokenMessengerV2(address(tokenMinter));
+        s_tokenMessenger =
+            new MockTokenMessengerV2(address(s_messageTransmitter), address(tokenMinter), BURN_MESSAGE_VERSION);
         s_router = new MockEnsoRouter();
         s_executor = new EnsoCCTPExecutor(
             s_owner,
-            address(s_messageTransmitter),
-            address(s_tokenMessenger),
+            IMessageTransmitterV2(address(s_messageTransmitter)),
+            ITokenMessengerV2(address(s_tokenMessenger)),
             address(s_usdc),
             address(s_router),
             MESSAGE_VERSION,

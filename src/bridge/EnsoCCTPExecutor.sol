@@ -27,8 +27,8 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
 
     constructor(
         address owner_,
-        address messageTransmitter_,
-        address tokenMessenger_,
+        IMessageTransmitterV2 messageTransmitter_,
+        ITokenMessengerV2 tokenMessenger_,
         address usdc_,
         address router_,
         uint32 supportedMessageVersion_,
@@ -37,18 +37,29 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
         Ownable(owner_)
     {
         if (
-            messageTransmitter_ == address(0) || tokenMessenger_ == address(0) || usdc_ == address(0)
+            address(messageTransmitter_) == address(0) || address(tokenMessenger_) == address(0) || usdc_ == address(0)
                 || router_ == address(0)
         ) {
             revert ZeroAddress();
         }
+
+        if (address(messageTransmitter_) != tokenMessenger_.localMessageTransmitter()) {
+            revert InvalidMessageTransmitter(address(messageTransmitter_));
+        }
+        if (supportedMessageVersion_ != messageTransmitter_.version()) {
+            revert UnsupportedMessageVersion(supportedMessageVersion_);
+        }
+        if (supportedBurnMessageVersion_ != tokenMessenger_.messageBodyVersion()) {
+            revert UnsupportedBurnMessageVersion(supportedBurnMessageVersion_);
+        }
+
         address shortcuts_ = IEnsoRouter(router_).shortcuts();
         if (shortcuts_ == address(0)) {
             revert ZeroAddress();
         }
 
-        MESSAGE_TRANSMITTER = IMessageTransmitterV2(messageTransmitter_);
-        TOKEN_MESSENGER = ITokenMessengerV2(tokenMessenger_);
+        MESSAGE_TRANSMITTER = messageTransmitter_;
+        TOKEN_MESSENGER = tokenMessenger_;
         USDC = IERC20(usdc_);
         ROUTER = router_;
         SHORTCUTS = shortcuts_;
