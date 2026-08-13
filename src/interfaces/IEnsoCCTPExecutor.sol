@@ -31,7 +31,7 @@ interface IEnsoCCTPExecutor {
     error ExecutionFeeExceedsMintAmount(uint256 executionFee, uint256 mintAmount);
     error InsufficientGas(bytes32 requestId, uint256 estimatedGas, uint256 availableGas);
     error InvalidCallback();
-    error InvalidDestinationCaller(address caller);
+    error InvalidDestinationCaller(bytes32 caller);
     error InvalidMessageTransmitter(address messageTransmitter);
     error InvalidMessageRecipient(address recipient);
     error InvalidMintRecipient(address recipient);

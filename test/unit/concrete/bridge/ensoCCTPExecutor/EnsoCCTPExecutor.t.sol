@@ -118,7 +118,11 @@ contract EnsoCCTPExecutorTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IEnsoCCTPExecutor.InvalidMessageRecipient.selector, invalidAddress));
         s_executor.execute(_message(invalidAddress, address(s_executor), address(s_executor), callback), "attestation");
 
-        vm.expectRevert(abi.encodeWithSelector(IEnsoCCTPExecutor.InvalidDestinationCaller.selector, invalidAddress));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnsoCCTPExecutor.InvalidDestinationCaller.selector, bytes32(uint256(uint160(invalidAddress)))
+            )
+        );
         s_executor.execute(
             _message(address(s_tokenMessenger), invalidAddress, address(s_executor), callback), "attestation"
         );

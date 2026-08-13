@@ -157,8 +157,8 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
             revert InvalidMessageRecipient(messageRecipient);
         }
 
-        address destinationCaller = _toAddress(MessageV2._getDestinationCaller(message));
-        if (destinationCaller != address(this)) {
+        bytes32 destinationCaller = MessageV2._getDestinationCaller(message);
+        if (destinationCaller != _toBytes32(address(this))) {
             revert InvalidDestinationCaller(destinationCaller);
         }
 
@@ -224,5 +224,9 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
 
     function _toAddress(bytes32 value) internal pure returns (address) {
         return address(uint160(uint256(value)));
+    }
+
+    function _toBytes32(address value) internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(value)));
     }
 }
