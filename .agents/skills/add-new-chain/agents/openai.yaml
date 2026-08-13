@@ -1,0 +1,6 @@
+interface:
+  display_name: 'Add Contracts Chain'
+  short_description: 'Prepare a human-gated chain rollout'
+  default_prompt:
+    'Use $add-new-chain to prepare or review a human-gated chain rollout in
+    shortcuts-client-contracts.'
