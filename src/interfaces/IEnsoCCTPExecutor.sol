@@ -12,6 +12,7 @@ interface IEnsoCCTPExecutor {
         bytes32 requestId;
         address refundReceiver;
         uint256 executionFee;
+        uint256 estimatedGas;
         bytes callbackData;
     }
 
@@ -28,6 +29,7 @@ interface IEnsoCCTPExecutor {
     event CctpMessageRecovered(address indexed receiver, uint256 mintAmount);
 
     error ExecutionFeeExceedsMintAmount(uint256 executionFee, uint256 mintAmount);
+    error InsufficientGas(bytes32 requestId, uint256 estimatedGas, uint256 availableGas);
     error InvalidCallback();
     error InvalidDestinationCaller(address caller);
     error InvalidMessageRecipient(address recipient);

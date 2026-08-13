@@ -70,6 +70,11 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
             USDC.safeTransfer(msg.sender, callback.executionFee);
         }
 
+        uint256 availableGas = gasleft();
+        if (availableGas < callback.estimatedGas) {
+            revert InsufficientGas(callback.requestId, callback.estimatedGas, availableGas);
+        }
+
         try this.executeCallback(callbackAmount, callback.callbackData) {
             emit ShortcutExecutionSuccessful(callback.requestId, msg.sender, mintAmount, callback.executionFee);
         } catch {

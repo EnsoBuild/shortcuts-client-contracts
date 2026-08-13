@@ -188,6 +188,7 @@ contract EnsoCCTPExecutorTest is Test {
                 requestId: REQUEST_ID,
                 refundReceiver: s_refundReceiver,
                 executionFee: executionFee,
+                estimatedGas: 0,
                 callbackData: callbackData
             })
         );
