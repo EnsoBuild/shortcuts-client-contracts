@@ -63,6 +63,8 @@ interface IEnsoCCTPExecutor {
 
     function SUPPORTED_BURN_MESSAGE_VERSION() external view returns (uint32);
 
+    function GAS_FOR_REFUND() external view returns (uint256);
+
     function execute(bytes calldata message, bytes calldata attestation) external;
 
     function executeCallback(uint256 callbackAmount, bytes calldata callbackData) external;

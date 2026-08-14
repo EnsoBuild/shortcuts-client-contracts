@@ -25,6 +25,13 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
     uint32 public immutable override SUPPORTED_MESSAGE_VERSION;
     uint32 public immutable override SUPPORTED_BURN_MESSAGE_VERSION;
 
+    /// @dev Gas reserved from the callback so the catch-refund in `execute` is always executable
+    ///      (USDC.safeTransfer to the refund receiver + the ShortcutExecutionFailed emit). Set per
+    ///      deployment: opcode/state costs differ across CCTP chains, so validate on each chain's fork
+    ///      (real native USDC, cold refund receiver, plus margin) and bias high — under-reserving makes
+    ///      the refund itself revert.
+    uint256 public immutable override GAS_FOR_REFUND;
+
     constructor(
         address owner_,
         IMessageTransmitterV2 messageTransmitter_,
@@ -32,14 +39,15 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
         address usdc_,
         address router_,
         uint32 supportedMessageVersion_,
-        uint32 supportedBurnMessageVersion_
+        uint32 supportedBurnMessageVersion_,
+        uint256 gasForRefund_
     )
         Ownable(owner_)
     {
-        if (
-            address(messageTransmitter_) == address(0) || address(tokenMessenger_) == address(0) || usdc_ == address(0)
-                || router_ == address(0)
-        ) {
+        // Only usdc_ needs an explicit zero-check: it is stored without any further validation. The
+        // messenger, transmitter and router are each consumed below by external calls / cross-checks
+        // that already revert on a zero (or non-contract) address.
+        if (usdc_ == address(0)) {
             revert ZeroAddress();
         }
 
@@ -65,6 +73,7 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
         SHORTCUTS = shortcuts_;
         SUPPORTED_MESSAGE_VERSION = supportedMessageVersion_;
         SUPPORTED_BURN_MESSAGE_VERSION = supportedBurnMessageVersion_;
+        GAS_FOR_REFUND = gasForRefund_;
     }
 
     function execute(bytes calldata message, bytes calldata attestation) external whenNotPaused {
@@ -81,12 +90,22 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
             USDC.safeTransfer(msg.sender, callback.executionFee);
         }
 
+        // Reserve gas for the catch-refund below so it is always executable, then hand the callback the
+        // remainder. EIP-150 lets the EVM withhold 1/64 of gas on a call, so estimatedGas is checked
+        // against what the callback will actually receive rather than raw gasleft(). estimatedGas is a
+        // floor that stays inert (0) until the source-side hook encoder populates it; its exact
+        // accounting (the inner router hop's own 1/64 + the SHORTCUTS transfer) must be reconciled with
+        // the backend estimate when that lands.
         uint256 availableGas = gasleft();
-        if (availableGas < callback.estimatedGas) {
+        if (availableGas < GAS_FOR_REFUND) {
+            revert InsufficientGas(callback.requestId, callback.estimatedGas, availableGas);
+        }
+        uint256 gasForCallback = availableGas - GAS_FOR_REFUND;
+        if (gasForCallback - gasForCallback / 64 < callback.estimatedGas) {
             revert InsufficientGas(callback.requestId, callback.estimatedGas, availableGas);
         }
 
-        try this.executeCallback(callbackAmount, callback.callbackData) {
+        try this.executeCallback{ gas: gasForCallback }(callbackAmount, callback.callbackData) {
             emit ShortcutExecutionSuccessful(callback.requestId, msg.sender, mintAmount, callback.executionFee);
         } catch {
             USDC.safeTransfer(callback.refundReceiver, callbackAmount);
@@ -213,11 +232,11 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
         }
     }
 
-    function _toAddress(bytes32 value) internal pure returns (address) {
+    function _toAddress(bytes32 value) private pure returns (address) {
         return address(uint160(uint256(value)));
     }
 
-    function _toBytes32(address value) internal pure returns (bytes32) {
+    function _toBytes32(address value) private pure returns (bytes32) {
         return bytes32(uint256(uint160(value)));
     }
 }

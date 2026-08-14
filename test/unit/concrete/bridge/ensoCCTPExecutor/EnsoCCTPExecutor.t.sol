@@ -16,6 +16,22 @@ import { Test } from "forge-std/Test.sol";
 import { Ownable } from "openzeppelin-contracts/access/Ownable.sol";
 import { Pausable } from "openzeppelin-contracts/utils/Pausable.sol";
 
+/// @dev A router stand-in whose callback consumes all forwarded gas, used to prove the executor's
+///      reserved refund gas keeps the catch-refund path executable even under a gas-exhausting callback.
+contract GasBurnerRouter {
+    function shortcuts() external view returns (address) {
+        return address(this);
+    }
+
+    fallback() external payable {
+        assembly {
+            for { } 1 { } { mstore(0x0, keccak256(0x0, 0x20)) }
+        }
+    }
+
+    receive() external payable { }
+}
+
 contract EnsoCCTPExecutorTest is Test {
     uint32 private constant MESSAGE_VERSION = 1;
     uint32 private constant BURN_MESSAGE_VERSION = 1;
@@ -23,6 +39,7 @@ contract EnsoCCTPExecutorTest is Test {
     uint256 private constant CIRCLE_FEE = 1e6;
     uint256 private constant MINT_AMOUNT = BURN_AMOUNT - CIRCLE_FEE;
     uint256 private constant EXECUTION_FEE = 4e6;
+    uint256 private constant GAS_FOR_REFUND = 100_000;
     bytes32 private constant REQUEST_ID = keccak256("request");
 
     address private s_owner;
@@ -54,7 +71,8 @@ contract EnsoCCTPExecutorTest is Test {
             address(s_usdc),
             address(s_router),
             MESSAGE_VERSION,
-            BURN_MESSAGE_VERSION
+            BURN_MESSAGE_VERSION,
+            GAS_FOR_REFUND
         );
     }
 
@@ -97,6 +115,24 @@ contract EnsoCCTPExecutorTest is Test {
 
     function test_RevertWhen_ExecutionFeeExceedsMintAmount() external {
         uint256 executionFee = MINT_AMOUNT + 1;
+        bytes memory message = _message(
+            address(s_tokenMessenger), address(s_executor), address(s_executor), _callback(executionFee, "")
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IEnsoCCTPExecutor.ExecutionFeeExceedsMintAmount.selector, executionFee, MINT_AMOUNT)
+        );
+        vm.prank(s_submitter);
+        s_executor.execute(message, "attestation");
+
+        assertEq(s_usdc.balanceOf(address(s_executor)), 0);
+        assertEq(s_usdc.balanceOf(s_submitter), 0);
+    }
+
+    /// @dev The check is `>=`: a fee equal to the mint leaves nothing to route, so it must revert too
+    ///      (boundary of the fee < mint invariant, not just fee > mint).
+    function test_RevertWhen_ExecutionFeeEqualsMintAmount() external {
+        uint256 executionFee = MINT_AMOUNT;
         bytes memory message = _message(
             address(s_tokenMessenger), address(s_executor), address(s_executor), _callback(executionFee, "")
         );
@@ -187,6 +223,53 @@ contract EnsoCCTPExecutorTest is Test {
         s_executor.executeCallback(0, "");
     }
 
+    /// @dev A callback that burns all forwarded gas must still leave enough reserved for the catch to
+    ///      refund the receiver, rather than propagating an out-of-gas that reverts the whole message.
+    function test_RefundRunsEvenWhenCallbackExhaustsForwardedGas() external {
+        GasBurnerRouter burner = new GasBurnerRouter();
+        EnsoCCTPExecutor executor = new EnsoCCTPExecutor(
+            s_owner,
+            IMessageTransmitterV2(address(s_messageTransmitter)),
+            ITokenMessengerV2(address(s_tokenMessenger)),
+            address(s_usdc),
+            address(burner),
+            MESSAGE_VERSION,
+            BURN_MESSAGE_VERSION,
+            GAS_FOR_REFUND
+        );
+
+        bytes memory message = _message(
+            address(s_tokenMessenger), address(executor), address(executor), _callback(EXECUTION_FEE, hex"deadbeef")
+        );
+
+        vm.expectEmit(true, true, false, true, address(executor));
+        emit IEnsoCCTPExecutor.ShortcutExecutionFailed(
+            REQUEST_ID, s_submitter, s_refundReceiver, MINT_AMOUNT - EXECUTION_FEE, EXECUTION_FEE
+        );
+        vm.prank(s_submitter);
+        executor.execute{ gas: 2_000_000 }(message, "attestation");
+
+        assertEq(s_usdc.balanceOf(s_refundReceiver), MINT_AMOUNT - EXECUTION_FEE);
+        assertEq(s_usdc.balanceOf(s_submitter), EXECUTION_FEE);
+        assertEq(s_usdc.balanceOf(address(executor)), 0);
+    }
+
+    /// @dev The destination-caller field is a full 32-byte word; only the low 20 bytes carry the
+    ///      address. A correct validator must reject any message whose high 12 bytes are non-zero,
+    ///      even when the low 20 bytes match this contract. Circle enforces this too, but our check
+    ///      must not rely on that.
+    function testFuzz_RevertWhen_DestinationCallerHasDirtyHighBytes(bytes12 rubbish) external {
+        vm.assume(rubbish != bytes12(0));
+        bytes32 pollutedCaller = bytes32(rubbish) | bytes32(uint256(uint160(address(s_executor))));
+
+        bytes memory message = _messageWithRawDestinationCaller(
+            address(s_tokenMessenger), pollutedCaller, address(s_executor), _callback(0, "")
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(IEnsoCCTPExecutor.InvalidDestinationCaller.selector, pollutedCaller));
+        s_executor.execute(message, "attestation");
+    }
+
     function _callback(uint256 executionFee, bytes memory callbackData) private view returns (bytes memory) {
         return abi.encode(
             IEnsoCCTPExecutor.CctpCallback({
@@ -204,6 +287,23 @@ contract EnsoCCTPExecutorTest is Test {
     function _message(
         address messageRecipient,
         address destinationCaller,
+        address mintRecipient,
+        bytes memory hookData
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
+        return _messageWithRawDestinationCaller(
+            messageRecipient, bytes32(uint256(uint160(destinationCaller))), mintRecipient, hookData
+        );
+    }
+
+    /// @dev Same as {_message} but takes the destination-caller as a raw 32-byte word so tests can
+    ///      inject dirty high bytes.
+    function _messageWithRawDestinationCaller(
+        address messageRecipient,
+        bytes32 destinationCaller,
         address mintRecipient,
         bytes memory hookData
     )
@@ -230,7 +330,7 @@ contract EnsoCCTPExecutorTest is Test {
             bytes32(uint256(1)),
             bytes32(uint256(uint160(address(0xCAFE)))),
             bytes32(uint256(uint160(messageRecipient))),
-            bytes32(uint256(uint160(destinationCaller))),
+            destinationCaller,
             uint32(1000),
             uint32(1000),
             burnMessage
