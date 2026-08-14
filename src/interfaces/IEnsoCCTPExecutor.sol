@@ -35,7 +35,6 @@ interface IEnsoCCTPExecutor {
     error InvalidMessageTransmitter(address messageTransmitter);
     error InvalidMessageRecipient(address recipient);
     error InvalidMintRecipient(address recipient);
-    error InvalidMintToken(address token);
     error InvalidRecoveryReceiver(address receiver);
     error InvalidRefundReceiver(address receiver);
     error MessageTransmitterReturnedFalse();

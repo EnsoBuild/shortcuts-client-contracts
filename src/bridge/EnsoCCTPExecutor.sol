@@ -167,15 +167,6 @@ contract EnsoCCTPExecutor is IEnsoCCTPExecutor, Ownable2Step, Pausable {
             revert InvalidMintRecipient(mintRecipient);
         }
 
-        // NOTE: unsure about this check either, could be just waste of gas.
-        // removing for now.
-        // uint32 sourceDomain = MessageV2._getSourceDomain(message);
-        // bytes32 burnToken = BurnMessageV2._getBurnToken(burnMessage);
-        // address localToken = TOKEN_MESSENGER.localMinter().getLocalToken(sourceDomain, burnToken);
-        // if (localToken != address(USDC)) {
-        //     revert InvalidMintToken(localToken);
-        // }
-
         hookData = BurnMessageV2._getHookData(burnMessage);
     }
 
