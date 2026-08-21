@@ -1,0 +1,20 @@
+EphemeralFactory_GetAddress
+├── when given a typed intent
+│   └── it should predict the executor CREATE2 address
+├── when given the canonical blob
+│   └── it should match the typed prediction
+└── when any parameter changes
+    └── it should derive a different address
+
+EphemeralFactory_ExecutorCode
+└── it should return the executor creation code
+
+EphemeralFactory_ExecuteIntent
+├── when the intent executes
+│   ├── it should deploy at the predicted address
+│   ├── it should leave no code at the address
+│   └── it should emit IntentPublished with the canonical blob
+├── when the router reads the context
+│   └── it should expose route, sweep, keeper and router
+└── when executed twice with the same intent
+    └── it should reuse the address

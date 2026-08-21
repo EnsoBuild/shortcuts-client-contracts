@@ -1,0 +1,43 @@
+EphemeralIntentExecutor_Route
+├── when triggers are unmet
+│   └── it should revert with Underfunded
+├── when executed before starttime
+│   └── it should revert with TooEarly
+├── when the payload runs
+│   ├── it should call the router with the committed payload
+│   ├── it should approve trigger tokens to the router for the call
+│   ├── it should revoke approvals after the call
+│   ├── it should pay the keeper fee
+│   └── it should sweep remaining native to the refund recipient
+├── when a native trigger exists
+│   └── it should forward the native balance as call value
+├── when the fee is native
+│   └── it should pay the keeper in native
+├── when the router call reverts
+│   └── it should bubble the revert reason
+└── when the fee cannot be paid
+    └── it should revert with SendFailed
+
+EphemeralIntentExecutor_Constrained
+├── when the delta clears the minimum
+│   ├── it should call the router with the keeper route
+│   └── it should forward the delta to the recipient
+├── when tokenOut is native
+│   └── it should forward the native delta to the recipient
+├── when the delta is below the minimum
+│   └── it should revert with Insufficient
+├── when the exclusivity window is open
+│   ├── it should revert with Exclusive for other keepers
+│   └── it should execute for the exclusive keeper
+└── when the exclusivity window has passed
+    └── it should execute for any keeper
+
+EphemeralIntentExecutor_Refund
+├── when the deadline has passed
+│   ├── it should sweep trigger tokens to the refund recipient
+│   ├── it should sweep keeper-listed tokens to the refund recipient
+│   ├── it should pay the keeper fee best-effort
+│   └── it should not revert on a reverting token
+└── when executed on the wrong chain
+    ├── it should sweep immediately without waiting for the gates
+    └── it should sweep native via selfdestruct
