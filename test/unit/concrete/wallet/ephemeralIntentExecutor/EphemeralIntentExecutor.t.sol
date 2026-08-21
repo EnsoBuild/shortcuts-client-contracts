@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
-import { Constrained, Fee, Intent, Mode, Trigger } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Token, TokenType } from "../../../../../src/libraries/TokenLib.sol";
+import { Constrained, Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { Test } from "forge-std/Test.sol";
@@ -42,18 +43,26 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
         vm.label(address(s_tokenOut), "TokenOut");
     }
 
+    function _erc20(address token, uint256 amount) internal pure returns (Token memory) {
+        return Token({ tokenType: TokenType.ERC20, data: abi.encode(token, amount) });
+    }
+
+    function _native(uint256 amount) internal pure returns (Token memory) {
+        return Token({ tokenType: TokenType.Native, data: abi.encode(amount) });
+    }
+
     function _intent() internal view returns (Intent memory intent) {
-        Trigger[] memory triggers = new Trigger[](1);
-        triggers[0] = Trigger({ token: address(s_tokenIn), minAmount: 100 ether });
+        Token[] memory triggers = new Token[](1);
+        triggers[0] = _erc20(address(s_tokenIn), 100 ether);
         intent = Intent({
             version: 1,
             chainId: block.chainid,
             nonce: 0,
-            starttime: uint64(block.timestamp),
+            start: uint64(block.timestamp),
             deadline: uint64(block.timestamp + 1 days),
             refundRecipient: s_user,
             triggers: triggers,
-            keeperFee: Fee({ token: address(s_tokenIn), amount: 0 }),
+            keeperFee: _native(0),
             mode: Mode.ROUTE,
             payload: hex"deadbeef"
         });
@@ -70,11 +79,12 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
     {
         intent = _intent();
         intent.mode = Mode.CONSTRAINED;
+        Token[] memory tokensOut = new Token[](1);
+        tokensOut[0] = _erc20(address(s_tokenOut), minAmountOut);
         intent.payload = abi.encode(
             Constrained({
                 recipient: s_recipient,
-                tokenOut: address(s_tokenOut),
-                minAmountOut: minAmountOut,
+                tokensOut: tokensOut,
                 exclusiveKeeper: exclusiveKeeper,
                 exclusiveUntil: exclusiveUntil
             })
@@ -88,6 +98,6 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
 
     function _execute(Intent memory intent, bytes memory route) internal returns (address) {
         vm.prank(s_keeper);
-        return s_factory.executeIntent(intent, route, new address[](0));
+        return s_factory.executeIntent(intent, route, new Token[](0));
     }
 }

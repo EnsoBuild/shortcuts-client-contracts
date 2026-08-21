@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import { Token } from "../../src/libraries/TokenLib.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
 interface IContextProbe {
-    function context()
-        external
-        view
-        returns (bytes memory route, address[] memory sweep, address keeper, address router);
+    function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address router);
 }
 
 /// Accepts any calldata, records what the executor sent, and performs configurable
@@ -30,7 +28,7 @@ contract MockIntentRouter {
     address public probe;
 
     bytes public probedRoute;
-    address[] public probedSweep;
+    Token[] public probedSweep;
     address public probedKeeper;
     address public probedRouter;
 

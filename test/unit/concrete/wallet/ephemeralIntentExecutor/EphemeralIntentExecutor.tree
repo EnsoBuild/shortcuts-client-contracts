@@ -1,7 +1,7 @@
 EphemeralIntentExecutor_Route
 ├── when triggers are unmet
 │   └── it should revert with Underfunded
-├── when executed before starttime
+├── when executed before start
 │   └── it should revert with TooEarly
 ├── when the payload runs
 │   ├── it should call the router with the committed payload
@@ -26,6 +26,8 @@ EphemeralIntentExecutor_Constrained
 │   └── it should measure the native delta at the recipient
 ├── when the delta is below the minimum
 │   └── it should revert with Insufficient
+├── when any tokenOut misses its minimum
+│   └── it should revert with Insufficient
 ├── when the route delivers to the executor instead
 │   └── it should revert with Insufficient
 ├── when the exclusivity window is open
@@ -40,6 +42,8 @@ EphemeralIntentExecutor_Refund
 │   ├── it should sweep keeper-listed tokens to the refund recipient
 │   ├── it should pay the keeper fee best-effort
 │   └── it should not revert on a reverting token
+├── when NFTs are keeper-listed
+│   └── it should sweep them to the refund recipient
 └── when executed on the wrong chain
     ├── it should sweep immediately without waiting for the gates
     └── it should sweep native via selfdestruct

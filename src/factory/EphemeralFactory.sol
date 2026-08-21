@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.24;
 
+import { Token } from "../libraries/TokenLib.sol";
 import { EphemeralIntentExecutor, Intent } from "../wallet/EphemeralIntentExecutor.sol";
 
 contract EphemeralFactory {
@@ -25,13 +26,14 @@ contract EphemeralFactory {
     ///         wrong parameters derive an unfunded address, so the derivation authorizes.
     /// @param route Calldata for the executor's single router call — CONSTRAINED only,
     ///              empty for ROUTE mode. The keeper chooses bytes, never a target.
-    /// @param sweep Extra tokens for the refund branches to sweep. Like `route`, never part
-    ///              of the address. The executor must read context() before its first external
-    ///              call — a nested executeIntent() in the same transaction overwrites it.
+    /// @param sweep Extra assets (any Token type) for the refund branches to sweep. Like
+    ///              `route`, never part of the address. The executor must read context()
+    ///              before its first external call — a nested executeIntent() in the same
+    ///              transaction overwrites it.
     function executeIntent(
         Intent calldata intent,
         bytes calldata route,
-        address[] calldata sweep
+        Token[] calldata sweep
     )
         external
         returns (address executor)
@@ -52,7 +54,7 @@ contract EphemeralFactory {
     }
 
     /// @notice Read by the executor's constructor.
-    function context() external view returns (bytes memory route, address[] memory sweep, address keeper, address) {
+    function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address) {
         bytes memory data;
         assembly ("memory-safe") {
             keeper := tload(KEEPER_SLOT)
@@ -66,7 +68,7 @@ contract EphemeralFactory {
             }
             mstore(0x40, add(ptr, shl(5, words)))
         }
-        (route, sweep) = abi.decode(data, (bytes, address[]));
+        (route, sweep) = abi.decode(data, (bytes, Token[]));
         return (route, sweep, keeper, router);
     }
 

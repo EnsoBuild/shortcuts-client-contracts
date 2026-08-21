@@ -1,55 +1,41 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
+import { Token, TokenLib, TokenType } from "../libraries/TokenLib.sol";
+import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 enum Mode {
     ROUTE,
     CONSTRAINED
 }
 
-struct Trigger {
-    address token; // address(0) = native
-    uint256 minAmount; // executor balance required before execution may run
-}
-
-struct Fee {
-    address token; // a triggered token, or address(0) for native
-    uint256 amount; // flat, committed; paid to the executing caller
-}
-
 struct Intent {
     uint16 version;
     uint256 chainId; // mismatch = refund-only branch
     uint256 nonce; // distinguishes otherwise-identical intents (usefull if self-destruct is ever removed)
-    uint64 starttime;
+    uint64 start;
     uint64 deadline;
     address refundRecipient;
-    Trigger[] triggers; // every entry must pass
-    Fee keeperFee;
+    Token[] triggers; // every entry must pass; amounts are the delivery minimums
+    Token keeperFee; // flat, committed; paid to the executing caller
     Mode mode;
     bytes payload; // ROUTE: router calldata; CONSTRAINED: abi.encode(Constrained)
 }
 
 struct Constrained {
     address recipient;
-    address tokenOut; // address(0) = native
-    uint256 minAmountOut; // committed pre-bridge; v2 may replace with a dutch-auction decay
+    Token[] tokensOut; // minimums measured at the recipient; v2 may replace with a dutch-auction decay
     address exclusiveKeeper;
     uint64 exclusiveUntil;
 }
 
 interface IEphemeralFactory {
-    function context()
-        external
-        view
-        returns (bytes memory route, address[] memory sweep, address keeper, address router);
+    function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address router);
 }
 
 contract EphemeralIntentExecutor {
-    using SafeERC20 for IERC20;
-
     error TooEarly();
     error Underfunded();
     error Exclusive();
@@ -62,7 +48,7 @@ contract EphemeralIntentExecutor {
     constructor(Intent memory intent) {
         // Read once, before any external interaction — a nested executeIntent() in the
         // same transaction overwrites the factory's transient context.
-        (bytes memory route, address[] memory sweep, address keeper, address router) =
+        (bytes memory route, Token[] memory sweep, address keeper, address router) =
             IEphemeralFactory(msg.sender).context();
 
         if (block.chainid != intent.chainId) {
@@ -72,7 +58,7 @@ contract EphemeralIntentExecutor {
         } else if (block.timestamp > intent.deadline) {
             _refund(intent, sweep, keeper);
         } else {
-            if (block.timestamp < intent.starttime) {
+            if (block.timestamp < intent.start) {
                 revert TooEarly();
             }
             _requireTriggers(intent.triggers);
@@ -103,15 +89,19 @@ contract EphemeralIntentExecutor {
             revert Exclusive();
         }
 
-        // Validation is by measured outcome, never by inspecting the route: snapshot,
-        // route, assert the delta clears the committed minimum.
-        uint256 before = _balance(c.tokenOut, c.recipient);
+        // Validation is by measured outcome, never by inspecting the route: snapshot at
+        // the recipient, route, assert every delta clears its committed minimum.
+        uint256[] memory before = new uint256[](c.tokensOut.length);
+        for (uint256 i; i < c.tokensOut.length; ++i) {
+            before[i] = TokenLib.balance(c.tokensOut[i], c.recipient);
+        }
 
         _route(router, route, intent.triggers);
 
-        uint256 delta = _balance(c.tokenOut, c.recipient) - before;
-        if (delta < c.minAmountOut) {
-            revert Insufficient();
+        for (uint256 i; i < c.tokensOut.length; ++i) {
+            if (TokenLib.balance(c.tokensOut[i], c.recipient) - before[i] < _amount(c.tokensOut[i])) {
+                revert Insufficient();
+            }
         }
     }
 
@@ -119,11 +109,11 @@ contract EphemeralIntentExecutor {
     /// fixed at deployment and the value defers to the native trigger, so a keeper (or a
     /// committed program) chooses calldata only — the executor can never be made to
     /// approve or call anything else. Its own approvals go to the router, exact amounts,
-    /// revoked before the outcome is measured: approvals survive selfdestruct into the
-    /// next incarnation, so none may outlive the call.
-    function _route(address router, bytes memory data, Trigger[] memory triggers) private {
+    /// revoked after the call: approvals survive selfdestruct into the next incarnation,
+    /// so none may outlive it.
+    function _route(address router, bytes memory data, Token[] memory triggers) private {
         _approveTriggers(triggers, router, true);
-        (bool success, bytes memory ret) = router.call{ value: _value(triggers) }(data);
+        (bool success, bytes memory ret) = router.call{ value: TokenLib.value(triggers) }(data);
         if (!success) {
             // Bubble the inner revert reason.
             assembly ("memory-safe") {
@@ -133,64 +123,120 @@ contract EphemeralIntentExecutor {
         _approveTriggers(triggers, router, false);
     }
 
-    function _requireTriggers(Trigger[] memory triggers) private view {
+    function _requireTriggers(Token[] memory triggers) private view {
         for (uint256 i; i < triggers.length; ++i) {
-            if (_balance(triggers[i].token, address(this)) < triggers[i].minAmount) {
+            if (TokenLib.balance(triggers[i], address(this)) < _amount(triggers[i])) {
                 revert Underfunded();
             }
         }
     }
 
-    function _refund(Intent memory intent, address[] memory sweep, address keeper) private {
+    function _refund(Intent memory intent, Token[] memory sweep, address keeper) private {
         // Fee first, best-effort, so permissionless refunds are self-incentivizing; then
         // committed and keeper-listed tokens to the committed recipient. Native rides the
         // selfdestruct.
         _payFee(intent.keeperFee, keeper, false);
         for (uint256 i; i < intent.triggers.length; ++i) {
-            _sweep(intent.triggers[i].token, intent.refundRecipient);
+            _sweep(intent.triggers[i], intent.refundRecipient);
         }
         for (uint256 i; i < sweep.length; ++i) {
             _sweep(sweep[i], intent.refundRecipient);
         }
     }
 
-    function _approveTriggers(Trigger[] memory triggers, address spender, bool grant) private {
+    function _approveTriggers(Token[] memory triggers, address spender, bool grant) private {
         for (uint256 i; i < triggers.length; ++i) {
-            address token = triggers[i].token;
-            if (token == address(0)) {
-                continue; // native travels as call value
-            }
-            // forceApprove: a reused address can hold a stale allowance from a previous
-            // incarnation, which breaks approve-from-nonzero tokens like USDT.
-            IERC20(token).forceApprove(spender, grant ? IERC20(token).balanceOf(address(this)) : 0);
+            TokenLib.approve(triggers[i], spender, grant);
         }
     }
 
-    /// Call value for the router: the delivered native balance when a native trigger
-    /// exists, zero otherwise — never chosen by the keeper.
-    function _value(Trigger[] memory triggers) private view returns (uint256) {
-        for (uint256 i; i < triggers.length; ++i) {
-            if (triggers[i].token == address(0)) {
-                return address(this).balance;
-            }
-        }
-        return 0;
-    }
-
-    function _payFee(Fee memory fee, address to, bool strict) private {
-        if (fee.amount == 0 || to == address(0)) {
+    function _payFee(Token memory fee, address to, bool strict) private {
+        uint256 amount = _amount(fee);
+        if (amount == 0 || to == address(0)) {
             return;
         }
         bool success;
-        if (_balance(fee.token, address(this)) >= fee.amount) {
-            success = _transfer(fee.token, to, fee.amount);
+        if (TokenLib.balance(fee, address(this)) >= amount) {
+            success = _tryTransfer(fee, to, amount);
         }
         if (strict && !success) {
             revert SendFailed();
         }
     }
 
-    /// Best-effort full-balance transfer: one reverting token must never block an exit.
+    /// The committed amount: a trigger minimum, fee amount, or constraint minimum.
+    function _amount(Token memory token) private pure returns (uint256) {
+        TokenType tokenType = token.tokenType;
+        if (tokenType == TokenType.Native) {
+            return abi.decode(token.data, (uint256));
+        } else if (tokenType == TokenType.ERC20) {
+            (, uint256 amount_) = abi.decode(token.data, (IERC20, uint256));
+            return amount_;
+        } else if (tokenType == TokenType.ERC721) {
+            (, uint256 amount_) = abi.decode(token.data, (IERC721, uint256));
+            return amount_;
+        } else {
+            (,, uint256 amount_) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            return amount_;
+        }
+    }
+
+    /// Best-effort send; false on failure, never reverts.
+    function _tryTransfer(Token memory token, address to, uint256 amount_) private returns (bool success) {
+        TokenType tokenType = token.tokenType;
+        if (tokenType == TokenType.Native) {
+            (success,) = to.call{ value: amount_ }("");
+        } else if (tokenType == TokenType.ERC20) {
+            (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
+            success = _tryTransfer(address(erc20), to, amount_);
+        } else if (tokenType == TokenType.ERC721) {
+            (IERC721 erc721, uint256 tokenId) = abi.decode(token.data, (IERC721, uint256));
+            (success,) = address(erc721).call(abi.encodeCall(IERC721.transferFrom, (address(this), to, tokenId)));
+        } else {
+            (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            (success,) = address(erc1155)
+                .call(abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, tokenId, amount_, "")));
+        }
+    }
+
+    /// transfer() tolerant of missing return data; false for false-returning tokens.
+    function _tryTransfer(address token, address to, uint256 amount_) private returns (bool success) {
+        bytes memory ret;
+        (success, ret) = token.call(abi.encodeCall(IERC20.transfer, (to, amount_)));
+        success = success && (ret.length == 0 || abi.decode(ret, (bool)));
+    }
+
+    /// Best-effort full-balance sweep with a tolerant probe: garbage assets — including
+    /// committed addresses that are codeless on the wrong chain — must never block an
+    /// exit. Native is skipped; it rides the selfdestruct.
+    function _sweep(Token memory token, address to) private {
+        TokenType tokenType = token.tokenType;
+        if (tokenType == TokenType.Native) {
+            return;
+        } else if (tokenType == TokenType.ERC20) {
+            (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
+            _sweep(address(erc20), to);
+        } else if (tokenType == TokenType.ERC721) {
+            (IERC721 erc721, uint256 tokenId) = abi.decode(token.data, (IERC721, uint256));
+            (bool success,) = address(erc721).call(abi.encodeCall(IERC721.transferFrom, (address(this), to, tokenId)));
+            (success); // best-effort
+        } else {
+            (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            (bool success, bytes memory ret) =
+                address(erc1155).staticcall(abi.encodeCall(IERC1155.balanceOf, (address(this), tokenId)));
+            if (!success || ret.length < 32) {
+                return;
+            }
+            uint256 held = abi.decode(ret, (uint256));
+            if (held == 0) {
+                return;
+            }
+            (success,) = address(erc1155)
+                .call(abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, tokenId, held, "")));
+        }
+    }
+
+    /// ERC20-only sweep for keeper-listed addresses.
     function _sweep(address token, address to) private {
         if (token == address(0)) {
             return;
@@ -199,25 +245,10 @@ contract EphemeralIntentExecutor {
         if (!success || ret.length < 32) {
             return;
         }
-        uint256 balance = abi.decode(ret, (uint256));
-        if (balance == 0) {
+        uint256 held = abi.decode(ret, (uint256));
+        if (held == 0) {
             return;
         }
-        _transfer(token, to, balance);
-    }
-
-    /// transfer() tolerant of missing return data; false for false-returning tokens.
-    function _transfer(address token, address to, uint256 amount) private returns (bool success) {
-        if (token == address(0)) {
-            (success,) = to.call{ value: amount }("");
-        } else {
-            bytes memory ret;
-            (success, ret) = token.call(abi.encodeCall(IERC20.transfer, (to, amount)));
-            success = success && (ret.length == 0 || abi.decode(ret, (bool)));
-        }
-    }
-
-    function _balance(address token, address account) private view returns (uint256) {
-        return token == address(0) ? account.balance : IERC20(token).balanceOf(account);
+        _tryTransfer(token, to, held);
     }
 }

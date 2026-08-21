@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { EphemeralIntentExecutor, Intent, Trigger } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { EphemeralIntentExecutor, Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
 
@@ -15,9 +15,9 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         _execute(intent, "");
     }
 
-    function test_WhenExecutedBeforeStarttime() external {
+    function test_WhenExecutedBeforeStart() external {
         Intent memory intent = _intent();
-        intent.starttime = uint64(block.timestamp + 1 hours);
+        intent.start = uint64(block.timestamp + 1 hours);
         _fund(intent, 100 ether);
 
         // it should revert with TooEarly
@@ -27,7 +27,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
 
     function test_WhenThePayloadRuns() external {
         Intent memory intent = _intent();
-        intent.keeperFee.amount = 5 ether;
+        intent.keeperFee = _erc20(address(s_tokenIn), 5 ether);
         address predicted = _fund(intent, 100 ether);
         vm.deal(predicted, 1 ether);
         s_router.setPull(address(s_tokenIn), 90 ether);
@@ -54,7 +54,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
 
     function test_WhenANativeTriggerExists() external {
         Intent memory intent = _intent();
-        intent.triggers[0] = Trigger({ token: address(0), minAmount: 1 ether });
+        intent.triggers[0] = _native(1 ether);
         address predicted = s_factory.getAddress(intent);
         vm.deal(predicted, 1 ether);
 
@@ -67,8 +67,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
 
     function test_WhenTheFeeIsNative() external {
         Intent memory intent = _intent();
-        intent.keeperFee.token = address(0);
-        intent.keeperFee.amount = 1 ether;
+        intent.keeperFee = _native(1 ether);
         address predicted = _fund(intent, 100 ether);
         vm.deal(predicted, 3 ether);
         uint256 keeperBefore = s_keeper.balance;
@@ -92,7 +91,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
 
     function test_WhenTheFeeCannotBePaid() external {
         Intent memory intent = _intent();
-        intent.keeperFee.amount = 1000 ether; // more than delivered
+        intent.keeperFee = _erc20(address(s_tokenIn), 1000 ether); // more than delivered
         _fund(intent, 100 ether);
 
         // it should revert with SendFailed

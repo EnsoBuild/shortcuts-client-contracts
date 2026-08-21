@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
-import { Fee, Intent, Mode, Trigger } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Token, TokenType } from "../../../../../src/libraries/TokenLib.sol";
+import { Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { Test } from "forge-std/Test.sol";
@@ -34,17 +35,17 @@ abstract contract EphemeralFactory_Unit_Concrete_Test is Test {
     }
 
     function _intent() internal view returns (Intent memory intent) {
-        Trigger[] memory triggers = new Trigger[](1);
-        triggers[0] = Trigger({ token: address(s_tokenIn), minAmount: 100 ether });
+        Token[] memory triggers = new Token[](1);
+        triggers[0] = Token({ tokenType: TokenType.ERC20, data: abi.encode(address(s_tokenIn), uint256(100 ether)) });
         intent = Intent({
             version: 1,
             chainId: block.chainid,
             nonce: 0,
-            starttime: uint64(block.timestamp),
+            start: uint64(block.timestamp),
             deadline: uint64(block.timestamp + 1 days),
             refundRecipient: s_user,
             triggers: triggers,
-            keeperFee: Fee({ token: address(s_tokenIn), amount: 0 }),
+            keeperFee: Token({ tokenType: TokenType.Native, data: abi.encode(uint256(0)) }),
             mode: Mode.ROUTE,
             payload: hex"deadbeef"
         });
