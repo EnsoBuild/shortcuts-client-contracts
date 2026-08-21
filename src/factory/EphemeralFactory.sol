@@ -14,6 +14,8 @@ contract EphemeralFactory {
     /// The execution layer — the executor's only call target. Immutable, so it joins the
     /// factory's initcode: same-address recovery requires the router at one address on
     /// every chain, exactly like the factory itself.
+    /// TODO: since the live routes have different addresses, it may be better to make this
+    ///       mutable and have a setter function instead of setting the address in the constructor
     address public immutable router;
 
     event IntentPublished(address indexed intentAddress, bytes intent);
