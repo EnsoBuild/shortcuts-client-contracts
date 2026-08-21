@@ -25,6 +25,7 @@ contract MockIntentRouter {
     address public outToken;
     uint256 public outAmount;
     uint256 public outNativeAmount;
+    address public outReceiver;
     bool public shouldRevert;
     address public probe;
 
@@ -52,10 +53,10 @@ contract MockIntentRouter {
             (probedRoute, probedSweep, probedKeeper, probedRouter) = IContextProbe(probe).context();
         }
         if (outToken != address(0)) {
-            IERC20(outToken).transfer(msg.sender, outAmount);
+            IERC20(outToken).transfer(outReceiver, outAmount);
         }
         if (outNativeAmount > 0) {
-            (bool success,) = msg.sender.call{ value: outNativeAmount }("");
+            (bool success,) = outReceiver.call{ value: outNativeAmount }("");
             require(success, "native out failed");
         }
     }
@@ -65,13 +66,15 @@ contract MockIntentRouter {
         pullAmount = amount;
     }
 
-    function setOut(address token, uint256 amount) external {
+    function setOut(address token, uint256 amount, address to) external {
         outToken = token;
         outAmount = amount;
+        outReceiver = to;
     }
 
-    function setOutNative(uint256 amount) external {
+    function setOutNative(uint256 amount, address to) external {
         outNativeAmount = amount;
+        outReceiver = to;
     }
 
     function setRevert(bool value) external {

@@ -39,8 +39,8 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         assertEq(s_router.lastCaller(), predicted);
         assertEq(s_router.lastValue(), 0);
 
-        // it should approve trigger tokens to the router for the call
-        assertEq(s_router.lastAllowance(), 100 ether);
+        // it should approve trigger tokens to the router for the call (fee off the top)
+        assertEq(s_router.lastAllowance(), 95 ether);
 
         // it should revoke approvals after the call
         assertEq(s_tokenIn.allowance(predicted, address(s_router)), 0);

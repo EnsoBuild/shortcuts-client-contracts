@@ -21,10 +21,12 @@ EphemeralIntentExecutor_Route
 EphemeralIntentExecutor_Constrained
 ├── when the delta clears the minimum
 │   ├── it should call the router with the keeper route
-│   └── it should forward the delta to the recipient
+│   └── it should measure the delta at the recipient
 ├── when tokenOut is native
-│   └── it should forward the native delta to the recipient
+│   └── it should measure the native delta at the recipient
 ├── when the delta is below the minimum
+│   └── it should revert with Insufficient
+├── when the route delivers to the executor instead
 │   └── it should revert with Insufficient
 ├── when the exclusivity window is open
 │   ├── it should revert with Exclusive for other keepers

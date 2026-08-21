@@ -76,8 +76,11 @@ contract EphemeralIntentExecutor {
                 revert TooEarly();
             }
             _requireTriggers(intent.triggers);
-            _run(intent, route, keeper, router);
+            // Fee off the top, before the route: approvals and call value hand the
+            // remaining balances to the router, so a fee paid afterwards would depend
+            // on the route deliberately leaving it behind.
             _payFee(intent.keeperFee, keeper, true);
+            _run(intent, route, keeper, router);
         }
 
         // Remaining native balance rides the account deletion.
@@ -102,15 +105,14 @@ contract EphemeralIntentExecutor {
 
         // Validation is by measured outcome, never by inspecting the route: snapshot,
         // route, assert the delta clears the committed minimum.
-        uint256 before = _balance(c.tokenOut);
+        uint256 before = _balance(c.tokenOut, c.recipient);
 
         _route(router, route, intent.triggers);
 
-        uint256 delta = _balance(c.tokenOut) - before;
+        uint256 delta = _balance(c.tokenOut, c.recipient) - before;
         if (delta < c.minAmountOut) {
             revert Insufficient();
         }
-        _send(c.tokenOut, c.recipient, delta);
     }
 
     /// The executor's single protocol-facing call. The target is the router the factory
@@ -133,7 +135,7 @@ contract EphemeralIntentExecutor {
 
     function _requireTriggers(Trigger[] memory triggers) private view {
         for (uint256 i; i < triggers.length; ++i) {
-            if (_balance(triggers[i].token) < triggers[i].minAmount) {
+            if (_balance(triggers[i].token, address(this)) < triggers[i].minAmount) {
                 revert Underfunded();
             }
         }
@@ -180,11 +182,7 @@ contract EphemeralIntentExecutor {
             return;
         }
         bool success;
-        if (fee.token == address(0)) {
-            if (address(this).balance >= fee.amount) {
-                (success,) = to.call{ value: fee.amount }("");
-            }
-        } else if (_balance(fee.token) >= fee.amount) {
+        if (_balance(fee.token, address(this)) >= fee.amount) {
             success = _transfer(fee.token, to, fee.amount);
         }
         if (strict && !success) {
@@ -208,30 +206,18 @@ contract EphemeralIntentExecutor {
         _transfer(token, to, balance);
     }
 
-    /// Strict send of the measured outcome.
-    function _send(address token, address to, uint256 amount) private {
-        if (amount == 0) {
-            return;
-        }
-        bool success;
+    /// transfer() tolerant of missing return data; false for false-returning tokens.
+    function _transfer(address token, address to, uint256 amount) private returns (bool success) {
         if (token == address(0)) {
             (success,) = to.call{ value: amount }("");
         } else {
-            success = _transfer(token, to, amount);
-        }
-        if (!success) {
-            revert SendFailed();
+            bytes memory ret;
+            (success, ret) = token.call(abi.encodeCall(IERC20.transfer, (to, amount)));
+            success = success && (ret.length == 0 || abi.decode(ret, (bool)));
         }
     }
 
-    /// transfer() tolerant of missing return data; false for false-returning tokens.
-    function _transfer(address token, address to, uint256 amount) private returns (bool success) {
-        bytes memory ret;
-        (success, ret) = token.call(abi.encodeCall(IERC20.transfer, (to, amount)));
-        success = success && (ret.length == 0 || abi.decode(ret, (bool)));
-    }
-
-    function _balance(address token) private view returns (uint256) {
-        return token == address(0) ? address(this).balance : IERC20(token).balanceOf(address(this));
+    function _balance(address token, address account) private view returns (uint256) {
+        return token == address(0) ? account.balance : IERC20(token).balanceOf(account);
     }
 }
