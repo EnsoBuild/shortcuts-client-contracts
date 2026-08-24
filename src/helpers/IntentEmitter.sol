@@ -7,8 +7,8 @@ contract IntentEmitter {
     function emitIntent(
         bytes32 requestId,
         address executor,
-        Intent intent,
-        RequestMetadata metadata,
+        Intent calldata intent,
+        RequestMetadata calldata metadata,
         bytes calldata signature
     )
         external
