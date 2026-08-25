@@ -8,11 +8,13 @@ interface IContextProbe {
     function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address router);
 }
 
-/// Accepts any calldata, records what the executor sent, and performs configurable
-/// side effects: pull a token via transferFrom (exercises the approval epilogue),
-/// send an output token to the caller (exercises CONSTRAINED outcome measurement),
-/// probe the factory's transient context mid-call, or revert (exercises bubbling).
+/// Implements the router's route entry points, records what the executor sent
+/// (including the live-amounted tokensIn), and performs configurable side effects:
+/// pull a token via transferFrom (exercises the approval epilogue), send an output
+/// token (exercises CONSTRAINED outcome measurement), probe the factory's transient
+/// context mid-call, or revert (exercises bubbling).
 contract MockIntentRouter {
+    Token[] public lastTokensIn;
     bytes public lastData;
     uint256 public lastValue;
     address public lastCaller;
@@ -36,11 +38,22 @@ contract MockIntentRouter {
 
     receive() external payable { }
 
-    fallback() external payable {
+    function routeSingle(Token calldata tokenIn, bytes calldata data) external payable returns (bytes memory) {
+        Token[] memory tokensIn = new Token[](1);
+        tokensIn[0] = tokenIn;
+        return _record(tokensIn, data);
+    }
+
+    function routeMulti(Token[] calldata tokensIn, bytes calldata data) external payable returns (bytes memory) {
+        return _record(tokensIn, data);
+    }
+
+    function _record(Token[] memory tokensIn, bytes memory data) private returns (bytes memory) {
         if (shouldRevert) {
             revert MockRouterRevert();
         }
-        lastData = msg.data;
+        lastTokensIn = tokensIn;
+        lastData = data;
         lastValue = msg.value;
         lastCaller = msg.sender;
         if (pullToken != address(0)) {
@@ -57,6 +70,11 @@ contract MockIntentRouter {
             (bool success,) = outReceiver.call{ value: outNativeAmount }("");
             require(success, "native out failed");
         }
+        return "";
+    }
+
+    function lastTokensInLength() external view returns (uint256) {
+        return lastTokensIn.length;
     }
 
     function setPull(address token, uint256 amount) external {

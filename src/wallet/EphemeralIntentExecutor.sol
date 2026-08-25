@@ -21,7 +21,7 @@ struct Intent {
     Token[] triggers; // every entry must pass; amounts are the delivery minimums
     Token keeperFee; // flat, committed; paid to the executing caller
     Mode mode;
-    bytes payload; // ROUTE: router calldata; CONSTRAINED: abi.encode(Constrained)
+    bytes payload; // ROUTE: shortcut data for the router; CONSTRAINED: abi.encode(Constrained)
 }
 
 struct Constrained {
@@ -33,6 +33,14 @@ struct Constrained {
 
 interface IEphemeralFactory {
     function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address router);
+}
+
+// EnsoRouter's entry point, typed over the canonical Token (ABI-identical to the
+// declaration in IEnsoRouter.sol; unified when the router migrates to TokenLib).
+interface IEnsoRouter {
+    function routeSingle(Token calldata tokenIn, bytes calldata data) external payable returns (bytes memory);
+
+    function routeMulti(Token[] calldata tokensIn, bytes calldata data) external payable returns (bytes memory);
 }
 
 contract EphemeralIntentExecutor {
@@ -75,7 +83,7 @@ contract EphemeralIntentExecutor {
 
     function _run(Intent memory intent, bytes memory route, address keeper, address router) private {
         if (intent.mode == Mode.ROUTE) {
-            // The committed payload is router calldata; the route argument is ignored.
+            // The committed payload is the shortcut data; the route argument is ignored.
             _route(router, intent.payload, intent.triggers);
         } else {
             _constrained(intent, route, keeper, router);
@@ -105,22 +113,46 @@ contract EphemeralIntentExecutor {
         }
     }
 
-    /// The executor's single protocol-facing call. The target is the router the factory
-    /// fixed at deployment and the value defers to the native trigger, so a keeper (or a
-    /// committed program) chooses calldata only — the executor can never be made to
-    /// approve or call anything else. Its own approvals go to the router, exact amounts,
-    /// revoked after the call: approvals survive selfdestruct into the next incarnation,
-    /// so none may outlive it.
+    /// The executor's single protocol-facing call: the router's route entry with the
+    /// trigger tokens re-amounted to their live balances, so shortcuts execute against
+    /// what was actually delivered — amounts are never hardcoded at commit time. The
+    /// data is the inner shortcut payload; committed and keeper bytes alike choose
+    /// neither a target nor a router function. Approvals go to the router, exact
+    /// balances, revoked after the call: approvals survive selfdestruct into the next
+    /// incarnation, so none may outlive it.
     function _route(address router, bytes memory data, Token[] memory triggers) private {
         _approveTriggers(triggers, router, true);
-        (bool success, bytes memory ret) = router.call{ value: TokenLib.value(triggers) }(data);
-        if (!success) {
-            // Bubble the inner revert reason.
-            assembly ("memory-safe") {
-                revert(add(ret, 0x20), mload(ret))
+        uint256 value = TokenLib.value(triggers);
+        if (triggers.length == 1) {
+            IEnsoRouter(router).routeSingle{ value: value }(_liveToken(triggers[0]), data);
+        } else {
+            Token[] memory tokensIn = new Token[](triggers.length);
+            for (uint256 i; i < triggers.length; ++i) {
+                tokensIn[i] = _liveToken(triggers[i]);
             }
+            IEnsoRouter(router).routeMulti{ value: value }(tokensIn, data);
         }
         _approveTriggers(triggers, router, false);
+    }
+
+    /// A trigger entry with its amount replaced by the current balance. ERC721 carries
+    /// a tokenId and passes through unchanged. Native is re-amounted in the data as
+    /// well as msg.value: current routers take the amount from msg.value, but some
+    /// older versions read it from the encoding.
+    function _liveToken(Token memory token) private view returns (Token memory) {
+        TokenType tokenType = token.tokenType;
+        if (tokenType == TokenType.Native) {
+            return Token({ tokenType: tokenType, data: abi.encode(address(this).balance) });
+        } else if (tokenType == TokenType.ERC20) {
+            (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
+            return Token({ tokenType: tokenType, data: abi.encode(erc20, erc20.balanceOf(address(this))) });
+        } else if (tokenType == TokenType.ERC1155) {
+            (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            return Token({
+                tokenType: tokenType, data: abi.encode(erc1155, tokenId, erc1155.balanceOf(address(this), tokenId))
+            });
+        }
+        return token;
     }
 
     function _requireTriggers(Token[] memory triggers) private view {

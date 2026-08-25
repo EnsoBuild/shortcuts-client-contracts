@@ -5,12 +5,14 @@ EphemeralIntentExecutor_Route
 │   └── it should revert with TooEarly
 ├── when the payload runs
 │   ├── it should call the router with the committed payload
+│   ├── it should pass the trigger tokens with live balances
 │   ├── it should approve trigger tokens to the router for the call
 │   ├── it should revoke approvals after the call
 │   ├── it should pay the keeper fee
 │   └── it should sweep remaining native to the refund recipient
 ├── when a native trigger exists
-│   └── it should forward the native balance as call value
+│   ├── it should forward the native balance as call value
+│   └── it should carry the live balance in the native entry
 ├── when the fee is native
 │   └── it should pay the keeper in native
 ├── when the router call reverts

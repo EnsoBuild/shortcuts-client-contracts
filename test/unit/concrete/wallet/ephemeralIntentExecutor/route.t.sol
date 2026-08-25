@@ -42,6 +42,12 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         // it should approve trigger tokens to the router for the call (fee off the top)
         assertEq(s_router.lastAllowance(), 95 ether);
 
+        // it should pass the trigger tokens with live balances
+        assertEq(s_router.lastTokensInLength(), 1);
+        (, bytes memory liveData) = s_router.lastTokensIn(0);
+        (, uint256 liveAmount) = abi.decode(liveData, (address, uint256));
+        assertEq(liveAmount, 95 ether); // the post-fee balance, not the committed minimum
+
         // it should revoke approvals after the call
         assertEq(s_tokenIn.allowance(predicted, address(s_router)), 0);
 
@@ -63,6 +69,10 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         // it should forward the native balance as call value
         assertEq(s_router.lastValue(), 1 ether);
         assertEq(address(s_router).balance, 1 ether);
+
+        // it should carry the live balance in the native entry (older-router compat)
+        (, bytes memory nativeData) = s_router.lastTokensIn(0);
+        assertEq(abi.decode(nativeData, (uint256)), 1 ether);
     }
 
     function test_WhenTheFeeIsNative() external {
