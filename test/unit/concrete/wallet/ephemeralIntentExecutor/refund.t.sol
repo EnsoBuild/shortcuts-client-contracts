@@ -60,6 +60,30 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         assertEq(multi.balanceOf(s_user, 9), 3);
     }
 
+    function test_WhenTheFeeTokenIsMalformed() external {
+        Intent memory intent = _intent();
+        intent.chainId = 999; // wrong-chain recovery — fee is best-effort here
+        intent.keeperFee = Token({ tokenType: TokenType.ERC20, data: hex"deadbeef" }); // undecodable
+        _fund(intent, 100 ether);
+
+        _execute(intent, "");
+
+        // it should skip the fee and still refund
+        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+    }
+
+    function test_WhenTheFeeTokenIsCodeless() external {
+        Intent memory intent = _intent();
+        intent.chainId = 999;
+        intent.keeperFee = _erc20(address(0xDEAD), 5 ether); // no code at this address
+        _fund(intent, 100 ether);
+
+        _execute(intent, "");
+
+        // it should skip the fee and still refund
+        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+    }
+
     function test_WhenExecutedOnTheWrongChain() external {
         Intent memory intent = _intent();
         intent.chainId = 999; // committed for another chain

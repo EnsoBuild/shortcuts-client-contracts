@@ -151,12 +151,16 @@ contract EphemeralIntentExecutor {
     }
 
     function _payFee(Token memory fee, address to, bool strict) private {
-        uint256 amount = _amount(fee);
+        // Strict (execute branch): typed reads, fail loudly on a bad committed fee.
+        // Best-effort (refund branches): fully tolerant — a malformed or codeless fee
+        // token must never block the exit, so zero means "skip the fee".
+        uint256 amount = strict ? _amount(fee) : _tryAmount(fee);
         if (amount == 0 || to == address(0)) {
             return;
         }
         bool success;
-        if (TokenLib.balance(fee, address(this)) >= amount) {
+        uint256 held = strict ? TokenLib.balance(fee, address(this)) : _tryBalance(fee);
+        if (held >= amount) {
             success = _tryTransfer(fee, to, amount);
         }
         if (strict && !success) {
@@ -181,21 +185,60 @@ contract EphemeralIntentExecutor {
         }
     }
 
-    /// Best-effort send; false on failure, never reverts.
+    /// Tolerant amount read: zero for undecodable committed data instead of a revert.
+    function _tryAmount(Token memory token) private pure returns (uint256) {
+        TokenType tokenType = token.tokenType;
+        if (tokenType == TokenType.Native) {
+            return token.data.length < 32 ? 0 : _word(token.data, 0);
+        } else if (tokenType == TokenType.ERC1155) {
+            return token.data.length < 96 ? 0 : _word(token.data, 2);
+        } else {
+            return token.data.length < 64 ? 0 : _word(token.data, 1);
+        }
+    }
+
+    /// Tolerant balance probe: zero for malformed data, codeless assets, or reverting
+    /// reads. ERC721 shares ERC20's balanceOf selector, so one probe covers both.
+    function _tryBalance(Token memory token) private view returns (uint256) {
+        TokenType tokenType = token.tokenType;
+        if (tokenType == TokenType.Native) {
+            return address(this).balance;
+        }
+        if (token.data.length < (tokenType == TokenType.ERC1155 ? 96 : 64)) {
+            return 0;
+        }
+        address asset = address(uint160(_word(token.data, 0)));
+        bytes memory probe = tokenType == TokenType.ERC1155
+            ? abi.encodeCall(IERC1155.balanceOf, (address(this), _word(token.data, 1)))
+            : abi.encodeCall(IERC20.balanceOf, (address(this)));
+        (bool success, bytes memory ret) = asset.staticcall(probe);
+        if (!success || ret.length < 32) {
+            return 0;
+        }
+        return abi.decode(ret, (uint256));
+    }
+
+    /// Best-effort send; false on failure or malformed data, never reverts. Reads the
+    /// encoding by raw words rather than abi.decode, so dirty committed bytes cannot
+    /// revert a refund.
     function _tryTransfer(Token memory token, address to, uint256 amount_) private returns (bool success) {
         TokenType tokenType = token.tokenType;
         if (tokenType == TokenType.Native) {
             (success,) = to.call{ value: amount_ }("");
-        } else if (tokenType == TokenType.ERC20) {
-            (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
-            success = _tryTransfer(address(erc20), to, amount_);
+            return success;
+        }
+        if (token.data.length < (tokenType == TokenType.ERC1155 ? 96 : 64)) {
+            return false;
+        }
+        address asset = address(uint160(_word(token.data, 0)));
+        if (tokenType == TokenType.ERC20) {
+            success = _tryTransfer(asset, to, amount_);
         } else if (tokenType == TokenType.ERC721) {
-            (IERC721 erc721, uint256 tokenId) = abi.decode(token.data, (IERC721, uint256));
-            (success,) = address(erc721).call(abi.encodeCall(IERC721.transferFrom, (address(this), to, tokenId)));
+            (success,) = asset.call(abi.encodeCall(IERC721.transferFrom, (address(this), to, _word(token.data, 1))));
         } else {
-            (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
-            (success,) = address(erc1155)
-                .call(abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, tokenId, amount_, "")));
+            (success,) = asset.call(
+                abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, _word(token.data, 1), amount_, ""))
+            );
         }
     }
 
@@ -250,5 +293,11 @@ contract EphemeralIntentExecutor {
             return;
         }
         _tryTransfer(token, to, held);
+    }
+
+    function _word(bytes memory data, uint256 index) private pure returns (uint256 word) {
+        assembly ("memory-safe") {
+            word := mload(add(add(data, 0x20), shl(5, index)))
+        }
     }
 }

@@ -44,6 +44,10 @@ EphemeralIntentExecutor_Refund
 │   └── it should not revert on a reverting token
 ├── when NFTs are keeper-listed
 │   └── it should sweep them to the refund recipient
+├── when the fee token is malformed
+│   └── it should skip the fee and still refund
+├── when the fee token is codeless
+│   └── it should skip the fee and still refund
 └── when executed on the wrong chain
     ├── it should sweep immediately without waiting for the gates
     └── it should sweep native via selfdestruct
