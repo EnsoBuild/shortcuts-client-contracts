@@ -24,6 +24,7 @@ contract IntentEmitter {
 struct RequestMetadata {
     uint256 fee;
     address feeReceiver;
+    uint8 bridgeProtocol;
     bytes32 ignoreAggregators; // packed uint8 list
     bytes32 ignoreStandards; // packed uint8 list
 }
