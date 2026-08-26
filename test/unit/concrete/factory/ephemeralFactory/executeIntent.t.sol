@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
-import { Token, TokenType } from "../../../../../src/libraries/TokenLib.sol";
+import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Constrained, Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { EphemeralFactory_Unit_Concrete_Test } from "./EphemeralFactory.t.sol";
 
@@ -26,13 +26,9 @@ contract EphemeralFactory_ExecuteIntent_Unit_Concrete_Test is EphemeralFactory_U
     }
 
     function test_WhenTheRouterReadsTheContext() external {
+        // ROUTE mode: the keeper-supplied route bytes are ignored by the executor but
+        // still ride the transient context, which is what the probe asserts on.
         Intent memory intent = _intent();
-        intent.mode = Mode.CONSTRAINED;
-        intent.payload = abi.encode(
-            Constrained({
-                recipient: s_user, tokensOut: new Token[](0), exclusiveKeeper: address(0), exclusiveUntil: 0
-            })
-        );
         _fund(intent, 100 ether);
         s_router.setProbe(address(s_factory));
 

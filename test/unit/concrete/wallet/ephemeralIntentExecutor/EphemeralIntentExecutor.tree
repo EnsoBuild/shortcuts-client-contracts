@@ -5,12 +5,21 @@ EphemeralIntentExecutor_Route
 │   └── it should revert with TooEarly
 ├── when the payload runs
 │   ├── it should call the router with the committed payload
+│   ├── it should pass the trigger tokens with live balances
 │   ├── it should approve trigger tokens to the router for the call
 │   ├── it should revoke approvals after the call
 │   ├── it should pay the keeper fee
 │   └── it should sweep remaining native to the refund recipient
 ├── when a native trigger exists
-│   └── it should forward the native balance as call value
+│   ├── it should forward the native balance as call value
+│   └── it should carry the live balance in the native entry
+├── when the trigger is an NFT
+│   ├── it should pass the trigger check with the tokenId treated as ownership
+│   └── it should clear the approval in the epilogue when the NFT stayed
+├── when the committed NFT is absent
+│   └── it should revert with Underfunded
+├── when the route consumes the NFT
+│   └── it should tolerate the post-move approval revoke and complete
 ├── when the fee is native
 │   └── it should pay the keeper in native
 ├── when the router call reverts
@@ -22,8 +31,16 @@ EphemeralIntentExecutor_Constrained
 ├── when the delta clears the minimum
 │   ├── it should call the router with the keeper route
 │   └── it should measure the delta at the recipient
+├── when the recipient balance decreases
+│   └── it should revert with Insufficient
+├── when tokensOut is empty
+│   └── it should revert with Insufficient
+├── when a minimum is zero
+│   └── it should revert with Insufficient
 ├── when tokenOut is native
 │   └── it should measure the native delta at the recipient
+├── when the outcome is a minted NFT
+│   └── it should satisfy the count minimum with whatever id arrived
 ├── when the delta is below the minimum
 │   └── it should revert with Insufficient
 ├── when any tokenOut misses its minimum
@@ -37,6 +54,15 @@ EphemeralIntentExecutor_Constrained
     └── it should execute for any keeper
 
 EphemeralIntentExecutor_Refund
+├── when the trigger data is malformed
+│   ├── it should skip the malformed trigger and complete the lifecycle
+│   └── it should recover the skipped asset with a second transaction
+├── when the trigger address word is dirty
+│   └── it should truncate the dirty word and fully refund
+├── when a trigger token returns a dirty bool
+│   └── it should tolerate the non-canonical return and still deliver the refund
+├── when the refund recipient is zero
+│   └── it should substitute the keeper as beneficiary
 ├── when the deadline has passed
 │   ├── it should sweep trigger tokens to the refund recipient
 │   ├── it should sweep keeper-listed tokens to the refund recipient
@@ -44,6 +70,10 @@ EphemeralIntentExecutor_Refund
 │   └── it should not revert on a reverting token
 ├── when NFTs are keeper-listed
 │   └── it should sweep them to the refund recipient
+├── when the fee token is malformed
+│   └── it should skip the fee and still refund
+├── when the fee token is codeless
+│   └── it should skip the fee and still refund
 └── when executed on the wrong chain
     ├── it should sweep immediately without waiting for the gates
     └── it should sweep native via selfdestruct

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
-import { Token, TokenType } from "../../../../../src/libraries/TokenLib.sol";
+import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";

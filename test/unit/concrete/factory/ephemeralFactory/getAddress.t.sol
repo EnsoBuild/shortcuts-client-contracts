@@ -14,13 +14,6 @@ contract EphemeralFactory_GetAddress_Unit_Concrete_Test is EphemeralFactory_Unit
         assertEq(s_factory.getAddress(intent), expected);
     }
 
-    function test_WhenGivenTheCanonicalBlob() external view {
-        Intent memory intent = _intent();
-
-        // it should match the typed prediction
-        assertEq(s_factory.getAddress(abi.encode(intent)), s_factory.getAddress(intent));
-    }
-
     function test_WhenAnyParameterChanges() external view {
         Intent memory intent = _intent();
         address original = s_factory.getAddress(intent);

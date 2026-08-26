@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Token, TokenType } from "../../../../../src/libraries/TokenLib.sol";
+import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { MockDirtyBoolERC20 } from "../../../../mocks/MockDirtyBoolERC20.sol";
 import { MockERC1155 } from "../../../../mocks/MockERC1155.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockERC721 } from "../../../../mocks/MockERC721.sol";
@@ -58,6 +59,100 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         // it should sweep keeper-listed NFTs to the refund recipient
         assertEq(nft.ownerOf(7), s_user);
         assertEq(multi.balanceOf(s_user, 9), 3);
+    }
+
+    /// forge-config: default.isolate = true
+    function test_WhenTheTriggerDataIsMalformed() external {
+        Intent memory intent = _intent();
+        intent.triggers[0] = Token({ tokenType: TokenType.ERC20, data: hex"deadbeef" }); // undecodably short
+        address predicted = s_factory.getAddress(intent);
+        s_tokenIn.mint(predicted, 100 ether);
+        vm.warp(intent.deadline + 1);
+
+        vm.prank(s_keeper);
+        s_factory.executeIntent(intent, "", new Token[](0));
+
+        // it should skip the malformed trigger and complete the lifecycle
+        assertEq(predicted.code.length, 0);
+        assertEq(s_tokenIn.balanceOf(predicted), 100 ether); // skipped in place, not lost
+
+        // it should recover the skipped asset with a second transaction
+        Token[] memory sweep = new Token[](1);
+        sweep[0] = _erc20(address(s_tokenIn), 0);
+        vm.prank(s_keeper);
+        s_factory.executeIntent(intent, "", sweep);
+        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+    }
+
+    function test_WhenTheTriggerAddressWordIsDirty() external {
+        Intent memory intent = _intent();
+        bytes32 dirty = bytes32(uint256(uint160(address(s_tokenIn))) | (uint256(0xBAD) << 160));
+        intent.triggers[0] = Token({ tokenType: TokenType.ERC20, data: abi.encodePacked(dirty, uint256(100 ether)) });
+        address predicted = s_factory.getAddress(intent);
+        s_tokenIn.mint(predicted, 100 ether);
+        vm.warp(intent.deadline + 1);
+
+        vm.prank(s_keeper);
+        s_factory.executeIntent(intent, "", new Token[](0));
+
+        // it should truncate the dirty word and fully refund
+        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+    }
+
+    function test_WhenATriggerTokenReturnsADirtyBool() external {
+        MockDirtyBoolERC20 dirty = new MockDirtyBoolERC20();
+        Intent memory intent = _intent();
+        intent.triggers[0] = _erc20(address(dirty), 100 ether);
+        address predicted = s_factory.getAddress(intent);
+        dirty.mint(predicted, 100 ether);
+        vm.warp(intent.deadline + 1);
+
+        vm.prank(s_keeper);
+        s_factory.executeIntent(intent, "", new Token[](0));
+
+        // it should tolerate the non-canonical return and still deliver the refund
+        assertEq(dirty.balanceOf(s_user), 100 ether);
+    }
+
+    function test_WhenTheRefundRecipientIsZero() external {
+        Intent memory intent = _intent();
+        intent.refundRecipient = address(0);
+        address predicted = _fund(intent, 100 ether);
+        vm.deal(predicted, 1 ether);
+        vm.warp(intent.deadline + 1);
+        uint256 keeperNativeBefore = s_keeper.balance;
+
+        vm.prank(s_keeper);
+        s_factory.executeIntent(intent, "", new Token[](0));
+
+        // it should substitute the keeper as beneficiary — nothing burned or stranded
+        assertEq(s_tokenIn.balanceOf(s_keeper), 100 ether);
+        assertEq(s_keeper.balance, keeperNativeBefore + 1 ether);
+        assertEq(address(0).balance, 0);
+    }
+
+    function test_WhenTheFeeTokenIsMalformed() external {
+        Intent memory intent = _intent();
+        intent.chainId = 999; // wrong-chain recovery — fee is best-effort here
+        intent.keeperFee = Token({ tokenType: TokenType.ERC20, data: hex"deadbeef" }); // undecodable
+        _fund(intent, 100 ether);
+
+        _execute(intent, "");
+
+        // it should skip the fee and still refund
+        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+    }
+
+    function test_WhenTheFeeTokenIsCodeless() external {
+        Intent memory intent = _intent();
+        intent.chainId = 999;
+        intent.keeperFee = _erc20(address(0xDEAD), 5 ether); // no code at this address
+        _fund(intent, 100 ether);
+
+        _execute(intent, "");
+
+        // it should skip the fee and still refund
+        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
     }
 
     function test_WhenExecutedOnTheWrongChain() external {

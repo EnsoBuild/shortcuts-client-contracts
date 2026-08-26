@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.24;
 
-import { Token } from "../libraries/TokenLib.sol";
+import { Token } from "../interfaces/IEnsoRouter.sol";
 import { EphemeralIntentExecutor, Intent } from "../wallet/EphemeralIntentExecutor.sol";
 
 contract EphemeralFactory {
@@ -14,8 +14,6 @@ contract EphemeralFactory {
     /// The execution layer — the executor's only call target. Immutable, so it joins the
     /// factory's initcode: same-address recovery requires the router at one address on
     /// every chain, exactly like the factory itself.
-    /// TODO: since the live routes have different addresses, it may be better to make this
-    ///       mutable and have a setter function instead of setting the address in the constructor
     address public immutable router;
 
     event IntentPublished(address indexed intentAddress, bytes intent);
@@ -26,8 +24,8 @@ contract EphemeralFactory {
 
     /// @notice Deploy and run `intent`'s executor at its derived address. Permissionless:
     ///         wrong parameters derive an unfunded address, so the derivation authorizes.
-    /// @param route Calldata for the executor's single router call — CONSTRAINED only,
-    ///              empty for ROUTE mode. The keeper chooses bytes, never a target.
+    /// @param route Shortcut data the router forwards to EnsoShortcuts — CONSTRAINED only,
+    ///              empty for ROUTE mode. The keeper chooses bytes, never a target or function.
     /// @param sweep Extra assets (any Token type) for the refund branches to sweep. Like
     ///              `route`, never part of the address. The executor must read context()
     ///              before its first external call — a nested executeIntent() in the same
@@ -48,11 +46,6 @@ contract EphemeralFactory {
     /// @notice Address at which `intent` executes; abi.encode(intent) is the canonical blob.
     function getAddress(Intent calldata intent) public view returns (address) {
         return _predict(keccak256(abi.encodePacked(type(EphemeralIntentExecutor).creationCode, abi.encode(intent))));
-    }
-
-    /// @notice Raw-blob variant for no decode/re-encode round trip.
-    function getAddress(bytes calldata blob) public view returns (address) {
-        return _predict(keccak256(abi.encodePacked(type(EphemeralIntentExecutor).creationCode, blob)));
     }
 
     /// @notice Read by the executor's constructor.
