@@ -48,11 +48,6 @@ contract EphemeralFactory {
         return _predict(keccak256(abi.encodePacked(type(EphemeralIntentExecutor).creationCode, abi.encode(intent))));
     }
 
-    /// @notice Raw-blob variant for no decode/re-encode round trip.
-    function getAddress(bytes calldata blob) public view returns (address) {
-        return _predict(keccak256(abi.encodePacked(type(EphemeralIntentExecutor).creationCode, blob)));
-    }
-
     /// @notice Read by the executor's constructor.
     function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address) {
         bytes memory data;

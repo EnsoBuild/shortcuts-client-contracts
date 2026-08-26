@@ -59,12 +59,18 @@ contract EphemeralIntentExecutor {
         (bytes memory route, Token[] memory sweep, address keeper, address router) =
             IEphemeralFactory(msg.sender).context();
 
+        // A zero refund recipient would burn native at the selfdestruct and silently
+        // strand every swept ERC20. Substitute the keeper (the factory's caller — never
+        // zero) rather than validate: a revert here, before branch selection, would be
+        // a permanent brick on every branch, including a perfectly executable one.
+        address beneficiary = intent.refundRecipient == address(0) ? keeper : intent.refundRecipient;
+
         if (block.chainid != intent.chainId) {
             // Wrong-chain recovery: execution is unreachable here by construction, so
             // sweep immediately — no deadline to wait out, nothing to race.
-            _refund(intent, sweep, keeper);
+            _refund(intent, sweep, keeper, beneficiary);
         } else if (block.timestamp > intent.deadline) {
-            _refund(intent, sweep, keeper);
+            _refund(intent, sweep, keeper, beneficiary);
         } else {
             if (block.timestamp < intent.start) {
                 revert TooEarly();
@@ -78,7 +84,7 @@ contract EphemeralIntentExecutor {
         }
 
         // Remaining native balance rides the account deletion.
-        selfdestruct(payable(intent.refundRecipient));
+        selfdestruct(payable(beneficiary));
     }
 
     function _run(Intent memory intent, bytes memory route, address keeper, address router) private {
@@ -96,18 +102,30 @@ contract EphemeralIntentExecutor {
         if (block.timestamp <= c.exclusiveUntil && keeper != c.exclusiveKeeper) {
             revert Exclusive();
         }
+        // No outcome floor means the route is an unconstrained full-balance grant:
+        // reject empty constraint lists and zero minimums. Execute branch — a revert
+        // here is liveness-only, bounded by the deadline.
+        if (c.tokensOut.length == 0) {
+            revert Insufficient();
+        }
 
         // Validation is by measured outcome, never by inspecting the route: snapshot at
         // the recipient, route, assert every delta clears its committed minimum.
         uint256[] memory before = new uint256[](c.tokensOut.length);
         for (uint256 i; i < c.tokensOut.length; ++i) {
+            if (_amount(c.tokensOut[i]) == 0) {
+                revert Insufficient();
+            }
             before[i] = TokenLib.balance(c.tokensOut[i], c.recipient);
         }
 
         _route(router, route, intent.triggers);
 
         for (uint256 i; i < c.tokensOut.length; ++i) {
-            if (TokenLib.balance(c.tokensOut[i], c.recipient) - before[i] < _amount(c.tokensOut[i])) {
+            uint256 after_ = TokenLib.balance(c.tokensOut[i], c.recipient);
+            // Explicit ordering: checked subtraction would Panic on a recipient balance
+            // decrease instead of reverting Insufficient.
+            if (after_ < before[i] || after_ - before[i] < _amount(c.tokensOut[i])) {
                 revert Insufficient();
             }
         }
@@ -163,16 +181,16 @@ contract EphemeralIntentExecutor {
         }
     }
 
-    function _refund(Intent memory intent, Token[] memory sweep, address keeper) private {
+    function _refund(Intent memory intent, Token[] memory sweep, address keeper, address to) private {
         // Fee first, best-effort, so permissionless refunds are self-incentivizing; then
-        // committed and keeper-listed tokens to the committed recipient. Native rides the
+        // committed and keeper-listed tokens to the beneficiary. Native rides the
         // selfdestruct.
         _payFee(intent.keeperFee, keeper, false);
         for (uint256 i; i < intent.triggers.length; ++i) {
-            _sweep(intent.triggers[i], intent.refundRecipient);
+            _sweep(intent.triggers[i], to);
         }
         for (uint256 i; i < sweep.length; ++i) {
-            _sweep(sweep[i], intent.refundRecipient);
+            _sweep(sweep[i], to);
         }
     }
 
@@ -274,31 +292,43 @@ contract EphemeralIntentExecutor {
         }
     }
 
-    /// transfer() tolerant of missing return data; false for false-returning tokens.
+    /// transfer() tolerant of missing return data; false for false-returning tokens
+    /// and for any non-canonical return shape — the bool decoder's validity check
+    /// would revert on a dirty word, and this helper sits on the refund path.
+    /// `== 1`, not `!= 0`: this also serves the strict fee path, and `!= 0` would
+    /// widen "fee paid" to any non-zero word. The length check must stay inside the
+    /// boolean expression — _word is an unguarded mload relying on && short-circuit.
     function _tryTransfer(address token, address to, uint256 amount_) private returns (bool success) {
         bytes memory ret;
         (success, ret) = token.call(abi.encodeCall(IERC20.transfer, (to, amount_)));
-        success = success && (ret.length == 0 || abi.decode(ret, (bool)));
+        success = success && (ret.length == 0 || (ret.length >= 32 && _word(ret, 0) == 1));
     }
 
-    /// Best-effort full-balance sweep with a tolerant probe: garbage assets — including
-    /// committed addresses that are codeless on the wrong chain — must never block an
-    /// exit. Native is skipped; it rides the selfdestruct.
+    /// Best-effort full-balance sweep with a tolerant probe: garbage or malformed
+    /// committed assets — including addresses that are codeless on the wrong chain —
+    /// must never block an exit. Raw words, never abi.decode: the address- and
+    /// contract-typed decoders carry validators that revert on short data or dirty
+    /// address words, and a revert here is a permanent brick. Native is skipped; it
+    /// rides the selfdestruct.
     function _sweep(Token memory token, address to) private {
         TokenType tokenType = token.tokenType;
         if (tokenType == TokenType.Native) {
             return;
-        } else if (tokenType == TokenType.ERC20) {
-            (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
-            _sweep(address(erc20), to);
+        }
+        if (token.data.length < (tokenType == TokenType.ERC1155 ? 96 : 64)) {
+            return; // tolerant skip — a require here would re-create the brick
+        }
+        address asset = address(uint160(_word(token.data, 0)));
+        if (tokenType == TokenType.ERC20) {
+            _sweep(asset, to);
         } else if (tokenType == TokenType.ERC721) {
-            (IERC721 erc721, uint256 tokenId) = abi.decode(token.data, (IERC721, uint256));
-            (bool success,) = address(erc721).call(abi.encodeCall(IERC721.transferFrom, (address(this), to, tokenId)));
+            (bool success,) =
+                asset.call(abi.encodeCall(IERC721.transferFrom, (address(this), to, _word(token.data, 1))));
             (success); // best-effort
         } else {
-            (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            uint256 tokenId = _word(token.data, 1);
             (bool success, bytes memory ret) =
-                address(erc1155).staticcall(abi.encodeCall(IERC1155.balanceOf, (address(this), tokenId)));
+                asset.staticcall(abi.encodeCall(IERC1155.balanceOf, (address(this), tokenId)));
             if (!success || ret.length < 32) {
                 return;
             }
@@ -306,8 +336,7 @@ contract EphemeralIntentExecutor {
             if (held == 0) {
                 return;
             }
-            (success,) = address(erc1155)
-                .call(abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, tokenId, held, "")));
+            (success,) = asset.call(abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, tokenId, held, "")));
         }
     }
 

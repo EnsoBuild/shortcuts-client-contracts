@@ -24,6 +24,12 @@ EphemeralIntentExecutor_Constrained
 ├── when the delta clears the minimum
 │   ├── it should call the router with the keeper route
 │   └── it should measure the delta at the recipient
+├── when the recipient balance decreases
+│   └── it should revert with Insufficient
+├── when tokensOut is empty
+│   └── it should revert with Insufficient
+├── when a minimum is zero
+│   └── it should revert with Insufficient
 ├── when tokenOut is native
 │   └── it should measure the native delta at the recipient
 ├── when the delta is below the minimum
@@ -39,6 +45,15 @@ EphemeralIntentExecutor_Constrained
     └── it should execute for any keeper
 
 EphemeralIntentExecutor_Refund
+├── when the trigger data is malformed
+│   ├── it should skip the malformed trigger and complete the lifecycle
+│   └── it should recover the skipped asset with a second transaction
+├── when the trigger address word is dirty
+│   └── it should truncate the dirty word and fully refund
+├── when a trigger token returns a dirty bool
+│   └── it should tolerate the non-canonical return and still deliver the refund
+├── when the refund recipient is zero
+│   └── it should substitute the keeper as beneficiary
 ├── when the deadline has passed
 │   ├── it should sweep trigger tokens to the refund recipient
 │   ├── it should sweep keeper-listed tokens to the refund recipient

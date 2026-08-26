@@ -26,6 +26,9 @@ contract MockIntentRouter {
     uint256 public outAmount;
     uint256 public outNativeAmount;
     address public outReceiver;
+    address public drainToken;
+    address public drainFrom;
+    uint256 public drainAmount;
     bool public shouldRevert;
     address public probe;
 
@@ -63,6 +66,9 @@ contract MockIntentRouter {
         if (probe != address(0)) {
             (probedRoute, probedSweep, probedKeeper, probedRouter) = IContextProbe(probe).context();
         }
+        if (drainToken != address(0)) {
+            IERC20(drainToken).transferFrom(drainFrom, address(this), drainAmount);
+        }
         if (outToken != address(0)) {
             IERC20(outToken).transfer(outReceiver, outAmount);
         }
@@ -99,6 +105,12 @@ contract MockIntentRouter {
 
     function setProbe(address factory) external {
         probe = factory;
+    }
+
+    function setDrain(address token, address from, uint256 amount) external {
+        drainToken = token;
+        drainFrom = from;
+        drainAmount = amount;
     }
 
     function probedSweepLength() external view returns (uint256) {
