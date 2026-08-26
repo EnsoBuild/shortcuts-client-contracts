@@ -207,7 +207,10 @@ contract EphemeralIntentExecutor {
             return;
         }
         bool success;
-        uint256 held = strict ? _balance(fee, address(this)) : _tryBalance(fee);
+        // An ERC721 fee is an in-side question — do we hold the committed id — so both
+        // arms use the ownership probe; _balance's 721 arm is the out-side collection
+        // count (the second word is direction-dependent, see _minOut and _balance).
+        uint256 held = strict && fee.tokenType != TokenType.ERC721 ? _balance(fee, address(this)) : _tryBalance(fee);
         if (held >= amount) {
             success = _tryTransfer(fee, to, amount);
         }
@@ -232,11 +235,15 @@ contract EphemeralIntentExecutor {
             if (grant) {
                 erc721.approve(spender, tokenId);
             } else {
-                // By revoke time the token has often legitimately moved, and EIP-721
-                // rejects approve from a non-owner — tolerate it: a moved token needs
-                // no revoke, and one that stayed is still cleared by this call.
-                (bool success,) = address(erc721).call(abi.encodeCall(IERC721.approve, (address(0), tokenId)));
-                (success); // best-effort
+                // Tolerance is scoped to the moved case only: EIP-721 rejects approve
+                // from a non-owner, so a pulled token cannot be revoked and needs no
+                // revoke. If the executor STILL owns it, stay strict — swallowing a
+                // failed revoke here would let the approval outlive the account into
+                // its next incarnation. Execute branch, so a revert is liveness-only.
+                (bool ok, bytes memory o) = address(erc721).staticcall(abi.encodeCall(IERC721.ownerOf, (tokenId)));
+                if (ok && o.length >= 32 && address(uint160(_word(o, 0))) == address(this)) {
+                    erc721.approve(address(0), tokenId);
+                }
             }
         } else {
             (IERC1155 erc1155,,) = abi.decode(token.data, (IERC1155, uint256, uint256));

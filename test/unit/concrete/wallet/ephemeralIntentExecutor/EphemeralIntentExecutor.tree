@@ -20,6 +20,14 @@ EphemeralIntentExecutor_Route
 │   └── it should revert with Underfunded
 ├── when the route consumes the NFT
 │   └── it should tolerate the post-move approval revoke and complete
+├── when a revoke-rejecting NFT stays
+│   └── it should stay strict rather than let the approval outlive the account
+├── when a revoke-rejecting NFT is consumed
+│   └── it should tolerate the impossible revoke once the token has moved
+├── when the fee is an NFT
+│   └── it should pay the committed id to the keeper
+├── when the committed fee NFT is absent
+│   └── it should fail the holding gate on the committed id, not the collection count
 ├── when the fee is native
 │   └── it should pay the keeper in native
 ├── when the router call reverts

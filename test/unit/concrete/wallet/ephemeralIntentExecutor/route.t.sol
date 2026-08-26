@@ -5,6 +5,7 @@ import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol"
 import { EphemeralIntentExecutor, Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockERC721 } from "../../../../mocks/MockERC721.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
+import { MockNoRevokeERC721 } from "../../../../mocks/MockNoRevokeERC721.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
 
 contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
@@ -121,6 +122,58 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         _execute(intent, "");
         assertEq(nft.ownerOf(7), address(s_router));
         assertEq(predicted.code.length, 0);
+    }
+
+    function test_WhenARevokeRejectingNFTStays() external {
+        MockNoRevokeERC721 nft = new MockNoRevokeERC721("NoRevoke", "NRV");
+        Intent memory intent = _intent();
+        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(3)) });
+        address predicted = s_factory.getAddress(intent);
+        nft.mint(predicted, 3); // router does not pull — the token stays held
+
+        // it should stay strict: a swallowed revoke would leave a live approval keyed
+        // to the reusable address, outliving the account into its next incarnation
+        vm.expectRevert(bytes("zero approve"));
+        _execute(intent, "");
+    }
+
+    function test_WhenARevokeRejectingNFTIsConsumed() external {
+        MockNoRevokeERC721 nft = new MockNoRevokeERC721("NoRevoke", "NRV");
+        Intent memory intent = _intent();
+        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(3)) });
+        address predicted = s_factory.getAddress(intent);
+        nft.mint(predicted, 3);
+        s_router.setPullNFT(address(nft), 3);
+
+        // it should tolerate the impossible revoke once the token has moved
+        _execute(intent, "");
+        assertEq(nft.ownerOf(3), address(s_router));
+        assertEq(predicted.code.length, 0);
+    }
+
+    function test_WhenTheFeeIsAnNFT() external {
+        MockERC721 nft = new MockERC721("NFT", "NFT");
+        Intent memory intent = _intent();
+        intent.keeperFee = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
+        address predicted = _fund(intent, 100 ether);
+        nft.mint(predicted, 7);
+
+        _execute(intent, "");
+
+        // it should pay the committed id to the keeper
+        assertEq(nft.ownerOf(7), s_keeper);
+    }
+
+    function test_WhenTheCommittedFeeNFTIsAbsent() external {
+        MockERC721 nft = new MockERC721("NFT", "NFT");
+        Intent memory intent = _intent();
+        intent.keeperFee = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
+        address predicted = _fund(intent, 100 ether);
+        nft.mint(predicted, 99); // collection count is 1, but the committed id is absent
+
+        // it should fail the holding gate on the committed id, not the collection count
+        vm.expectRevert(EphemeralIntentExecutor.SendFailed.selector);
+        _execute(intent, "");
     }
 
     function test_WhenTheFeeIsNative() external {

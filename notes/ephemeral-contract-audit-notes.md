@@ -206,6 +206,23 @@ intent address — they landed as one batch while nothing is deployed or funded.
    as private functions. `EnsoRouter` itself is untouched and out of scope
    (separately audited).
 
+Post-`b41ec65`, from a subsequent adjudication round (both liveness-zone, both
+ERC721):
+
+9. **Scoped 721 revoke tolerance (LOW)** — the blanket tolerant revoke could
+   swallow a failure while the executor STILL owned the token (a collection
+   rejecting `approve(address(0), id)`), letting the approval outlive the
+   EIP-6780 deletion into the address's next incarnation — contradicting the
+   stated no-approval-outlives-the-call invariant. The revoke now probes
+   `ownerOf` first: strict typed `approve(address(0), id)` while held (a revert
+   is execute-branch liveness), tolerance only for the moved case where EIP-721
+   makes a revoke impossible and unnecessary.
+10. **In-side fee gate for 721 (INFO)** — `_payFee`'s strict arm previously read
+    the out-side collection count for an ERC721 fee; both arms now use the
+    ownership probe for the committed id. Outcome-neutral (the mismatch
+    previously surfaced as `SendFailed` inside the transfer), fixed for semantic
+    consistency with the direction-dependent second-word convention.
+
 ---
 
 ## 5. Known properties that change finding severity
