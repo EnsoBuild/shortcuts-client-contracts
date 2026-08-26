@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Token, TokenType } from "../../../../../src/libraries/TokenLib.sol";
+import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockDirtyBoolERC20 } from "../../../../mocks/MockDirtyBoolERC20.sol";
 import { MockERC1155 } from "../../../../mocks/MockERC1155.sol";

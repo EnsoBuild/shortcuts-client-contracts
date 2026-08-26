@@ -1,8 +1,6 @@
 EphemeralFactory_GetAddress
 ├── when given a typed intent
 │   └── it should predict the executor CREATE2 address
-├── when given the canonical blob
-│   └── it should match the typed prediction
 └── when any parameter changes
     └── it should derive a different address
 

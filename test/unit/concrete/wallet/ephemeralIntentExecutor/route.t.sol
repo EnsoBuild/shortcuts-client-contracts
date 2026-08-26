@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { EphemeralIntentExecutor, Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { MockERC721 } from "../../../../mocks/MockERC721.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
 
@@ -73,6 +75,52 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         // it should carry the live balance in the native entry (older-router compat)
         (, bytes memory nativeData) = s_router.lastTokensIn(0);
         assertEq(abi.decode(nativeData, (uint256)), 1 ether);
+    }
+
+    function test_WhenTheTriggerIsAnNFT() external {
+        MockERC721 nft = new MockERC721("NFT", "NFT");
+        Intent memory intent = _intent();
+        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(5)) });
+        address predicted = s_factory.getAddress(intent);
+        nft.mint(predicted, 5); // tokenId >= 2 used to revert Underfunded
+
+        _execute(intent, "");
+
+        // it should pass the trigger check with the tokenId treated as ownership
+        assertEq(s_router.lastTokensInLength(), 1);
+        (, bytes memory nftData) = s_router.lastTokensIn(0);
+        assertEq(nftData, abi.encode(address(nft), uint256(5))); // tokenId passes through
+
+        // it should clear the approval in the epilogue when the NFT stayed
+        assertEq(nft.getApproved(5), address(0));
+        assertEq(nft.ownerOf(5), predicted);
+    }
+
+    function test_WhenTheCommittedNFTIsAbsent() external {
+        MockERC721 nft = new MockERC721("NFT", "NFT");
+        Intent memory intent = _intent();
+        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(5)) });
+        address predicted = s_factory.getAddress(intent);
+        nft.mint(predicted, 9); // a different id from the same collection
+
+        // it should revert with Underfunded — collection count must not satisfy the
+        // trigger; the committed tokenId itself has to be present
+        vm.expectRevert(EphemeralIntentExecutor.Underfunded.selector);
+        _execute(intent, "");
+    }
+
+    function test_WhenTheRouteConsumesTheNFT() external {
+        MockERC721 nft = new MockERC721("NFT", "NFT");
+        Intent memory intent = _intent();
+        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
+        address predicted = s_factory.getAddress(intent);
+        nft.mint(predicted, 7);
+        s_router.setPullNFT(address(nft), 7);
+
+        // it should tolerate the post-move approval revoke and complete
+        _execute(intent, "");
+        assertEq(nft.ownerOf(7), address(s_router));
+        assertEq(predicted.code.length, 0);
     }
 
     function test_WhenTheFeeIsNative() external {

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Token } from "../../src/libraries/TokenLib.sol";
+import { Token } from "../../src/interfaces/IEnsoRouter.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
 
 interface IContextProbe {
     function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address router);
@@ -29,6 +30,10 @@ contract MockIntentRouter {
     address public drainToken;
     address public drainFrom;
     uint256 public drainAmount;
+    address public pullNFT;
+    uint256 public pullNFTId;
+    address public outNFT;
+    uint256 public outNFTId;
     bool public shouldRevert;
     address public probe;
 
@@ -68,6 +73,12 @@ contract MockIntentRouter {
         }
         if (drainToken != address(0)) {
             IERC20(drainToken).transferFrom(drainFrom, address(this), drainAmount);
+        }
+        if (pullNFT != address(0)) {
+            IERC721(pullNFT).transferFrom(msg.sender, address(this), pullNFTId);
+        }
+        if (outNFT != address(0)) {
+            IERC721(outNFT).transferFrom(address(this), outReceiver, outNFTId);
         }
         if (outToken != address(0)) {
             IERC20(outToken).transfer(outReceiver, outAmount);
@@ -111,6 +122,17 @@ contract MockIntentRouter {
         drainToken = token;
         drainFrom = from;
         drainAmount = amount;
+    }
+
+    function setPullNFT(address nft, uint256 tokenId) external {
+        pullNFT = nft;
+        pullNFTId = tokenId;
+    }
+
+    function setOutNFT(address nft, uint256 tokenId, address to) external {
+        outNFT = nft;
+        outNFTId = tokenId;
+        outReceiver = to;
     }
 
     function probedSweepLength() external view returns (uint256) {

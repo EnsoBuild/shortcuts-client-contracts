@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
-import { Token, TokenType } from "../../../../../src/libraries/TokenLib.sol";
+import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Constrained, Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { EphemeralFactory_Unit_Concrete_Test } from "./EphemeralFactory.t.sol";
 

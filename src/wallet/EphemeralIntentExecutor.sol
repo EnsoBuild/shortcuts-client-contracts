@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
-import { Token, TokenLib, TokenType } from "../libraries/TokenLib.sol";
+import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 enum Mode {
@@ -35,15 +35,9 @@ interface IEphemeralFactory {
     function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address router);
 }
 
-// EnsoRouter's entry point, typed over the canonical Token (ABI-identical to the
-// declaration in IEnsoRouter.sol; unified when the router migrates to TokenLib).
-interface IEnsoRouter {
-    function routeSingle(Token calldata tokenIn, bytes calldata data) external payable returns (bytes memory);
-
-    function routeMulti(Token[] calldata tokensIn, bytes calldata data) external payable returns (bytes memory);
-}
-
 contract EphemeralIntentExecutor {
+    using SafeERC20 for IERC20;
+
     error TooEarly();
     error Underfunded();
     error Exclusive();
@@ -113,19 +107,19 @@ contract EphemeralIntentExecutor {
         // the recipient, route, assert every delta clears its committed minimum.
         uint256[] memory before = new uint256[](c.tokensOut.length);
         for (uint256 i; i < c.tokensOut.length; ++i) {
-            if (_amount(c.tokensOut[i]) == 0) {
+            if (_minOut(c.tokensOut[i]) == 0) {
                 revert Insufficient();
             }
-            before[i] = TokenLib.balance(c.tokensOut[i], c.recipient);
+            before[i] = _balance(c.tokensOut[i], c.recipient);
         }
 
         _route(router, route, intent.triggers);
 
         for (uint256 i; i < c.tokensOut.length; ++i) {
-            uint256 after_ = TokenLib.balance(c.tokensOut[i], c.recipient);
+            uint256 after_ = _balance(c.tokensOut[i], c.recipient);
             // Explicit ordering: checked subtraction would Panic on a recipient balance
             // decrease instead of reverting Insufficient.
-            if (after_ < before[i] || after_ - before[i] < _amount(c.tokensOut[i])) {
+            if (after_ < before[i] || after_ - before[i] < _minOut(c.tokensOut[i])) {
                 revert Insufficient();
             }
         }
@@ -140,7 +134,7 @@ contract EphemeralIntentExecutor {
     /// incarnation, so none may outlive it.
     function _route(address router, bytes memory data, Token[] memory triggers) private {
         _approveTriggers(triggers, router, true);
-        uint256 value = TokenLib.value(triggers);
+        uint256 value = _value(triggers);
         if (triggers.length == 1) {
             IEnsoRouter(router).routeSingle{ value: value }(_liveToken(triggers[0]), data);
         } else {
@@ -151,6 +145,19 @@ contract EphemeralIntentExecutor {
             IEnsoRouter(router).routeMulti{ value: value }(tokensIn, data);
         }
         _approveTriggers(triggers, router, false);
+    }
+
+    function _refund(Intent memory intent, Token[] memory sweep, address keeper, address to) private {
+        // Fee first, best-effort, so permissionless refunds are self-incentivizing; then
+        // committed and keeper-listed tokens to the beneficiary. Native rides the
+        // selfdestruct.
+        _payFee(intent.keeperFee, keeper, false);
+        for (uint256 i; i < intent.triggers.length; ++i) {
+            _sweep(intent.triggers[i], to);
+        }
+        for (uint256 i; i < sweep.length; ++i) {
+            _sweep(sweep[i], to);
+        }
     }
 
     /// A trigger entry with its amount replaced by the current balance. ERC721 carries
@@ -175,28 +182,19 @@ contract EphemeralIntentExecutor {
 
     function _requireTriggers(Token[] memory triggers) private view {
         for (uint256 i; i < triggers.length; ++i) {
-            if (TokenLib.balance(triggers[i], address(this)) < _amount(triggers[i])) {
+            // Balance side via the tolerant probe: for ERC721 it checks presence of the
+            // committed tokenId (in-side semantics — the router pulls, and the sweep
+            // returns, that exact token), and tolerance is safe here because the amount
+            // side stays strict, so a malformed trigger still reverts on this branch.
+            if (_tryBalance(triggers[i]) < _amount(triggers[i])) {
                 revert Underfunded();
             }
         }
     }
 
-    function _refund(Intent memory intent, Token[] memory sweep, address keeper, address to) private {
-        // Fee first, best-effort, so permissionless refunds are self-incentivizing; then
-        // committed and keeper-listed tokens to the beneficiary. Native rides the
-        // selfdestruct.
-        _payFee(intent.keeperFee, keeper, false);
-        for (uint256 i; i < intent.triggers.length; ++i) {
-            _sweep(intent.triggers[i], to);
-        }
-        for (uint256 i; i < sweep.length; ++i) {
-            _sweep(sweep[i], to);
-        }
-    }
-
     function _approveTriggers(Token[] memory triggers, address spender, bool grant) private {
         for (uint256 i; i < triggers.length; ++i) {
-            TokenLib.approve(triggers[i], spender, grant);
+            _approve(triggers[i], spender, grant);
         }
     }
 
@@ -209,13 +207,63 @@ contract EphemeralIntentExecutor {
             return;
         }
         bool success;
-        uint256 held = strict ? TokenLib.balance(fee, address(this)) : _tryBalance(fee);
+        uint256 held = strict ? _balance(fee, address(this)) : _tryBalance(fee);
         if (held >= amount) {
             success = _tryTransfer(fee, to, amount);
         }
         if (strict && !success) {
             revert SendFailed();
         }
+    }
+
+    /// Grant or revoke the router's pull rights over one delivered token. forceApprove:
+    /// a reused address can hold a stale allowance from a previous incarnation, which
+    /// breaks approve-from-nonzero tokens like USDT. Native is skipped; it travels as
+    /// call value.
+    function _approve(Token memory token, address spender, bool grant) private {
+        TokenType tokenType = token.tokenType;
+        if (tokenType == TokenType.Native) {
+            return;
+        } else if (tokenType == TokenType.ERC20) {
+            (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
+            erc20.forceApprove(spender, grant ? erc20.balanceOf(address(this)) : 0);
+        } else if (tokenType == TokenType.ERC721) {
+            (IERC721 erc721, uint256 tokenId) = abi.decode(token.data, (IERC721, uint256));
+            if (grant) {
+                erc721.approve(spender, tokenId);
+            } else {
+                // By revoke time the token has often legitimately moved, and EIP-721
+                // rejects approve from a non-owner — tolerate it: a moved token needs
+                // no revoke, and one that stayed is still cleared by this call.
+                (bool success,) = address(erc721).call(abi.encodeCall(IERC721.approve, (address(0), tokenId)));
+                (success); // best-effort
+            }
+        } else {
+            (IERC1155 erc1155,,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            erc1155.setApprovalForAll(spender, grant);
+        }
+    }
+
+    /// Call value for the router: the full native balance when a native entry exists,
+    /// zero otherwise — never chosen by the keeper.
+    function _value(Token[] memory tokens) private view returns (uint256) {
+        for (uint256 i; i < tokens.length; ++i) {
+            if (tokens[i].tokenType == TokenType.Native) {
+                return address(this).balance;
+            }
+        }
+        return 0;
+    }
+
+    /// The committed outcome minimum. Differs from _amount only for ERC721, where the
+    /// out-side second word is a minimum COUNT — the id of a freshly minted position
+    /// cannot be known at commit time — exactly as EnsoRouter's safeRoute reads it.
+    function _minOut(Token memory token) private pure returns (uint256) {
+        if (token.tokenType == TokenType.ERC721) {
+            (, uint256 count) = abi.decode(token.data, (IERC721, uint256));
+            return count;
+        }
+        return _amount(token);
     }
 
     /// The committed amount: a trigger minimum, fee amount, or constraint minimum.
@@ -227,8 +275,9 @@ contract EphemeralIntentExecutor {
             (, uint256 amount_) = abi.decode(token.data, (IERC20, uint256));
             return amount_;
         } else if (tokenType == TokenType.ERC721) {
-            (, uint256 amount_) = abi.decode(token.data, (IERC721, uint256));
-            return amount_;
+            // The second word is a tokenId, not a quantity — reading it as an amount
+            // makes any tokenId >= 2 fail the trigger check. Owning an NFT means one.
+            return 1;
         } else {
             (,, uint256 amount_) = abi.decode(token.data, (IERC1155, uint256, uint256));
             return amount_;
@@ -242,8 +291,33 @@ contract EphemeralIntentExecutor {
             return token.data.length < 32 ? 0 : _word(token.data, 0);
         } else if (tokenType == TokenType.ERC1155) {
             return token.data.length < 96 ? 0 : _word(token.data, 2);
+        } else if (tokenType == TokenType.ERC721) {
+            return token.data.length < 64 ? 0 : 1; // the second word is a tokenId, not a quantity
         } else {
             return token.data.length < 64 ? 0 : _word(token.data, 1);
+        }
+    }
+
+    /// Strict, typed balance read — reverts on a non-conforming asset. For committed
+    /// tokens on the execute path, where garbage should fail loudly.
+    function _balance(Token memory token, address account) private view returns (uint256) {
+        TokenType tokenType = token.tokenType;
+        if (tokenType == TokenType.Native) {
+            return account.balance;
+        } else if (tokenType == TokenType.ERC20) {
+            (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
+            return erc20.balanceOf(account);
+        } else if (tokenType == TokenType.ERC721) {
+            // Collection-count read, exactly as EnsoRouter's out-side check: the ERC721
+            // second word is direction-dependent — a tokenId when pulling a known token
+            // in, a minimum COUNT for outcomes whose id cannot be known at commit time
+            // (a freshly minted LP position). Specific-tokenId presence for triggers
+            // and fees is the in-side concern, handled by _tryBalance's ownerOf probe.
+            (IERC721 erc721,) = abi.decode(token.data, (IERC721, uint256));
+            return erc721.balanceOf(account);
+        } else {
+            (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            return erc1155.balanceOf(account, tokenId);
         }
     }
 
@@ -258,6 +332,14 @@ contract EphemeralIntentExecutor {
             return 0;
         }
         address asset = address(uint160(_word(token.data, 0)));
+        if (tokenType == TokenType.ERC721) {
+            // Presence of the committed tokenId: 1 if this contract owns it, else 0.
+            (bool ok, bytes memory owner) = asset.staticcall(abi.encodeCall(IERC721.ownerOf, (_word(token.data, 1))));
+            if (!ok || owner.length < 32) {
+                return 0;
+            }
+            return address(uint160(_word(owner, 0))) == address(this) ? 1 : 0;
+        }
         bytes memory probe = tokenType == TokenType.ERC1155
             ? abi.encodeCall(IERC1155.balanceOf, (address(this), _word(token.data, 1)))
             : abi.encodeCall(IERC20.balanceOf, (address(this)));

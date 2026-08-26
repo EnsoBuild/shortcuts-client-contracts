@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.24;
 
-import { Token } from "../libraries/TokenLib.sol";
+import { Token } from "../interfaces/IEnsoRouter.sol";
 import { EphemeralIntentExecutor, Intent } from "../wallet/EphemeralIntentExecutor.sol";
 
 contract EphemeralFactory {

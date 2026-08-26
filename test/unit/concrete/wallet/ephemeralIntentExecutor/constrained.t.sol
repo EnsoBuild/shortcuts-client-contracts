@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Token } from "../../../../../src/libraries/TokenLib.sol";
+import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Constrained, EphemeralIntentExecutor, Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { MockERC721 } from "../../../../mocks/MockERC721.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
 
 contract EphemeralIntentExecutor_Constrained_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
@@ -70,6 +71,25 @@ contract EphemeralIntentExecutor_Constrained_Unit_Concrete_Test is EphemeralInte
         // it should revert with Insufficient
         vm.expectRevert(EphemeralIntentExecutor.Insufficient.selector);
         _execute(intent, hex"beefcafe");
+    }
+
+    function test_WhenTheOutcomeIsAMintedNFT() external {
+        // A freshly created position NFT: the id is unknowable at commit time, so the
+        // 721 out-entry commits a minimum COUNT, not a tokenId.
+        MockERC721 nft = new MockERC721("Position", "POS");
+        Intent memory intent = _constrainedIntent(1 ether, address(0), 0);
+        Constrained memory c = abi.decode(intent.payload, (Constrained));
+        c.tokensOut[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(1)) });
+        intent.payload = abi.encode(c);
+        _fund(intent, 100 ether);
+        nft.mint(address(s_router), 42); // id decided at execution time
+        s_router.setOutNFT(address(nft), 42, s_recipient);
+
+        _execute(intent, hex"beefcafe");
+
+        // it should satisfy the count minimum with whatever id arrived
+        assertEq(nft.ownerOf(42), s_recipient);
+        assertEq(nft.balanceOf(s_recipient), 1);
     }
 
     function test_WhenTheRecipientBalanceDecreases() external {

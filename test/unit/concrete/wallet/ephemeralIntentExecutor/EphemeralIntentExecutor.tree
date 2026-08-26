@@ -13,6 +13,13 @@ EphemeralIntentExecutor_Route
 ├── when a native trigger exists
 │   ├── it should forward the native balance as call value
 │   └── it should carry the live balance in the native entry
+├── when the trigger is an NFT
+│   ├── it should pass the trigger check with the tokenId treated as ownership
+│   └── it should clear the approval in the epilogue when the NFT stayed
+├── when the committed NFT is absent
+│   └── it should revert with Underfunded
+├── when the route consumes the NFT
+│   └── it should tolerate the post-move approval revoke and complete
 ├── when the fee is native
 │   └── it should pay the keeper in native
 ├── when the router call reverts
@@ -32,6 +39,8 @@ EphemeralIntentExecutor_Constrained
 │   └── it should revert with Insufficient
 ├── when tokenOut is native
 │   └── it should measure the native delta at the recipient
+├── when the outcome is a minted NFT
+│   └── it should satisfy the count minimum with whatever id arrived
 ├── when the delta is below the minimum
 │   └── it should revert with Insufficient
 ├── when any tokenOut misses its minimum
