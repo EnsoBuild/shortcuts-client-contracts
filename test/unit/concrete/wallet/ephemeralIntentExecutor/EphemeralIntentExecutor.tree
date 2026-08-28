@@ -8,7 +8,7 @@ EphemeralIntentExecutor_Route
 │   ├── it should pass the trigger tokens with live balances
 │   ├── it should approve trigger tokens to the router for the call
 │   ├── it should revoke approvals after the call
-│   ├── it should pay the keeper fee
+│   ├── it should pay the intent fee, not the refund fee
 │   └── it should sweep remaining native to the refund recipient
 ├── when a native trigger exists
 │   ├── it should forward the native balance as call value
@@ -24,16 +24,14 @@ EphemeralIntentExecutor_Route
 │   └── it should stay strict rather than let the approval outlive the account
 ├── when a revoke-rejecting NFT is consumed
 │   └── it should tolerate the impossible revoke once the token has moved
-├── when the fee is an NFT
-│   └── it should pay the committed id to the keeper
-├── when the committed fee NFT is absent
-│   └── it should fail the holding gate on the committed id, not the collection count
 ├── when the fee is native
 │   └── it should pay the keeper in native
 ├── when the router call reverts
 │   └── it should bubble the revert reason
-└── when the fee cannot be paid
-    └── it should revert with SendFailed
+├── when the fee cannot be paid
+│   └── it should revert with SendFailed
+└── when the fee token is codeless
+    └── it should revert on the strict balance read
 
 EphemeralIntentExecutor_Constrained
 ├── when the delta clears the minimum
@@ -74,14 +72,16 @@ EphemeralIntentExecutor_Refund
 ├── when the deadline has passed
 │   ├── it should sweep trigger tokens to the refund recipient
 │   ├── it should sweep keeper-listed tokens to the refund recipient
-│   ├── it should pay the keeper fee best-effort
+│   ├── it should pay the refund fee best-effort, not the intent fee
 │   └── it should not revert on a reverting token
 ├── when NFTs are keeper-listed
 │   └── it should sweep them to the refund recipient
-├── when the fee token is malformed
-│   └── it should skip the fee and still refund
 ├── when the fee token is codeless
 │   └── it should skip the fee and still refund
+├── when the refund fee exceeds the balance
+│   └── it should skip the fee and still refund
+├── when the refund fee is native
+│   └── it should pay the keeper before the selfdestruct sweep
 └── when executed on the wrong chain
     ├── it should sweep immediately without waiting for the gates
     └── it should sweep native via selfdestruct

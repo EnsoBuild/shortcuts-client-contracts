@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Constrained, Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Constrained, Intent, KeeperFee, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { Test } from "forge-std/Test.sol";
@@ -51,6 +51,10 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
         return Token({ tokenType: TokenType.Native, data: abi.encode(amount) });
     }
 
+    function _fee(address token, uint256 intentFee, uint256 refundFee) internal pure returns (KeeperFee memory) {
+        return KeeperFee({ token: token, intentFee: intentFee, refundFee: refundFee });
+    }
+
     function _intent() internal view returns (Intent memory intent) {
         Token[] memory triggers = new Token[](1);
         triggers[0] = _erc20(address(s_tokenIn), 100 ether);
@@ -62,7 +66,7 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
             deadline: uint64(block.timestamp + 1 days),
             refundRecipient: s_user,
             triggers: triggers,
-            keeperFee: _native(0),
+            keeperFee: _fee(address(0), 0, 0),
             mode: Mode.ROUTE,
             payload: hex"deadbeef"
         });

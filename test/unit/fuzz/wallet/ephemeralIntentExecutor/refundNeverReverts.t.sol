@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent, KeeperFee } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import {
     EphemeralIntentExecutor_Unit_Concrete_Test
 } from "../../../concrete/wallet/ephemeralIntentExecutor/EphemeralIntentExecutor.t.sol";
@@ -33,13 +33,14 @@ contract EphemeralIntentExecutor_RefundNeverReverts_Unit_Fuzz_Test is EphemeralI
     }
 
     /// forge-config: default.fuzz.runs = 1000
-    function testFuzz_RefundNeverReverts_keeperFee(bytes memory data, uint8 tokenTypeSeed) external {
+    function testFuzz_RefundNeverReverts_keeperFee(address feeToken, uint256 refundFee) external {
         Intent memory intent = _intent();
-        intent.keeperFee = Token({ tokenType: TokenType(tokenTypeSeed % 4), data: data });
+        intent.keeperFee = KeeperFee({ token: feeToken, intentFee: 0, refundFee: refundFee });
         address predicted = _fund(intent, 100 ether);
         vm.warp(intent.deadline + 1);
 
-        // it must not revert, whatever the committed fee bytes are
+        // it must not revert, whatever the fee token address — codeless, an EOA, a
+        // precompile, a contract without balanceOf — or the committed amount
         vm.prank(s_keeper);
         s_factory.executeIntent(intent, "", new Token[](0));
 

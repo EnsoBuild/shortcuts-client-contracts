@@ -30,7 +30,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
 
     function test_WhenThePayloadRuns() external {
         Intent memory intent = _intent();
-        intent.keeperFee = _erc20(address(s_tokenIn), 5 ether);
+        intent.keeperFee = _fee(address(s_tokenIn), 5 ether, 1 ether);
         address predicted = _fund(intent, 100 ether);
         vm.deal(predicted, 1 ether);
         s_router.setPull(address(s_tokenIn), 90 ether);
@@ -54,7 +54,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         // it should revoke approvals after the call
         assertEq(s_tokenIn.allowance(predicted, address(s_router)), 0);
 
-        // it should pay the keeper fee
+        // it should pay the intent fee, not the refund fee
         assertEq(s_tokenIn.balanceOf(s_keeper), 5 ether);
 
         // it should sweep remaining native to the refund recipient
@@ -151,34 +151,9 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         assertEq(predicted.code.length, 0);
     }
 
-    function test_WhenTheFeeIsAnNFT() external {
-        MockERC721 nft = new MockERC721("NFT", "NFT");
-        Intent memory intent = _intent();
-        intent.keeperFee = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
-        address predicted = _fund(intent, 100 ether);
-        nft.mint(predicted, 7);
-
-        _execute(intent, "");
-
-        // it should pay the committed id to the keeper
-        assertEq(nft.ownerOf(7), s_keeper);
-    }
-
-    function test_WhenTheCommittedFeeNFTIsAbsent() external {
-        MockERC721 nft = new MockERC721("NFT", "NFT");
-        Intent memory intent = _intent();
-        intent.keeperFee = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
-        address predicted = _fund(intent, 100 ether);
-        nft.mint(predicted, 99); // collection count is 1, but the committed id is absent
-
-        // it should fail the holding gate on the committed id, not the collection count
-        vm.expectRevert(EphemeralIntentExecutor.SendFailed.selector);
-        _execute(intent, "");
-    }
-
     function test_WhenTheFeeIsNative() external {
         Intent memory intent = _intent();
-        intent.keeperFee = _native(1 ether);
+        intent.keeperFee = _fee(address(0), 1 ether, 0);
         address predicted = _fund(intent, 100 ether);
         vm.deal(predicted, 3 ether);
         uint256 keeperBefore = s_keeper.balance;
@@ -202,11 +177,22 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
 
     function test_WhenTheFeeCannotBePaid() external {
         Intent memory intent = _intent();
-        intent.keeperFee = _erc20(address(s_tokenIn), 1000 ether); // more than delivered
+        intent.keeperFee = _fee(address(s_tokenIn), 1000 ether, 0); // more than delivered
         _fund(intent, 100 ether);
 
         // it should revert with SendFailed
         vm.expectRevert(EphemeralIntentExecutor.SendFailed.selector);
+        _execute(intent, "");
+    }
+
+    function test_WhenTheFeeTokenIsCodeless() external {
+        Intent memory intent = _intent();
+        intent.keeperFee = _fee(address(0xDEAD), 5 ether, 0);
+        _fund(intent, 100 ether);
+
+        // it should revert on the strict balance read — the execute branch reads the
+        // fee token typed, so a codeless address fails loudly instead of skipping
+        vm.expectRevert();
         _execute(intent, "");
     }
 }

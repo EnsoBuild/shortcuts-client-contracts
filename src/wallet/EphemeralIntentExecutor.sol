@@ -19,7 +19,7 @@ struct Intent {
     uint64 deadline;
     address refundRecipient;
     Token[] triggers; // every entry must pass; amounts are the delivery minimums
-    Token keeperFee; // flat, committed; paid to the executing caller
+    KeeperFee keeperFee; // flat, committed; paid to the executing caller
     Mode mode;
     bytes payload; // ROUTE: shortcut data for the router; CONSTRAINED: abi.encode(Constrained)
 }
@@ -29,6 +29,12 @@ struct Constrained {
     Token[] tokensOut; // minimums measured at the recipient; v2 may replace with a dutch-auction decay
     address exclusiveKeeper;
     uint64 exclusiveUntil;
+}
+
+struct KeeperFee {
+    address token; // address(0) for native token
+    uint256 intentFee;
+    uint256 refundFee;
 }
 
 interface IEphemeralFactory {
@@ -198,23 +204,28 @@ contract EphemeralIntentExecutor {
         }
     }
 
-    function _payFee(Token memory fee, address to, bool strict) private {
+    function _payFee(KeeperFee memory fee, address to, bool execute) private {
         // Strict (execute branch): typed reads, fail loudly on a bad committed fee.
         // Best-effort (refund branches): fully tolerant — a malformed or codeless fee
         // token must never block the exit, so zero means "skip the fee".
-        uint256 amount = strict ? _amount(fee) : _tryAmount(fee);
+        uint256 amount = execute ? fee.intentFee : fee.refundFee;
         if (amount == 0 || to == address(0)) {
             return;
         }
         bool success;
-        // An ERC721 fee is an in-side question — do we hold the committed id — so both
-        // arms use the ownership probe; _balance's 721 arm is the out-side collection
-        // count (the second word is direction-dependent, see _minOut and _balance).
-        uint256 held = strict && fee.tokenType != TokenType.ERC721 ? _balance(fee, address(this)) : _tryBalance(fee);
+        // Blocking read on the execute branch: a codeless or non-conforming fee token
+        // reverts here, liveness-only, bounded by the deadline. Refund branches use the
+        // tolerant probe. Native (address(0)) is a raw balance read and cannot fail.
+        uint256 held =
+            execute && fee.token != address(0) ? IERC20(fee.token).balanceOf(address(this)) : _tryBalance(fee.token);
         if (held >= amount) {
-            success = _tryTransfer(fee, to, amount);
+            if (fee.token == address(0)) {
+                (success,) = to.call{ value: amount }("");
+            } else {
+                success = _tryTransfer(fee.token, to, amount);
+            }
         }
-        if (strict && !success) {
+        if (execute && !success) {
             revert SendFailed();
         }
     }
@@ -273,7 +284,7 @@ contract EphemeralIntentExecutor {
         return _amount(token);
     }
 
-    /// The committed amount: a trigger minimum, fee amount, or constraint minimum.
+    /// The committed amount: a trigger minimum or constraint minimum.
     function _amount(Token memory token) private pure returns (uint256) {
         TokenType tokenType = token.tokenType;
         if (tokenType == TokenType.Native) {
@@ -288,20 +299,6 @@ contract EphemeralIntentExecutor {
         } else {
             (,, uint256 amount_) = abi.decode(token.data, (IERC1155, uint256, uint256));
             return amount_;
-        }
-    }
-
-    /// Tolerant amount read: zero for undecodable committed data instead of a revert.
-    function _tryAmount(Token memory token) private pure returns (uint256) {
-        TokenType tokenType = token.tokenType;
-        if (tokenType == TokenType.Native) {
-            return token.data.length < 32 ? 0 : _word(token.data, 0);
-        } else if (tokenType == TokenType.ERC1155) {
-            return token.data.length < 96 ? 0 : _word(token.data, 2);
-        } else if (tokenType == TokenType.ERC721) {
-            return token.data.length < 64 ? 0 : 1; // the second word is a tokenId, not a quantity
-        } else {
-            return token.data.length < 64 ? 0 : _word(token.data, 1);
         }
     }
 
@@ -350,35 +347,26 @@ contract EphemeralIntentExecutor {
         bytes memory probe = tokenType == TokenType.ERC1155
             ? abi.encodeCall(IERC1155.balanceOf, (address(this), _word(token.data, 1)))
             : abi.encodeCall(IERC20.balanceOf, (address(this)));
-        (bool success, bytes memory ret) = asset.staticcall(probe);
+        return _tryRead(asset, probe);
+    }
+
+    /// Tolerant balance probe by address, native/ERC20 only: the raw native balance for
+    /// address(0), zero for codeless assets or reverting reads. Serves the refund-side
+    /// fee payment and the keeper-listed sweep, where a bad address must never revert.
+    function _tryBalance(address token) private view returns (uint256) {
+        if (token == address(0)) {
+            return address(this).balance;
+        }
+        return _tryRead(token, abi.encodeCall(IERC20.balanceOf, (address(this))));
+    }
+
+    /// Tolerant uint read: staticcall the probe, zero on failure or a short return.
+    function _tryRead(address target, bytes memory probe) private view returns (uint256) {
+        (bool success, bytes memory ret) = target.staticcall(probe);
         if (!success || ret.length < 32) {
             return 0;
         }
         return abi.decode(ret, (uint256));
-    }
-
-    /// Best-effort send; false on failure or malformed data, never reverts. Reads the
-    /// encoding by raw words rather than abi.decode, so dirty committed bytes cannot
-    /// revert a refund.
-    function _tryTransfer(Token memory token, address to, uint256 amount_) private returns (bool success) {
-        TokenType tokenType = token.tokenType;
-        if (tokenType == TokenType.Native) {
-            (success,) = to.call{ value: amount_ }("");
-            return success;
-        }
-        if (token.data.length < (tokenType == TokenType.ERC1155 ? 96 : 64)) {
-            return false;
-        }
-        address asset = address(uint160(_word(token.data, 0)));
-        if (tokenType == TokenType.ERC20) {
-            success = _tryTransfer(asset, to, amount_);
-        } else if (tokenType == TokenType.ERC721) {
-            (success,) = asset.call(abi.encodeCall(IERC721.transferFrom, (address(this), to, _word(token.data, 1))));
-        } else {
-            (success,) = asset.call(
-                abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, _word(token.data, 1), amount_, ""))
-            );
-        }
     }
 
     /// transfer() tolerant of missing return data; false for false-returning tokens
@@ -416,16 +404,13 @@ contract EphemeralIntentExecutor {
             (success); // best-effort
         } else {
             uint256 tokenId = _word(token.data, 1);
-            (bool success, bytes memory ret) =
-                asset.staticcall(abi.encodeCall(IERC1155.balanceOf, (address(this), tokenId)));
-            if (!success || ret.length < 32) {
-                return;
-            }
-            uint256 held = abi.decode(ret, (uint256));
+            uint256 held = _tryRead(asset, abi.encodeCall(IERC1155.balanceOf, (address(this), tokenId)));
             if (held == 0) {
                 return;
             }
-            (success,) = asset.call(abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, tokenId, held, "")));
+            (bool success,) =
+                asset.call(abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, tokenId, held, "")));
+            (success); // best-effort
         }
     }
 
@@ -434,11 +419,7 @@ contract EphemeralIntentExecutor {
         if (token == address(0)) {
             return;
         }
-        (bool success, bytes memory ret) = token.staticcall(abi.encodeCall(IERC20.balanceOf, (address(this))));
-        if (!success || ret.length < 32) {
-            return;
-        }
-        uint256 held = abi.decode(ret, (uint256));
+        uint256 held = _tryBalance(token);
         if (held == 0) {
             return;
         }

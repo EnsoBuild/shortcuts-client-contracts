@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent, KeeperFee, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { Test } from "forge-std/Test.sol";
@@ -45,7 +45,7 @@ abstract contract EphemeralFactory_Unit_Concrete_Test is Test {
             deadline: uint64(block.timestamp + 1 days),
             refundRecipient: s_user,
             triggers: triggers,
-            keeperFee: Token({ tokenType: TokenType.Native, data: abi.encode(uint256(0)) }),
+            keeperFee: KeeperFee({ token: address(0), intentFee: 0, refundFee: 0 }),
             mode: Mode.ROUTE,
             payload: hex"deadbeef"
         });

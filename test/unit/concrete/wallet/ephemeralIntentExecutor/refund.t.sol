@@ -13,7 +13,7 @@ import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExe
 contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
     function test_WhenTheDeadlineHasPassed() external {
         Intent memory intent = _intent();
-        intent.keeperFee = _erc20(address(s_tokenIn), 5 ether);
+        intent.keeperFee = _fee(address(s_tokenIn), 50 ether, 5 ether);
         address predicted = _fund(intent, 100 ether);
 
         MockERC20 extra = new MockERC20("Extra", "EXT");
@@ -28,7 +28,7 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         vm.prank(s_keeper);
         s_factory.executeIntent(intent, "", sweep);
 
-        // it should pay the keeper fee best-effort
+        // it should pay the refund fee best-effort, not the intent fee
         assertEq(s_tokenIn.balanceOf(s_keeper), 5 ether);
 
         // it should sweep trigger tokens to the refund recipient
@@ -131,10 +131,10 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         assertEq(address(0).balance, 0);
     }
 
-    function test_WhenTheFeeTokenIsMalformed() external {
+    function test_WhenTheFeeTokenIsCodeless() external {
         Intent memory intent = _intent();
         intent.chainId = 999; // wrong-chain recovery — fee is best-effort here
-        intent.keeperFee = Token({ tokenType: TokenType.ERC20, data: hex"deadbeef" }); // undecodable
+        intent.keeperFee = _fee(address(0xDEAD), 0, 5 ether); // no code at this address
         _fund(intent, 100 ether);
 
         _execute(intent, "");
@@ -143,16 +143,33 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
     }
 
-    function test_WhenTheFeeTokenIsCodeless() external {
+    function test_WhenTheRefundFeeExceedsTheBalance() external {
         Intent memory intent = _intent();
         intent.chainId = 999;
-        intent.keeperFee = _erc20(address(0xDEAD), 5 ether); // no code at this address
+        intent.keeperFee = _fee(address(s_tokenIn), 0, 1000 ether); // more than held
         _fund(intent, 100 ether);
 
         _execute(intent, "");
 
         // it should skip the fee and still refund
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+        assertEq(s_tokenIn.balanceOf(s_keeper), 0);
+    }
+
+    function test_WhenTheRefundFeeIsNative() external {
+        Intent memory intent = _intent();
+        intent.keeperFee = _fee(address(0), 0, 1 ether);
+        address predicted = _fund(intent, 100 ether);
+        vm.deal(predicted, 3 ether);
+        vm.warp(intent.deadline + 1);
+        uint256 keeperBefore = s_keeper.balance;
+
+        vm.prank(s_keeper);
+        s_factory.executeIntent(intent, "", new Token[](0));
+
+        // it should pay the keeper before the selfdestruct sweep
+        assertEq(s_keeper.balance, keeperBefore + 1 ether);
+        assertEq(s_user.balance, 2 ether);
     }
 
     function test_WhenExecutedOnTheWrongChain() external {
