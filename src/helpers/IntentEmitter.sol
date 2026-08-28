@@ -1,30 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { Intent } from "../wallet/EphemeralIntentExecutor.sol";
-
 contract IntentEmitter {
-    function emitIntent(
-        bytes32 requestId,
-        address executor,
-        Intent calldata intent,
-        RequestMetadata calldata metadata,
-        bytes calldata signature
-    )
-        external
-    {
-        emit PublishIntent(requestId, executor, intent, metadata, signature);
+    function emitIntent(bytes32 requestId, address executor, bytes calldata ciphertext) external {
+        emit PublishIntent(requestId, executor, ciphertext);
     }
 
-    event PublishIntent(
-        bytes32 indexed requestId, address indexed executor, Intent intent, RequestMetadata metadata, bytes signature
-    );
-}
-
-struct RequestMetadata {
-    uint256 fee;
-    address feeReceiver;
-    uint8 bridgeProtocol;
-    bytes32 ignoreAggregators; // packed uint8 list
-    bytes32 ignoreStandards; // packed uint8 list
+    event PublishIntent(bytes32 indexed requestId, address indexed executor, bytes ciphertext);
 }
