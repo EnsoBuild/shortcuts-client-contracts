@@ -60,7 +60,11 @@ contract KeeperWallet is Ownable2Step {
         onlyExecutor
         returns (bytes memory response)
     {
-        response = _execute(target, value, data);
+        bool success;
+        (success, response) = target.call{ value: value }(data);
+        if (!success) {
+            _revertWith(response);
+        }
     }
 
     /// @notice Executes multiple calls, reverting all only if a required call fails
@@ -84,14 +88,6 @@ contract KeeperWallet is Ownable2Step {
     function setExecutor(address executor, bool allowed) external onlyOwner {
         executors[executor] = allowed;
         emit ExecutorSet(executor, allowed);
-    }
-
-    function _execute(address target, uint256 value, bytes memory data) private returns (bytes memory response) {
-        bool success;
-        (success, response) = target.call{ value: value }(data);
-        if (!success) {
-            _revertWith(response);
-        }
     }
 
     function _revertWith(bytes memory response) private pure {
