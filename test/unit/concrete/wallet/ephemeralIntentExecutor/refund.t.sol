@@ -156,6 +156,29 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         assertEq(s_tokenIn.balanceOf(s_keeper), 0);
     }
 
+    /// forge-config: default.isolate = true
+    function test_WhenTheFeeTokenIsNotATrigger() external {
+        MockERC20 feeToken = new MockERC20("Fee", "FEE");
+        Intent memory intent = _intent();
+        intent.keeperFee = _fee(address(feeToken), 0, 5 ether);
+        address predicted = _fund(intent, 100 ether);
+        feeToken.mint(predicted, 42 ether); // several fees' worth, as a reused address would hold
+        vm.warp(intent.deadline + 1);
+
+        vm.prank(s_keeper);
+        s_factory.executeIntent(intent, "", new Token[](0));
+
+        // it should sweep the fee token remainder to the refund recipient
+        assertEq(feeToken.balanceOf(s_keeper), 5 ether);
+        assertEq(feeToken.balanceOf(s_user), 37 ether);
+        assertEq(feeToken.balanceOf(predicted), 0);
+
+        // it should pay nothing on a repeated refund
+        vm.prank(s_keeper);
+        s_factory.executeIntent(intent, "", new Token[](0));
+        assertEq(feeToken.balanceOf(s_keeper), 5 ether);
+    }
+
     function test_WhenTheRefundFeeIsNative() external {
         Intent memory intent = _intent();
         intent.keeperFee = _fee(address(0), 0, 1 ether);

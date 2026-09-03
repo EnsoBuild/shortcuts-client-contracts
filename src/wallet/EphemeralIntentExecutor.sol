@@ -158,6 +158,11 @@ contract EphemeralIntentExecutor {
         // committed and keeper-listed tokens to the beneficiary. Native rides the
         // selfdestruct.
         _payFee(intent.keeperFee, keeper, false);
+        // The fee token itself, whether or not it is a trigger or keeper-listed: the
+        // address is reusable, so a fee-token balance left behind would fund another
+        // refund fee on the next execution, and any keeper could repeat that until the
+        // balance fell below one fee. Emptying it here caps every exit at one fee.
+        _sweep(intent.keeperFee.token, to);
         for (uint256 i; i < intent.triggers.length; ++i) {
             _sweep(intent.triggers[i], to);
         }

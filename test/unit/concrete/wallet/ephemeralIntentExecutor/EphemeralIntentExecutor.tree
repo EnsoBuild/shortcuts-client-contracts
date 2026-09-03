@@ -80,6 +80,9 @@ EphemeralIntentExecutor_Refund
 │   └── it should skip the fee and still refund
 ├── when the refund fee exceeds the balance
 │   └── it should skip the fee and still refund
+├── when the fee token is not a trigger
+│   ├── it should sweep the fee token remainder to the refund recipient
+│   └── it should pay nothing on a repeated refund
 ├── when the refund fee is native
 │   └── it should pay the keeper before the selfdestruct sweep
 └── when executed on the wrong chain
