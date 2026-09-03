@@ -8,9 +8,10 @@ import { Script } from "forge-std/Script.sol";
 contract KeeperWalletDeployer is Script {
     /// @notice Executors to authorize on the wallet right after deployment.
     function _executors() internal pure returns (address[] memory executors) {
-        executors = new address[](2);
+        executors = new address[](3);
         executors[0] = 0xBC33367eede0e3d0724A075393A0E33f09a5119b;
-        executors[1] = 0x030F2C58d064AD0ee5ff59C625b81e4Eb5c97944;
+        executors[1] = 0xDEB5Eb929C84FA1556879Db86D7FB7Ddd420a891;
+        executors[2] = 0xEC222703C2187f643ce3b2C78634bd6a8Cb4C401;
     }
 
     function run() public returns (KeeperWallet wallet, address owner) {
