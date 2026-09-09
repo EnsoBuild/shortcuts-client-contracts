@@ -65,6 +65,10 @@ if [[ $broadcast == "broadcast" ]]; then
                     params+=(--verifier-url "https://explorer.etherlink.com/api")
                 elif [[ $network_upper == "ROBINHOOD" ]]; then
                     params+=(--verifier-url "https://robinhoodchain.blockscout.com/api")
+                elif [[ $network_upper == "ARC" ]]; then
+                    # TODO(ENSO-469): verifier pending, the explorer is permissioned
+                    printf '%s\n' "Arc verification is not configured yet" >&2
+                    exit 1
                 else
                     params+=(--verifier-url "https://${network}.blockscout.com/api")
                 fi

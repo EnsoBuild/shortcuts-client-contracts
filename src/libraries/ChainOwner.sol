@@ -92,6 +92,9 @@ library ChainOwner {
         if (chainId == ChainId.ROBINHOOD) {
             return TODO_OWNER; // TODO: replace with multisig once available
         }
+        if (chainId == ChainId.ARC) {
+            return TODO_OWNER; // TODO(ENSO-469): replace with multisig once available on Arc
+        }
         revert UnconfiguredChain(chainId);
     }
 }
