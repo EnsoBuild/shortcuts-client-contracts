@@ -268,5 +268,18 @@ abstract contract FlashloanAdapterConfig {
 
         _shortcuts[ChainId.ROBINHOOD] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
         _router[ChainId.ROBINHOOD] = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // EnsoRouter
+
+        //
+        // Arc
+        //
+        _lenders[ChainId.ARC].push(0x34CD04070dD72b14E241112F6d83812Df5Af7fCD); // Morpho
+        _protocols[ChainId.ARC].push(LenderProtocol.Morpho);
+
+        // TODO(ENSO-469): amend the UniswapV3 Factory once Uniswap publishes the Arc address.
+        _lenders[ChainId.ARC].push(address(0)); // UniswapV3 Factory
+        _protocols[ChainId.ARC].push(LenderProtocol.UniswapV3);
+
+        _shortcuts[ChainId.ARC] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
+        _router[ChainId.ARC] = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // EnsoRouter (expected CREATE2 address)
     }
 }
