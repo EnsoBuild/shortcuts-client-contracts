@@ -94,8 +94,7 @@ contract EnsoCCIPReceiverDeployer is Script {
             ccipRouter = 0x06fC836cf9839B1cd891C440A0a45242DA6Ae1c9;
             ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;
         } else if (chainId == ChainId.ARC) {
-            // TODO(ENSO-469): CCIP is not live on Arc mainnet (directory 404 on 2026-09-09); set the Router once listed
-            ccipRouter = address(0);
+            ccipRouter = 0xB79791184973589c38e114D43Eb8E4588C283A18;
             ensoRouter = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7; // NOTE: expected CREATE2 address
         } else {
             revert UnsupportedChainId(chainId);
