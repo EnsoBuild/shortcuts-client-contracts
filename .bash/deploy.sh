@@ -80,11 +80,11 @@ fi
 
 { set +x; } 2>/dev/null
 
-# Signing config. A keystore created by `cast wallet import` has no `address`
-# field, so forge must decrypt it just to learn the sender: --account prompts
-# for the password even on a dry run, which fails outright without a tty.
-# For dry runs, set DEPLOYER_ADDRESS to simulate with --sender and no password.
-# Broadcasting always uses the keystore.
+# Signing config. --account makes forge unlock the keystore to resolve the
+# signer for vm.startBroadcast(), so it prompts for the password even without
+# --broadcast and dies with "os error 6" when there is no tty.
+# For dry runs, set DEPLOYER_ADDRESS to simulate with --sender: an address alone
+# needs no unlock. Broadcasting always uses the keystore.
 signer=(--account "$account")
 if [[ $broadcast != "broadcast" && -n "$DEPLOYER_ADDRESS" ]]; then
     signer=(--sender "$DEPLOYER_ADDRESS")

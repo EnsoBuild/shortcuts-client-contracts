@@ -222,8 +222,8 @@ cast wallet list                                 # which ones exist
 cast wallet address --account enso-deployer      # its public address
 ```
 
-Heads up: `cast wallet import` stores no `address` field, so reading the address
-means decrypting the file. Hence the password prompt — including on dry runs.
+Heads up: anything that resolves a keystore signer unlocks it, so `--account`
+asks for the password even when nothing is broadcast. No tty, no run.
 
 Then copy `.env.example` to `.env` and fill in RPC URLs and verifier keys.
 Owners are **not** read from `.env`; they come from

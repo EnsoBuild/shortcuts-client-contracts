@@ -199,10 +199,10 @@ the scripts and addresses are right on the real chain:
 DEPLOYER_ADDRESS=<deployer> .bash/deploy.sh <Script>.s.sol <network>   # no broadcast argument
 ```
 
-- `--account` with a keystore created by `cast wallet import` has no `address`
-  field, so forge must decrypt it just to learn the sender and prompts for the
-  password even without `--broadcast`; that fails outright with no tty.
-  `DEPLOYER_ADDRESS` simulates with `--sender` instead.
+- `--account` makes forge unlock the keystore to resolve the signer for
+  `vm.startBroadcast()`, so it prompts for a password even without `--broadcast`
+  and fails with `os error 6` where there is no tty. Simulate with `--sender`
+  (an address needs no unlock).
 - Deployments go through the CREATE2 proxy, so the resulting addresses do not
   depend on the sender. Diff every one against the addresses the chain's
   integrations already expect (router, shortcuts, the helper family) before
