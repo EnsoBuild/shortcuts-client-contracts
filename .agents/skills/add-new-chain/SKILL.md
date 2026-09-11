@@ -159,9 +159,11 @@ alphabetically (`ARBITRUM` before `ARC` before `AVALANCHE`).
 
 ## Prepare the PR
 
-Keep agent-preparable and human-only items visibly separate. The agent may check
-an item only when the linked evidence or command output proves it. Include
-task-list items for:
+Keep agent-preparable and human-only items visibly separate. One artifact per
+checkbox: a file, a contract, an integration, a verification step; never group
+several under one box, so the unchecked boxes alone say what is missing. The
+agent may check an item only when the linked evidence or command output proves
+it. Include task-list items for:
 
 - [ ] Chain ID and public chain documentation linked.
 - [ ] Configured owner and contract addresses verified on-chain.
@@ -187,6 +189,45 @@ include:
 When a value is needed but has no public source, write `TBD` and keep the
 private detail in the team's internal tracker. Re-scan the PR body and the diff
 for these terms before opening the PR.
+
+## Dry-run before asking anyone to broadcast
+
+A dry run is a local simulation over forked state, so it needs no key and proves
+the scripts and addresses are right on the real chain:
+
+```bash
+DEPLOYER_ADDRESS=<deployer> .bash/deploy.sh <Script>.s.sol <network>   # no broadcast argument
+```
+
+- `--account` with a keystore created by `cast wallet import` has no `address`
+  field, so forge must decrypt it just to learn the sender and prompts for the
+  password even without `--broadcast`; that fails outright with no tty.
+  `DEPLOYER_ADDRESS` simulates with `--sender` instead.
+- Deployments go through the CREATE2 proxy, so the resulting addresses do not
+  depend on the sender. Diff every one against the addresses the chain's
+  integrations already expect (router, shortcuts, the helper family) before
+  broadcasting; a mismatch means the bytecode moved.
+- Run every in-scope deployer, not only the main one: the receivers and the
+  flashloan adapter each have their own chain branch.
+- What a dry run cannot prove: that the sender is permitted to transact on a
+  permissioned chain. `eth_estimateGas` succeeds for any sender, so
+  permissioning only shows up on a real broadcast.
+- Check the deployer's balance on the chain and compare it with the summed gas
+  estimate. On a chain with a minimum base fee, confirm the estimated gas price
+  is above that floor; below it the mempool drops transactions silently, with no
+  error receipt.
+
+## Never deploy a placeholder into a constructor
+
+Constructor arguments are permanent and they are part of the CREATE2 address.
+Before broadcasting, check whether any configured address is still `address(0)`
+and whether the contract can be fixed afterwards: the flashloan adapters take
+their lenders in the constructor and expose `removeLender` but no `addLender`,
+so a placeholder lender is both baked in and unfixable without redeploying to a
+different address. Make the script refuse to run instead of relying on the
+reviewer to notice. Ownership is the opposite case: `Ownable`/`Ownable2Step`
+contracts can be handed to a multisig later without changing an address, so a
+placeholder owner does not have to block a launch.
 
 ## Validate
 

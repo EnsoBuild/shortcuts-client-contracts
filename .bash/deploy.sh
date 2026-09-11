@@ -80,6 +80,14 @@ fi
 
 { set +x; } 2>/dev/null
 
-# --account resolves the sender address from the keystore JSON; forge only
-# prompts for the password when --broadcast is present (dry-runs don't sign).
-forge script "script/${script}" --rpc-url "${!rpc}" --account "$account" "${params[@]}"
+# Signing config. A keystore created by `cast wallet import` has no `address`
+# field, so forge must decrypt it just to learn the sender: --account prompts
+# for the password even on a dry run, which fails outright without a tty.
+# For dry runs, set DEPLOYER_ADDRESS to simulate with --sender and no password.
+# Broadcasting always uses the keystore.
+signer=(--account "$account")
+if [[ $broadcast != "broadcast" && -n "$DEPLOYER_ADDRESS" ]]; then
+    signer=(--sender "$DEPLOYER_ADDRESS")
+fi
+
+forge script "script/${script}" --rpc-url "${!rpc}" "${signer[@]}" "${params[@]}"

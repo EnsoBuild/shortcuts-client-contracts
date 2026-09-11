@@ -26,6 +26,14 @@ contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
 
         require(lenders.length > 0, "Unsupported chain");
 
+        // Lenders are constructor arguments and the adapters expose removeLender but no
+        // addLender, so whatever is passed here is permanent: an unresolved placeholder would
+        // both register address(0) as a trusted lender and make the real lender unaddable
+        // without redeploying to a different CREATE2 address.
+        for (uint256 i = 0; i < lenders.length; i++) {
+            require(lenders[i] != address(0), "Lender address not configured");
+        }
+
         vm.startBroadcast();
 
         address owner = ChainOwner.ownerFor(block.chainid);
