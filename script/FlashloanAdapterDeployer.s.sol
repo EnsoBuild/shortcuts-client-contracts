@@ -31,6 +31,7 @@ contract EnsoWalletFlashloanAdapterDeployer is Script, FlashloanAdapterConfig {
         // both register address(0) as a trusted lender and make the real lender unaddable
         // without redeploying to a different CREATE2 address.
         for (uint256 i = 0; i < lenders.length; i++) {
+            // forge-lint: disable-next-line(require-revert-in-loop)
             require(lenders[i] != address(0), "Lender address not configured");
         }
 
