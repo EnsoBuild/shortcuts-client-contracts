@@ -211,20 +211,24 @@ Some useful options include:
 ### Signing key (Foundry keystore)
 
 This repo **never** reads a raw private key from `.env`. Deployer scripts
-broadcast keylessly (`vm.startBroadcast()` with no argument) and the signer is
-supplied on the CLI via an encrypted
+broadcast keylessly (`vm.startBroadcast()` with no argument) and the signer
+comes from an encrypted
 [Foundry keystore](https://getfoundry.sh/reference/cast/cast-wallet-import),
-selected by name with `--account`. Create it once (the key is entered at a
-hidden prompt — never in argv or shell history):
+picked by name with `--account`.
 
 ```bash
-cast wallet import enso-deployer --interactive
-cast wallet address --account enso-deployer   # public address
+cast wallet import enso-deployer --interactive   # create one (hidden prompt)
+cast wallet list                                 # which ones exist
+cast wallet address --account enso-deployer      # its public address
 ```
 
-Put that public address in `.env` as `DEPLOYER_ADDRESS` (some scripts, e.g. the
-CCIP receiver and flashloan adapter deployers, use it as the constructor
-`owner`). Then copy `.env.example` to `.env` and fill in RPC URLs / verifier keys.
+Heads up: anything that resolves a keystore signer unlocks it, so `--account`
+asks for the password even when nothing is broadcast. No tty, no run.
+
+Then copy `.env.example` to `.env` and fill in RPC URLs and verifier keys.
+Owners are **not** read from `.env`; they come from
+`ChainOwner.ownerFor(chainId)`. The standalone solver deployers read an `OWNER`
+variable instead.
 
 ### Deploy
 
@@ -235,12 +239,31 @@ Preferred — the wrapper picks the right per-network flags and uses the
 $ ./.bash/deploy.sh <Deployer.s.sol> <network> broadcast <verifier>
 ```
 
-Or invoke `forge script` directly — pass `--account`, and forge prompts for the
-keystore password only when `--broadcast` is present:
+Or invoke `forge script` directly:
 
 ```bash
-$ forge script Deployer --account enso-deployer --broadcast --fork-url <network>
+$ forge script Deployer --account enso-deployer --broadcast --rpc-url <network>
 ```
+
+### Dry run
+
+Drop the `broadcast` argument and the script only simulates. Nothing is sent.
+
+```bash
+$ DEPLOYER_ADDRESS=<public address> ./.bash/deploy.sh <Deployer.s.sol> <network>
+```
+
+`DEPLOYER_ADDRESS` makes the wrapper simulate with `--sender`, so there is no
+password prompt and no tty needed. CI can run it.
+
+Worth knowing:
+
+- Deploys go through the CREATE2 factory, so **the sender does not change the
+  resulting addresses**. A dry run predicts exactly what a broadcast produces.
+- Check those addresses against the ones your integrations already expect. A
+  mismatch means the bytecode moved.
+- It cannot prove the sender may transact on a permissioned chain. Gas
+  estimation succeeds for any address.
 
 ---
 

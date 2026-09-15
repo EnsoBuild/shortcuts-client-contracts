@@ -65,6 +65,10 @@ if [[ $broadcast == "broadcast" ]]; then
                     params+=(--verifier-url "https://explorer.etherlink.com/api")
                 elif [[ $network_upper == "ROBINHOOD" ]]; then
                     params+=(--verifier-url "https://robinhoodchain.blockscout.com/api")
+                elif [[ $network_upper == "ARC" ]]; then
+                    # TODO(ENSO-469): verifier pending, the explorer is permissioned
+                    printf '%s\n' "Arc verification is not configured yet" >&2
+                    exit 1
                 else
                     params+=(--verifier-url "https://${network}.blockscout.com/api")
                 fi
@@ -76,6 +80,14 @@ fi
 
 { set +x; } 2>/dev/null
 
-# --account resolves the sender address from the keystore JSON; forge only
-# prompts for the password when --broadcast is present (dry-runs don't sign).
-forge script "script/${script}" --rpc-url "${!rpc}" --account "$account" "${params[@]}"
+# Signing config. --account makes forge unlock the keystore to resolve the
+# signer for vm.startBroadcast(), so it prompts for the password even without
+# --broadcast and dies with "os error 6" when there is no tty.
+# For dry runs, set DEPLOYER_ADDRESS to simulate with --sender: an address alone
+# needs no unlock. Broadcasting always uses the keystore.
+signer=(--account "$account")
+if [[ $broadcast != "broadcast" && -n "$DEPLOYER_ADDRESS" ]]; then
+    signer=(--sender "$DEPLOYER_ADDRESS")
+fi
+
+forge script "script/${script}" --rpc-url "${!rpc}" "${signer[@]}" "${params[@]}"

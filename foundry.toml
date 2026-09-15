@@ -150,6 +150,7 @@ permit2 = { version = "4.0.0", git = "https://github.com/Uniswap/permit2", rev =
 
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"
+arc = "${ARC_RPC_URL}"
 avalanche = "${AVALANCHE_RPC_URL}"
 base = "${BASE_RPC_URL}"
 berachain = "${BERACHAIN_RPC_URL}"
