@@ -142,6 +142,21 @@ alphabetically (`ARBITRUM` before `ARC` before `AVALANCHE`).
   verifier kinds are `etherscan`, `blockscout`, `routescan`, and `tempo`. When
   the explorer or its API is unconfirmed, add the branch with a `TODO(<ticket>)`
   and leave the PR item unchecked.
+- When `forge --verify` cannot reach the explorer (it opens after the deployment,
+  or its API only accepts an authenticated session), verify after the fact
+  through the Blockscout API instead of waiting: per contract, write the
+  Standard-JSON input with
+  `forge verify-contract <address> <path>:<Name> --show-standard-json-input`,
+  ABI-encode the constructor args from the broadcast file's `arguments` with
+  `cast abi-encode "constructor(<types>)" ...`, and `POST` both to
+  `/api/v2/smart-contracts/<address>/verification/via/standard-input`
+  (`compiler_version`, `files[0]`, `constructor_args`); poll
+  `/api/v2/smart-contracts/<address>` until `is_verified` is true. Expect
+  `is_fully_verified: false`: this repo builds with `bytecode_hash = none` and
+  `cbor_metadata = false`, so there is no metadata hash to match and a partial
+  match is the ceiling. Independently of any explorer, compare `eth_getCode` with
+  `forge inspect <Name> deployedBytecode`: identical, or differing only in
+  immutable slots, is the evidence for "deployed bytecode checked on-chain".
 - Configure `script/EnsoCCIPReceiverDeployer.s.sol` only with verified CCIP
   support. For a chain without CCIP, add the branch with
   `ccipRouter = address(0)`; the script's `CCIPRouterIsNotSet` check makes a
