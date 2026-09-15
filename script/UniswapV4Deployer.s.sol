@@ -24,6 +24,8 @@ contract UniswapV4Deployer is Script {
             poolManager = 0xb1860D529182ac3BC1F51Fa2ABd56662b7D13f33;
         } else if (chainId == 1868) {
             poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
+        } else if (chainId == 5042) {
+            poolManager = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
         } else if (chainId == 8453) {
             poolManager = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
         } else if (chainId == 42_161) {

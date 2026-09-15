@@ -37,6 +37,9 @@ contract UniswapV4SwapHelpersDeployer is Script {
         // Soneium
         universalRouters[1868] = 0x4cded7Edf52c8AA5259A54Ec6a3CE7C6D2a455Df;
 
+        // Arc
+        universalRouters[5042] = 0x4fcA4a51Ab4F23A7447b3284fBd7D73289A89Fb1;
+
         // Base
         universalRouters[8453] = 0x6fF5693b99212Da76ad316178A184AB56D299b43;
 

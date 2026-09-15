@@ -275,8 +275,7 @@ abstract contract FlashloanAdapterConfig {
         _lenders[ChainId.ARC].push(0x34CD04070dD72b14E241112F6d83812Df5Af7fCD); // Morpho
         _protocols[ChainId.ARC].push(LenderProtocol.Morpho);
 
-        // TODO(ENSO-469): amend the UniswapV3 Factory once Uniswap publishes the Arc address.
-        _lenders[ChainId.ARC].push(address(0)); // UniswapV3 Factory
+        _lenders[ChainId.ARC].push(0xf0db7b58379503491d857dB50AC9ece64c653918); // UniswapV3 Factory
         _protocols[ChainId.ARC].push(LenderProtocol.UniswapV3);
 
         _shortcuts[ChainId.ARC] = 0xA2F4f9C6ec598CA8c633024f8851c79CA5F43e48; // DelegateEnsoShortcuts
