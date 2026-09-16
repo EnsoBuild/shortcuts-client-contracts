@@ -17,7 +17,7 @@ struct Intent {
     uint256 nonce; // distinguishes otherwise-identical intents (usefull if self-destruct is ever removed)
     uint64 start;
     uint64 deadline;
-    address refundRecipient;
+    address owner;
     Token[] triggers; // every entry must pass; amounts are the delivery minimums
     KeeperFee keeperFee; // flat, committed; paid to the executing caller
     Mode mode;
@@ -63,24 +63,33 @@ contract EphemeralIntentExecutor {
         // strand every swept ERC20. Substitute the keeper (the factory's caller — never
         // zero) rather than validate: a revert here, before branch selection, would be
         // a permanent brick on every branch, including a perfectly executable one.
-        address beneficiary = intent.refundRecipient == address(0) ? keeper : intent.refundRecipient;
+        address beneficiary = intent.owner == address(0) ? keeper : intent.owner;
 
-        if (block.chainid != intent.chainId) {
-            // Wrong-chain recovery: execution is unreachable here by construction, so
-            // sweep immediately — no deadline to wait out, nothing to race.
-            _refund(intent, sweep, keeper, beneficiary);
-        } else if (block.timestamp > intent.deadline) {
-            _refund(intent, sweep, keeper, beneficiary);
-        } else {
-            if (block.timestamp < intent.start) {
-                revert TooEarly();
+        if (keeper != intent.owner) {
+            if (block.chainid != intent.chainId) {
+                // Wrong-chain recovery: execution is unreachable here by construction, so
+                // sweep immediately — no deadline to wait out, nothing to race.
+                _refund(intent, sweep, keeper, beneficiary);
+            } else if (block.timestamp > intent.deadline) {
+                _refund(intent, sweep, keeper, beneficiary);
+            } else {
+                if (block.timestamp < intent.start) {
+                    revert TooEarly();
+                }
+                _requireTriggers(intent.triggers);
+                // Fee off the top, before the route: approvals and call value hand the
+                // remaining balances to the router, so a fee paid afterwards would depend
+                // on the route deliberately leaving it behind.
+                _payFee(intent.keeperFee, keeper, true);
+
+                _run(intent, route, keeper, router);
             }
-            _requireTriggers(intent.triggers);
-            // Fee off the top, before the route: approvals and call value hand the
-            // remaining balances to the router, so a fee paid afterwards would depend
-            // on the route deliberately leaving it behind.
-            _payFee(intent.keeperFee, keeper, true);
-            _run(intent, route, keeper, router);
+        } else if (route.length > 0) {
+            // Owner submitted transaction. No validation necessary as they are free to run any action
+            _route(router, route, intent.triggers);
+        } else {
+            // If the owner is calling without a route, trigger a refund
+            _refund(intent, sweep, keeper, beneficiary);
         }
 
         // Remaining native balance rides the account deletion.
@@ -157,7 +166,9 @@ contract EphemeralIntentExecutor {
         // Fee first, best-effort, so permissionless refunds are self-incentivizing; then
         // committed and keeper-listed tokens to the beneficiary. Native rides the
         // selfdestruct.
-        _payFee(intent.keeperFee, keeper, false);
+        if (keeper != intent.owner) {
+            _payFee(intent.keeperFee, keeper, false);
+        }
         // The fee token itself, whether or not it is a trigger or keeper-listed: the
         // address is reusable, so a fee-token balance left behind would fund another
         // refund fee on the next execution, and any keeper could repeat that until the
