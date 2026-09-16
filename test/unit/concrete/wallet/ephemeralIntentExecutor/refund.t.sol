@@ -116,7 +116,7 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
 
     function test_WhenTheRefundRecipientIsZero() external {
         Intent memory intent = _intent();
-        intent.refundRecipient = address(0);
+        intent.owner = address(0);
         address predicted = _fund(intent, 100 ether);
         vm.deal(predicted, 1 ether);
         vm.warp(intent.deadline + 1);
