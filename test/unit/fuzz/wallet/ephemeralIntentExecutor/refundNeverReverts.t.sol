@@ -80,4 +80,39 @@ contract EphemeralIntentExecutor_RefundNeverReverts_Unit_Fuzz_Test is EphemeralI
         assertEq(predicted.code.length, 0);
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
     }
+
+    /// The owner's refund arm is reachable at any block, so it carries the same
+    /// invariant without the deadline: whatever the committed trigger bytes, the
+    /// owner's no-route call must complete.
+    /// forge-config: default.fuzz.runs = 1000
+    function testFuzz_OwnerRefundNeverReverts_committedTrigger(bytes memory data, uint8 tokenTypeSeed) external {
+        Intent memory intent = _intent();
+        intent.triggers[0] = Token({ tokenType: TokenType(tokenTypeSeed % 4), data: data });
+        address predicted = s_factory.getAddress(intent);
+        s_tokenIn.mint(predicted, 100 ether);
+        vm.deal(predicted, 1 ether);
+
+        // it must not revert inside the window, whatever the committed trigger bytes are
+        vm.prank(s_user);
+        s_factory.executeIntent(intent, "", new Token[](0));
+
+        assertEq(predicted.code.length, 0);
+        assertEq(s_user.balance, 1 ether);
+        assertEq(s_tokenIn.balanceOf(s_user) + s_tokenIn.balanceOf(predicted), 100 ether);
+    }
+
+    /// forge-config: default.fuzz.runs = 1000
+    function testFuzz_OwnerRefundNeverReverts_sweepList(bytes memory data, uint8 tokenTypeSeed) external {
+        Intent memory intent = _intent();
+        address predicted = _fund(intent, 100 ether);
+        Token[] memory sweep = new Token[](1);
+        sweep[0] = Token({ tokenType: TokenType(tokenTypeSeed % 4), data: data });
+
+        // an owner-supplied entry must never block the owner's exit
+        vm.prank(s_user);
+        s_factory.executeIntent(intent, "", sweep);
+
+        assertEq(predicted.code.length, 0);
+        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+    }
 }

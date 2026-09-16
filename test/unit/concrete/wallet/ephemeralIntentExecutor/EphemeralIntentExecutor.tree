@@ -88,3 +88,36 @@ EphemeralIntentExecutor_Refund
 └── when executed on the wrong chain
     ├── it should sweep immediately without waiting for the gates
     └── it should sweep native via selfdestruct
+
+EphemeralIntentExecutor_Owner
+├── when the owner calls without a route
+│   ├── it should refund the trigger tokens before the deadline
+│   ├── it should pay no fee
+│   ├── it should not call the router
+│   └── it should sweep native via selfdestruct
+├── when the owner calls before start
+│   └── it should refund without waiting for the start gate
+├── when the owner calls inside the exclusivity window
+│   ├── it should refund without reverting Exclusive
+│   └── it should leave the exclusive keeper nothing to execute
+├── when the owner lists extra tokens
+│   ├── it should sweep them alongside the triggers
+│   └── it should tolerate a listed trigger token
+├── when the owner submits a route
+│   ├── it should call the router with the owner's bytes, not the committed payload
+│   ├── it should pass the trigger tokens with live balances
+│   ├── it should not take a fee off the top
+│   ├── it should revoke approvals after the call
+│   ├── it should sweep remaining native to the owner
+│   └── it should leave route residue recoverable by an owner refund
+├── when the owner submits a route under closed gates
+│   └── it should execute without the start, trigger, exclusivity, or outcome gates
+├── when the owner submits a route outside the window
+│   └── it should route rather than refund
+├── when the owner route reverts
+│   ├── it should bubble the revert reason
+│   └── it should leave the refund arm available
+├── when a third party submits a route in ROUTE mode
+│   └── it should ignore the bytes and run the committed payload
+└── when the owner is zero and a keeper submits a route
+    └── it should not grant the keeper owner privileges
