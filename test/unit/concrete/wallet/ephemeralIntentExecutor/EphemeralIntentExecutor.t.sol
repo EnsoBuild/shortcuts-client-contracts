@@ -64,7 +64,7 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
             nonce: 0,
             start: uint64(block.timestamp),
             deadline: uint64(block.timestamp + 1 days),
-            refundRecipient: s_user,
+            owner: s_user,
             triggers: triggers,
             keeperFee: _fee(address(0), 0, 0),
             mode: Mode.ROUTE,
