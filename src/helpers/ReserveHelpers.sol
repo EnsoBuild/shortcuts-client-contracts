@@ -24,6 +24,8 @@ contract ReserveHelpers {
     /// @param amounts The amounts of each underlying token to deposit (must match basket order and length)
     /// @return shares The minimum shares mintable across all input tokens
     function getMinShares(address folio, uint256[] calldata amounts) external view returns (uint256 shares) {
+        // Basket amounts are used below; the accompanying asset-address array is intentionally unused.
+        // forge-lint: disable-next-line(unused-return)
         (, uint256[] memory balances) = IFolio(folio).totalAssets();
         uint256 totalSupply = IFolio(folio).totalSupply();
 

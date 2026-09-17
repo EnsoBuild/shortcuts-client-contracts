@@ -8,6 +8,7 @@ import { SignaturePaymaster } from "../../../src/paymaster/SignaturePaymaster.so
 import { Shortcut } from "../../shortcuts/ShortcutDataTypes.sol";
 import { ShortcutsEthereum } from "../../shortcuts/ShortcutsEthereum.sol";
 import { PackedUserOperationLib } from "../../utils/AccountAbstraction.sol";
+import { EntryPointAssertions } from "../../utils/EntryPointAssertions.sol";
 import { TokenBalanceHelper } from "../../utils/TokenBalanceHelper.sol";
 import { EntryPoint } from "account-abstraction-v7/core/EntryPoint.sol";
 import { IEntryPoint, PackedUserOperation } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -21,7 +22,7 @@ import { SignMessageLib } from "safe-smart-account-1.5.0/libraries/SignMessageLi
 import { SafeProxy } from "safe-smart-account-1.5.0/proxies/SafeProxy.sol";
 import { SafeProxyFactory } from "safe-smart-account-1.5.0/proxies/SafeProxyFactory.sol";
 
-contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper {
+contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper, EntryPointAssertions {
     using SafeERC20 for IERC20;
 
     IERC20 private constant WETH = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -39,8 +40,10 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
     bytes32 private constant EOA_1_PK = 0x74dc97524c0473f102953ebfe8bbec30f0e9cd304703ed7275c708921deaab3b;
     address payable private constant EOA_2 = payable(0x70997970C51812dc3A010C7d01b50e0d17dc79C8); // Anvil 1
     bytes32 private constant EOA_2_PK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
-    address payable private constant BUNDLER_1 = payable(0xa0Ee7A142d267C1f36714E4a8F75612F20a79720); // Anvil 9
-    bytes32 private constant BUNDLER_1_PK = 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6;
+    address payable private s_bundler;
+
+    uint256 private constant CALL_GAS_LIMIT = 200_000;
+    uint256 private constant VERIFICATION_GAS_LIMIT = 300_000;
 
     uint256 private s_blockNumber;
     EntryPoint private s_entryPoint;
@@ -55,6 +58,9 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         string memory rpcUrl = vm.envString("ETHEREUM_RPC_URL");
         vm.createSelectFork(rpcUrl, s_blockNumber);
 
+        s_bundler = payable(makeAddr("checkout-bundler"));
+        assertEq(s_bundler.code.length, 0);
+
         // Roles
         vm.label(address(WETH), "WETH9");
         vm.label(ENSO_ACCOUNT, "ENSO_ACCOUNT");
@@ -65,13 +71,12 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         vm.label(ENSO_BACKEND, "ENSO_BACKEND");
         vm.label(EOA_1, "EOA_1");
         vm.label(EOA_2, "EOA_2");
-        vm.label(BUNDLER_1, "BUNDLER_1");
 
         // NOTE: these addresses may not be funded in a fork
         vm.deal(ENSO_DEPLOYER, 1000 ether);
         vm.deal(EOA_1, 1000 ether);
         vm.deal(EOA_2, 1000 ether);
-        vm.deal(BUNDLER_1, 1000 ether);
+        vm.deal(s_bundler, 1000 ether);
 
         s_entryPoint = EntryPoint(ENTRY_POINT_0_7);
 
@@ -193,8 +198,8 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         userOp.callData = callData;
 
         // UserOp.accountGasLimits
-        uint256 verificationGasLimit = 200_000;
-        userOp.accountGasLimits = PackedUserOperationLib.calculateAccountGasLimits(shortcut.txGas, verificationGasLimit);
+        userOp.accountGasLimits =
+            PackedUserOperationLib.calculateAccountGasLimits(CALL_GAS_LIMIT, VERIFICATION_GAS_LIMIT);
 
         // UserOp.gasFees
         userOp.gasFees = PackedUserOperationLib.calculateGasFees();
@@ -270,11 +275,12 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         uint256 balancePreEntryPointTokenIn = balance(shortcut.tokensIn[0], ENTRY_POINT_0_7);
         uint256 balancePreEntryPointTokenOut = balance(shortcut.tokensOut[0], ENTRY_POINT_0_7);
 
-        uint256 balancePreBundler1TokenIn = balance(shortcut.tokensIn[0], BUNDLER_1);
-        uint256 balancePreBundler1TokenOut = balance(shortcut.tokensOut[0], BUNDLER_1);
+        uint256 balancePreBundler1TokenIn = balance(shortcut.tokensIn[0], s_bundler);
+        uint256 balancePreBundler1TokenOut = balance(shortcut.tokensOut[0], s_bundler);
 
         // *** Act & Assert ***
-        vm.prank(BUNDLER_1);
+        vm.recordLogs();
+        vm.prank(s_bundler);
         vm.expectEmit(address(account));
         emit AbstractEnsoShortcuts.ShortcutExecuted(
             0xad7c5bef027816a800da1736444fb58a807ef4c9603b7848673f7e3a68eb14a5, // accountId
@@ -282,7 +288,10 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         );
         vm.expectEmit(address(account));
         emit EnsoReceiver.ShortcutExecutionSuccessful();
-        s_entryPoint.handleOps(userOps, BUNDLER_1);
+        s_entryPoint.handleOps(userOps, s_bundler);
+        uint256 actualGasCost = assertUserOperationCharge(
+            vm.getRecordedLogs(), IEntryPoint(address(s_entryPoint)), userOp, address(s_paymaster)
+        );
 
         // --- Get balances after execution ---
         uint256 balancePostReceiverTokenIn = balance(shortcut.tokensIn[0], shortcut.receiver);
@@ -302,8 +311,8 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         uint256 balancePostEntryPointTokenIn = balance(shortcut.tokensIn[0], ENTRY_POINT_0_7);
         uint256 balancePostEntryPointTokenOut = balance(shortcut.tokensOut[0], ENTRY_POINT_0_7);
 
-        uint256 balancePostBundler1TokenIn = balance(shortcut.tokensIn[0], BUNDLER_1);
-        uint256 balancePostBundler1TokenOut = balance(shortcut.tokensOut[0], BUNDLER_1);
+        uint256 balancePostBundler1TokenIn = balance(shortcut.tokensIn[0], s_bundler);
+        uint256 balancePostBundler1TokenOut = balance(shortcut.tokensOut[0], s_bundler);
 
         // Assert balances
         assertBalanceDiff(balancePreReceiverTokenIn, balancePostReceiverTokenIn, 0, "Receiver TokenIn (ETH)");
@@ -341,18 +350,20 @@ contract Checkout_SmartWallet_EntryPointV7_Fork_Test is Test, TokenBalanceHelper
         assertBalanceDiff(
             balancePreEntryPointPaymaster,
             balancePostEntryPointPaymaster,
-            -2_137_317_098_055_948,
+            -int256(actualGasCost),
             "EntryPoint Paymaster balance (ETH)"
         );
         assertBalanceDiff(
             balancePreEntryPointTokenIn,
             balancePostEntryPointTokenIn,
-            -2_137_317_098_055_948,
+            -int256(actualGasCost),
             "EntryPoint TokenIn (ETH)"
         );
         assertBalanceDiff(balancePreEntryPointTokenOut, balancePostEntryPointTokenOut, 0, "EntryPoint TokenOut (WETH)");
 
-        assertBalanceDiff(balancePreBundler1TokenIn, balancePostBundler1TokenIn, 0, "Bundler1 TokenIn (ETH)");
+        assertBalanceDiff(
+            balancePreBundler1TokenIn, balancePostBundler1TokenIn, int256(actualGasCost), "Bundler1 TokenIn (ETH)"
+        );
         assertBalanceDiff(balancePreBundler1TokenOut, balancePostBundler1TokenOut, 0, "Bundler1 TokenOut (WETH)");
     }
 

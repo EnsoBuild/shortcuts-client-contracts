@@ -14,6 +14,7 @@ contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
     constructor(
         address[] memory lenders,
         LenderProtocol[] memory protocols,
+        // forge-lint: disable-next-line(missing-zero-check)
         address router_,
         address owner_
     )
@@ -43,6 +44,8 @@ contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
         bytes memory data =
             abi.encodeCall(AbstractEnsoShortcuts.executeShortcut, (accountId, requestId, commands, state));
 
+        // Router return data is unused; reverts propagate and the callback checks repayment balances.
+        // forge-lint: disable-next-line(unused-return)
         IEnsoRouter(ROUTER).routeSingle(tokenIn, data);
     }
 
@@ -63,7 +66,9 @@ contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
         balancesBefore = new uint256[](length);
         Token[] memory tokensIn = new Token[](length);
 
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < length; ++i) {
+            // forge-lint: disable-next-line(calls-loop)
             balancesBefore[i] = IERC20(tokens[i]).balanceOf(address(this)) - amounts[i];
 
             IERC20(tokens[i]).forceApprove(ROUTER, amounts[i]);
@@ -74,6 +79,8 @@ contract EnsoRouterFlashloanAdapter is AbstractEnsoFlashloan {
         bytes memory data =
             abi.encodeCall(AbstractEnsoShortcuts.executeShortcut, (accountId, requestId, commands, state));
 
+        // Router return data is unused; reverts propagate and the callback checks repayment balances.
+        // forge-lint: disable-next-line(unused-return)
         IEnsoRouter(ROUTER).routeMulti(tokensIn, data);
     }
 }

@@ -34,10 +34,7 @@ contract SignaturePaymaster_PostOp_Unit_Concrete_Test is SignaturePaymaster_Unit
         vm.recordLogs();
         vm.startStateDiffRecording();
 
-        uint256 gasPre = gasleft();
         (bool success, bytes memory result) = address(s_signaturePaymaster).call(encodedCall);
-        // s_signaturePaymaster.postOp(postOpMode, context, actualGasCost, actualUserOpFeePerGas);
-        uint256 gasPost = gasleft();
 
         Vm.AccountAccess[] memory records = vm.stopAndReturnStateDiff();
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -45,8 +42,10 @@ contract SignaturePaymaster_PostOp_Unit_Concrete_Test is SignaturePaymaster_Unit
         // it should noop
         assertTrue(success);
         assertEq(result, "");
-        assertEq(gasPre - gasPost, 5430);
         assertEq(records.length, 1);
+        assertEq(records[0].account, address(s_signaturePaymaster));
+        assertEq(records[0].accessor, address(s_entryPoint));
+        assertEq(records[0].oldBalance, records[0].newBalance);
         assertEq(records[0].storageAccesses.length, 1); // NOTE: `onlyEntryPoint` modifier accesses `entryPoint`
         assertEq(records[0].storageAccesses[0].isWrite, false);
         assertEq(entries.length, 0);

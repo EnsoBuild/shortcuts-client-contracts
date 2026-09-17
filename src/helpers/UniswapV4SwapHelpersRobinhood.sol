@@ -49,9 +49,13 @@ contract UniswapV4SwapHelpersRobinhood {
         payable
         returns (uint256 amountOut)
     {
+        // V4_SWAP is the fixed command 0x10 and fits in uint8.
+        // forge-lint: disable-next-line(unsafe-typecast)
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
+        // These fixed action IDs are 0x06, 0x0c and 0x0f; all fit in uint8.
+        // forge-lint: disable-next-item(unsafe-typecast)
         bytes memory actions =
             abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
         bytes[] memory params = new bytes[](3);

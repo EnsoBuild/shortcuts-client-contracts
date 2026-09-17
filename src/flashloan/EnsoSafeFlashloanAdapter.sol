@@ -17,6 +17,7 @@ contract EnsoSafeFlashloanAdapter is AbstractEnsoFlashloan {
     constructor(
         address[] memory lenders,
         LenderProtocol[] memory protocols,
+        // forge-lint: disable-next-line(missing-zero-check)
         address shortcuts_,
         address owner_
     )
@@ -60,8 +61,10 @@ contract EnsoSafeFlashloanAdapter is AbstractEnsoFlashloan {
         uint256 length = tokens.length;
         balancesBefore = new uint256[](length);
 
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < length; ++i) {
             IERC20(tokens[i]).safeTransfer(wallet, amounts[i]);
+            // forge-lint: disable-next-line(calls-loop)
             balancesBefore[i] = IERC20(tokens[i]).balanceOf(address(this));
         }
 

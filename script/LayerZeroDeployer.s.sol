@@ -40,7 +40,7 @@ contract LayerZeroDeployer is Script {
             router = 0x3067BDBa0e6628497d527bEF511c22DA8b32cA3F;
         } else if (
             chainId == ChainId.PLASMA || chainId == ChainId.MONAD || chainId == ChainId.MEGAETH
-                || chainId == ChainId.ROBINHOOD
+                || chainId == ChainId.ROBINHOOD || chainId == ChainId.ARC
         ) {
             endpoint = 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B;
             router = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;

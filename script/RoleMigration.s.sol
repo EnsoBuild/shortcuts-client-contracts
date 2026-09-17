@@ -34,7 +34,7 @@ contract RoleMigration is Script {
     address constant PAYMASTER = 0xfa66d86a5Efc7632070b1F0b1C639C69a7E7D8C5;
 
     function run() public {
-        bool prevRun;
+        bool prevRun = false;
 
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         require(vm.addr(deployerPrivateKey) == DEPLOYER, "PRIVATE_KEY does not match the deployer address");

@@ -12,6 +12,8 @@ library CCIPMessageDecoder {
     {
         // Need 2 head words (64) + 1 length word (32) = 96 bytes minimum
         if (_data.length < 96) {
+            // The boolean return explicitly distinguishes malformed input from successful decoding.
+            // forge-lint: disable-next-line(boolean-cst)
             return (false, address(0), bytes(""));
         }
 
@@ -28,6 +30,8 @@ library CCIPMessageDecoder {
 
         // Word-aligned offset?
         if ((off & 31) != 0) {
+            // The boolean return explicitly distinguishes malformed input from successful decoding.
+            // forge-lint: disable-next-line(boolean-cst)
             return (false, address(0), bytes(""));
         }
 
@@ -36,6 +40,8 @@ library CCIPMessageDecoder {
         // Off must be at/after 2-word head and leave room for tail length word
         // i.e. off >= 64 && off <= baseLen - 32 (avoid off+32 overflow)
         if (off < 64 || off > baseLen - 32) {
+            // The boolean return explicitly distinguishes malformed input from successful decoding.
+            // forge-lint: disable-next-line(boolean-cst)
             return (false, address(0), bytes(""));
         }
 
@@ -54,12 +60,16 @@ library CCIPMessageDecoder {
 
             // Require len itself to fit in the available tail
             if (len > avail) {
+                // The boolean return explicitly distinguishes malformed input from successful decoding.
+                // forge-lint: disable-next-line(boolean-cst)
                 return (false, address(0), bytes(""));
             }
 
             // Ceil32(len) and ensure padded length matches exactly (reject superfluous bytes)
             uint256 padded = (len + 31) & ~uint256(31);
             if (padded != avail) {
+                // The boolean return explicitly distinguishes malformed input from successful decoding.
+                // forge-lint: disable-next-line(boolean-cst)
                 return (false, address(0), bytes(""));
             }
 
@@ -77,6 +87,8 @@ library CCIPMessageDecoder {
             }
         }
 
+        // The boolean return explicitly distinguishes malformed input from successful decoding.
+        // forge-lint: disable-next-line(boolean-cst)
         return (true, receiver, shortcutData);
     }
 }

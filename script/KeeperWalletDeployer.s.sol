@@ -19,13 +19,15 @@ contract KeeperWalletDeployer is Script {
         address[] memory executors = _executors();
 
         vm.startBroadcast();
+        // forge-lint: disable-next-line(unused-return)
         (, address deployer,) = vm.readCallers();
 
         // The deployer owns the wallet initially so it can authorize the executors,
         // since setExecutor is onlyOwner.
         wallet = new KeeperWallet{ salt: "KeeperWallet" }(deployer);
 
-        for (uint256 i; i < executors.length; ++i) {
+        for (uint256 i = 0; i < executors.length; ++i) {
+            // forge-lint: disable-next-line(calls-loop)
             wallet.setExecutor(executors[i], true);
         }
 

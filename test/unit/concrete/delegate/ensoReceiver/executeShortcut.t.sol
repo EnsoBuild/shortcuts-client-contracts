@@ -72,11 +72,7 @@ contract EnsoReceiver_ExecuteShortcut_SenderIsEnsoReceiver_Unit_Concrete_Test is
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0] - 1); // NOTE: force shortcut failure
 
         // it should revert
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                WeirollVM.ExecutionFailed.selector, 1, 0xDe09E74d4888Bc4e65F589e8c13Bce9F71DdF4c7, "Unknown"
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(WeirollVM.ExecutionFailed.selector, 1, address(s_weth), "Unknown"));
         s_ensoReceiver.executeShortcut(
             executeShortcutParams.accountId,
             executeShortcutParams.requestId,
@@ -209,11 +205,7 @@ contract EnsoReceiver_ExecuteShortcut_SenderIsOwner_Unit_Concrete_Test is
         vm.deal(address(s_ensoReceiver), shortcut.amountsIn[0] - 1); // NOTE: force shortcut failure
 
         // it should revert
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                WeirollVM.ExecutionFailed.selector, 1, 0xDe09E74d4888Bc4e65F589e8c13Bce9F71DdF4c7, "Unknown"
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(WeirollVM.ExecutionFailed.selector, 1, address(s_weth), "Unknown"));
         s_ensoReceiver.executeShortcut(
             executeShortcutParams.accountId,
             executeShortcutParams.requestId,

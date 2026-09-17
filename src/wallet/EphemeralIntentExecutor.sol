@@ -65,6 +65,7 @@ contract EphemeralIntentExecutor {
         // a permanent brick on every branch, including a perfectly executable one.
         address beneficiary = intent.refundRecipient == address(0) ? keeper : intent.refundRecipient;
 
+        // forge-lint: disable-next-item(block-timestamp)
         if (block.chainid != intent.chainId) {
             // Wrong-chain recovery: execution is unreachable here by construction, so
             // sweep immediately — no deadline to wait out, nothing to race.
@@ -99,6 +100,7 @@ contract EphemeralIntentExecutor {
     function _constrained(Intent memory intent, bytes memory route, address keeper, address router) private {
         Constrained memory c = abi.decode(intent.payload, (Constrained));
 
+        // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp <= c.exclusiveUntil && keeper != c.exclusiveKeeper) {
             revert Exclusive();
         }
@@ -112,8 +114,10 @@ contract EphemeralIntentExecutor {
         // Validation is by measured outcome, never by inspecting the route: snapshot at
         // the recipient, route, assert every delta clears its committed minimum.
         uint256[] memory before = new uint256[](c.tokensOut.length);
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < c.tokensOut.length; ++i) {
             if (_minOut(c.tokensOut[i]) == 0) {
+                // forge-lint: disable-next-line(require-revert-in-loop)
                 revert Insufficient();
             }
             before[i] = _balance(c.tokensOut[i], c.recipient);
@@ -121,11 +125,13 @@ contract EphemeralIntentExecutor {
 
         _route(router, route, intent.triggers);
 
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < c.tokensOut.length; ++i) {
             uint256 after_ = _balance(c.tokensOut[i], c.recipient);
             // Explicit ordering: checked subtraction would Panic on a recipient balance
             // decrease instead of reverting Insufficient.
             if (after_ < before[i] || after_ - before[i] < _minOut(c.tokensOut[i])) {
+                // forge-lint: disable-next-line(require-revert-in-loop)
                 revert Insufficient();
             }
         }
@@ -142,12 +148,15 @@ contract EphemeralIntentExecutor {
         _approveTriggers(triggers, router, true);
         uint256 value = _value(triggers);
         if (triggers.length == 1) {
+            // forge-lint: disable-next-line(arbitrary-send-eth, unused-return)
             IEnsoRouter(router).routeSingle{ value: value }(_liveToken(triggers[0]), data);
         } else {
             Token[] memory tokensIn = new Token[](triggers.length);
+            // forge-lint: disable-next-line(uninitialized-local)
             for (uint256 i; i < triggers.length; ++i) {
                 tokensIn[i] = _liveToken(triggers[i]);
             }
+            // forge-lint: disable-next-line(arbitrary-send-eth, unused-return)
             IEnsoRouter(router).routeMulti{ value: value }(tokensIn, data);
         }
         _approveTriggers(triggers, router, false);
@@ -163,9 +172,11 @@ contract EphemeralIntentExecutor {
         // refund fee on the next execution, and any keeper could repeat that until the
         // balance fell below one fee. Emptying it here caps every exit at one fee.
         _sweep(intent.keeperFee.token, to);
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < intent.triggers.length; ++i) {
             _sweep(intent.triggers[i], to);
         }
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < sweep.length; ++i) {
             _sweep(sweep[i], to);
         }
@@ -181,9 +192,11 @@ contract EphemeralIntentExecutor {
             return Token({ tokenType: tokenType, data: abi.encode(address(this).balance) });
         } else if (tokenType == TokenType.ERC20) {
             (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
+            // forge-lint: disable-next-line(calls-loop)
             return Token({ tokenType: tokenType, data: abi.encode(erc20, erc20.balanceOf(address(this))) });
         } else if (tokenType == TokenType.ERC1155) {
             (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            // forge-lint: disable-next-item(calls-loop)
             return Token({
                 tokenType: tokenType, data: abi.encode(erc1155, tokenId, erc1155.balanceOf(address(this), tokenId))
             });
@@ -192,18 +205,21 @@ contract EphemeralIntentExecutor {
     }
 
     function _requireTriggers(Token[] memory triggers) private view {
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < triggers.length; ++i) {
             // Balance side via the tolerant probe: for ERC721 it checks presence of the
             // committed tokenId (in-side semantics — the router pulls, and the sweep
             // returns, that exact token), and tolerance is safe here because the amount
             // side stays strict, so a malformed trigger still reverts on this branch.
             if (_tryBalance(triggers[i]) < _amount(triggers[i])) {
+                // forge-lint: disable-next-line(require-revert-in-loop)
                 revert Underfunded();
             }
         }
     }
 
     function _approveTriggers(Token[] memory triggers, address spender, bool grant) private {
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < triggers.length; ++i) {
             _approve(triggers[i], spender, grant);
         }
@@ -225,11 +241,13 @@ contract EphemeralIntentExecutor {
             execute && fee.token != address(0) ? IERC20(fee.token).balanceOf(address(this)) : _tryBalance(fee.token);
         if (held >= amount) {
             if (fee.token == address(0)) {
+                // forge-lint: disable-next-line(arbitrary-send-eth)
                 (success,) = to.call{ value: amount }("");
             } else {
                 success = _tryTransfer(fee.token, to, amount);
             }
         }
+        // forge-lint: disable-next-line(uninitialized-local)
         if (execute && !success) {
             revert SendFailed();
         }
@@ -245,10 +263,12 @@ contract EphemeralIntentExecutor {
             return;
         } else if (tokenType == TokenType.ERC20) {
             (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
+            // forge-lint: disable-next-line(calls-loop)
             erc20.forceApprove(spender, grant ? erc20.balanceOf(address(this)) : 0);
         } else if (tokenType == TokenType.ERC721) {
             (IERC721 erc721, uint256 tokenId) = abi.decode(token.data, (IERC721, uint256));
             if (grant) {
+                // forge-lint: disable-next-line(calls-loop)
                 erc721.approve(spender, tokenId);
             } else {
                 // Tolerance is scoped to the moved case only: EIP-721 rejects approve
@@ -256,13 +276,18 @@ contract EphemeralIntentExecutor {
                 // revoke. If the executor STILL owns it, stay strict — swallowing a
                 // failed revoke here would let the approval outlive the account into
                 // its next incarnation. Execute branch, so a revert is liveness-only.
+                // forge-lint: disable-next-line(calls-loop)
                 (bool ok, bytes memory o) = address(erc721).staticcall(abi.encodeCall(IERC721.ownerOf, (tokenId)));
+                // Tolerant address decoding intentionally keeps the low 160 bits.
+                // forge-lint: disable-next-line(unsafe-typecast)
                 if (ok && o.length >= 32 && address(uint160(_word(o, 0))) == address(this)) {
+                    // forge-lint: disable-next-line(calls-loop)
                     erc721.approve(address(0), tokenId);
                 }
             }
         } else {
             (IERC1155 erc1155,,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            // forge-lint: disable-next-line(calls-loop)
             erc1155.setApprovalForAll(spender, grant);
         }
     }
@@ -270,6 +295,7 @@ contract EphemeralIntentExecutor {
     /// Call value for the router: the full native balance when a native entry exists,
     /// zero otherwise — never chosen by the keeper.
     function _value(Token[] memory tokens) private view returns (uint256) {
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < tokens.length; ++i) {
             if (tokens[i].tokenType == TokenType.Native) {
                 return address(this).balance;
@@ -315,6 +341,7 @@ contract EphemeralIntentExecutor {
             return account.balance;
         } else if (tokenType == TokenType.ERC20) {
             (IERC20 erc20,) = abi.decode(token.data, (IERC20, uint256));
+            // forge-lint: disable-next-line(calls-loop)
             return erc20.balanceOf(account);
         } else if (tokenType == TokenType.ERC721) {
             // Collection-count read, exactly as EnsoRouter's out-side check: the ERC721
@@ -323,9 +350,11 @@ contract EphemeralIntentExecutor {
             // (a freshly minted LP position). Specific-tokenId presence for triggers
             // and fees is the in-side concern, handled by _tryBalance's ownerOf probe.
             (IERC721 erc721,) = abi.decode(token.data, (IERC721, uint256));
+            // forge-lint: disable-next-line(calls-loop)
             return erc721.balanceOf(account);
         } else {
             (IERC1155 erc1155, uint256 tokenId,) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            // forge-lint: disable-next-line(calls-loop)
             return erc1155.balanceOf(account, tokenId);
         }
     }
@@ -340,13 +369,18 @@ contract EphemeralIntentExecutor {
         if (token.data.length < (tokenType == TokenType.ERC1155 ? 96 : 64)) {
             return 0;
         }
+        // Tolerant address decoding intentionally keeps the low 160 bits.
+        // forge-lint: disable-next-line(unsafe-typecast)
         address asset = address(uint160(_word(token.data, 0)));
         if (tokenType == TokenType.ERC721) {
             // Presence of the committed tokenId: 1 if this contract owns it, else 0.
+            // forge-lint: disable-next-line(calls-loop)
             (bool ok, bytes memory owner) = asset.staticcall(abi.encodeCall(IERC721.ownerOf, (_word(token.data, 1))));
             if (!ok || owner.length < 32) {
                 return 0;
             }
+            // Tolerant address decoding intentionally keeps the low 160 bits.
+            // forge-lint: disable-next-line(unsafe-typecast)
             return address(uint160(_word(owner, 0))) == address(this) ? 1 : 0;
         }
         bytes memory probe = tokenType == TokenType.ERC1155
@@ -367,6 +401,7 @@ contract EphemeralIntentExecutor {
 
     /// Tolerant uint read: staticcall the probe, zero on failure or a short return.
     function _tryRead(address target, bytes memory probe) private view returns (uint256) {
+        // forge-lint: disable-next-line(calls-loop)
         (bool success, bytes memory ret) = target.staticcall(probe);
         if (!success || ret.length < 32) {
             return 0;
@@ -382,6 +417,7 @@ contract EphemeralIntentExecutor {
     /// boolean expression — _word is an unguarded mload relying on && short-circuit.
     function _tryTransfer(address token, address to, uint256 amount_) private returns (bool success) {
         bytes memory ret;
+        // forge-lint: disable-next-line(calls-loop)
         (success, ret) = token.call(abi.encodeCall(IERC20.transfer, (to, amount_)));
         success = success && (ret.length == 0 || (ret.length >= 32 && _word(ret, 0) == 1));
     }
@@ -400,10 +436,13 @@ contract EphemeralIntentExecutor {
         if (token.data.length < (tokenType == TokenType.ERC1155 ? 96 : 64)) {
             return; // tolerant skip — a require here would re-create the brick
         }
+        // Tolerant address decoding intentionally keeps the low 160 bits.
+        // forge-lint: disable-next-line(unsafe-typecast)
         address asset = address(uint160(_word(token.data, 0)));
         if (tokenType == TokenType.ERC20) {
             _sweep(asset, to);
         } else if (tokenType == TokenType.ERC721) {
+            // forge-lint: disable-next-item(calls-loop)
             (bool success,) =
                 asset.call(abi.encodeCall(IERC721.transferFrom, (address(this), to, _word(token.data, 1))));
             (success); // best-effort
@@ -413,6 +452,7 @@ contract EphemeralIntentExecutor {
             if (held == 0) {
                 return;
             }
+            // forge-lint: disable-next-item(calls-loop)
             (bool success,) =
                 asset.call(abi.encodeCall(IERC1155.safeTransferFrom, (address(this), to, tokenId, held, "")));
             (success); // best-effort

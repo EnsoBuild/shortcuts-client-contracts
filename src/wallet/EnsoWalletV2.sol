@@ -34,6 +34,7 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
     }
 
     /// @inheritdoc IEnsoWalletV2
+    // forge-lint: disable-next-line(missing-zero-check)
     function initialize(address owner_) external initializer {
         _owner = owner_;
         factory = msg.sender;
@@ -44,6 +45,7 @@ contract EnsoWalletV2 is IEnsoWalletV2, AbstractMultiSend, AbstractEnsoShortcuts
 
     /// @inheritdoc IEnsoWalletV2
     function execute(
+        // forge-lint: disable-next-line(missing-zero-check)
         address target,
         uint256 value,
         bytes memory data
