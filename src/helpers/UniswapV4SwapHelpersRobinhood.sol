@@ -97,12 +97,11 @@ contract UniswapV4SwapHelpersRobinhood {
         inputs[0] = abi.encode(actions, params);
         UNIVERSAL_ROUTER.execute{ value: msg.value }(commands, inputs, deadline);
 
-        address tokenOut = Currency.unwrap(currencyOut);
-        amountOut = IERC20(tokenOut).balanceOf(address(this));
+        amountOut = currencyOut.balanceOfSelf();
         if (amountOut < minAmountOut) {
             revert InsufficientOutputAmount(amountOut, minAmountOut);
         }
-        IERC20(tokenOut).safeTransfer(receiver, amountOut);
+        currencyOut.transfer(receiver, amountOut);
 
         return amountOut;
     }
@@ -112,4 +111,6 @@ contract UniswapV4SwapHelpersRobinhood {
         // forge-lint: disable-next-line(unsafe-typecast)
         PERMIT2.approve(token, address(UNIVERSAL_ROUTER), uint160(amount), type(uint48).max);
     }
+
+    receive() external payable { }
 }
