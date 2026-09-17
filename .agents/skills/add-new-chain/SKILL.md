@@ -199,7 +199,11 @@ include:
 - addresses, chain parameters, or launch details the chain or protocol has not
   published yet;
 - credentials, internal trackers, infrastructure configuration, or non-public
-  operational procedures.
+  operational procedures;
+- the names of internal packages, services or their pull requests, and evidence
+  phrased in their terms ("matches what package X publishes"). State the same
+  fact in chain terms instead: the CREATE2 family, the chain it is identical to,
+  the constructor arguments, the on-chain read.
 
 When a value is needed but has no public source, write `TBD` and keep the
 private detail in the team's internal tracker. Re-scan the PR body and the diff

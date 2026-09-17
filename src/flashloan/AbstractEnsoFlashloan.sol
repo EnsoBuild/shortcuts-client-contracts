@@ -319,7 +319,9 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
         _verifyLender(msg.sender, LenderProtocol.BalancerV3);
 
         uint256 length = flashloanParams.tokens.length;
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < length; ++i) {
+            // forge-lint: disable-next-line(calls-loop)
             IBalancerV3Vault(msg.sender).sendTo(flashloanParams.tokens[i], address(this), flashloanParams.amounts[i]);
         }
 
@@ -333,13 +335,17 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
             flashloanParams.amounts
         );
 
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < length; ++i) {
             uint256 amountBorrowed = flashloanParams.amounts[i];
+            // forge-lint: disable-next-line(calls-loop)
             uint256 balanceAfter = IERC20(flashloanParams.tokens[i]).balanceOf(address(this));
             if (balanceAfter < amountBorrowed + balancesBefore[i]) {
+                // forge-lint: disable-next-line(require-revert-in-loop)
                 revert IncorrectPaybackAmount(flashloanParams.tokens[i], balanceAfter, amountBorrowed);
             }
             IERC20(flashloanParams.tokens[i]).safeTransfer(msg.sender, amountBorrowed);
+            // forge-lint: disable-next-line(calls-loop)
             IBalancerV3Vault(msg.sender).settle(flashloanParams.tokens[i], amountBorrowed);
         }
     }
@@ -438,10 +444,13 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
             params.wallet, params.accountId, params.requestId, params.commands, params.state, tokens, amounts
         );
 
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < tokens.length; ++i) {
             uint256 repayAmount = amounts[i] + fees[i];
+            // forge-lint: disable-next-line(calls-loop)
             uint256 balanceAfter = IERC20(tokens[i]).balanceOf(address(this));
             if (balanceAfter < repayAmount + balancesBefore[i]) {
+                // forge-lint: disable-next-line(require-revert-in-loop)
                 revert IncorrectPaybackAmount(tokens[i], balanceAfter, repayAmount);
             }
             IERC20(tokens[i]).safeTransfer(msg.sender, repayAmount);
@@ -467,6 +476,7 @@ abstract contract AbstractEnsoFlashloan is Ownable, Pausable {
 
         uint256 idx;
         if (hasToken0) {
+            // forge-lint: disable-next-line(uninitialized-local)
             tokens[idx] = params.token0;
             amounts[idx] = params.amount0;
             fees[idx] = fee0;

@@ -67,7 +67,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: stable
+          version: v1.8.1
 
       - name: Show Forge version
         run: |

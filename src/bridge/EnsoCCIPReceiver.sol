@@ -97,8 +97,12 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
         s_executedMessage[_message.messageId] = true;
 
         try this.execute(token, amount, shortcutData) {
+            // Report the execution outcome after the self-call; the message is marked handled before execution.
+            // forge-lint: disable-next-line(reentrancy-events)
             emit ShortcutExecutionSuccessful(_message.messageId);
         } catch (bytes memory err) {
+            // Report the caught execution failure; the message is already marked handled before the self-call.
+            // forge-lint: disable-next-line(reentrancy-events)
             emit ShortcutExecutionFailed(_message.messageId, err);
             IERC20(token).safeTransfer(receiver, amount);
         }
@@ -111,6 +115,8 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
         }
         Token memory tokenIn = Token({ tokenType: TokenType.ERC20, data: abi.encode(_token, _amount) });
         IERC20(_token).forceApprove(address(i_ensoRouter), _amount);
+        // Router return data is unused; execution failures revert and are caught by the outer self-call.
+        // forge-lint: disable-next-line(unused-return)
         i_ensoRouter.routeSingle(tokenIn, _shortcutData);
     }
 

@@ -18,6 +18,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
 
     address public immutable IMPLEMENTATION;
 
+    // forge-lint: disable-next-line(missing-zero-check)
     constructor(address implementation) {
         IMPLEMENTATION = implementation;
     }
@@ -62,7 +63,9 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         bool isNativeAsset;
         for (uint256 i = 0; i < tokensIn.length; i++) {
             if (_transfer(tokensIn[i], wallet)) {
+                // forge-lint: disable-next-line(uninitialized-local)
                 if (isNativeAsset) {
+                    // forge-lint: disable-next-line(require-revert-in-loop)
                     revert EnsoWalletV2Factory_DuplicateNativeAsset();
                 }
                 isNativeAsset = true;
@@ -75,6 +78,8 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         _setExecutors(wallet, executors, true);
 
         bool success;
+        // Forward only this call's msg.value to the wallet derived from msg.sender, then propagate execution failure.
+        // forge-lint: disable-next-line(arbitrary-send-eth)
         (success, response) = wallet.call{ value: msg.value }(data);
         if (!success) {
             if (response.length > 0) {
@@ -95,6 +100,7 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
             return;
         }
         for (uint256 i = 0; i < executors.length; i++) {
+            // forge-lint: disable-next-line(calls-loop)
             IEnsoWalletV2(wallet).setExecutor(executors[i], isAllowed);
         }
     }
@@ -105,6 +111,8 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
         if (wallet.code.length == 0) {
             IMPLEMENTATION.cloneDeterministic(salt);
             IEnsoWalletV2(wallet).initialize(account);
+            // Emit only after the clone is initialized; preserve the existing deployment event ordering.
+            // forge-lint: disable-next-line(reentrancy-events)
             emit EnsoWalletV2Deployed(wallet, account);
         }
     }
@@ -120,11 +128,14 @@ contract EnsoWalletV2Factory is IEnsoWalletV2Factory {
             isNativeAsset = true;
         } else if (tokenType == TokenType.ERC721) {
             (IERC721 erc721, uint256 tokenId) = abi.decode(token.data, (IERC721, uint256));
+            // forge-lint: disable-next-line(calls-loop)
             erc721.safeTransferFrom(msg.sender, receiver, tokenId);
         } else if (tokenType == TokenType.ERC1155) {
             (IERC1155 erc1155, uint256 tokenId, uint256 amount) = abi.decode(token.data, (IERC1155, uint256, uint256));
+            // forge-lint: disable-next-line(calls-loop)
             erc1155.safeTransferFrom(msg.sender, receiver, tokenId, amount, "0x");
         } else {
+            // forge-lint: disable-next-line(require-revert-in-loop)
             revert EnsoWalletV2Factory_UnsupportedTokenType(tokenType);
         }
     }
