@@ -18,6 +18,7 @@ contract EphemeralFactory {
 
     event IntentPublished(address indexed intentAddress, bytes intent);
 
+    // forge-lint: disable-next-line(missing-zero-check)
     constructor(address router_) {
         router = router_;
     }
@@ -40,11 +41,14 @@ contract EphemeralFactory {
     {
         _setContext(abi.encode(route, sweep), msg.sender);
         executor = address(new EphemeralIntentExecutor{ salt: bytes32(0) }(intent));
+        // forge-lint: disable-next-line(reentrancy-events)
         emit IntentPublished(executor, abi.encode(intent));
     }
 
     /// @notice Address at which `intent` executes; abi.encode(intent) is the canonical blob.
     function getAddress(Intent calldata intent) public view returns (address) {
+        // The creation-code prefix is fixed; the suffix is ABI-encoded constructor data.
+        // forge-lint: disable-next-line(encode-packed-collision)
         return _predict(keccak256(abi.encodePacked(type(EphemeralIntentExecutor).creationCode, abi.encode(intent))));
     }
 

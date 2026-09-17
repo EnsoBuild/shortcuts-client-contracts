@@ -51,6 +51,7 @@ contract KeeperWallet is Ownable2Step {
     /// @param data The calldata to send to the target contract
     /// @return response The return data of the call
     function execute(
+        // forge-lint: disable-next-line(missing-zero-check)
         address target,
         uint256 value,
         bytes calldata data
@@ -61,6 +62,7 @@ contract KeeperWallet is Ownable2Step {
         returns (bytes memory response)
     {
         bool success;
+        // forge-lint: disable-next-line(arbitrary-send-eth)
         (success, response) = target.call{ value: value }(data);
         if (!success) {
             _revertWith(response);
@@ -72,8 +74,10 @@ contract KeeperWallet is Ownable2Step {
     /// @return results The success flag and return data of each call
     function executeMulti(Call[] calldata calls) external onlyExecutor returns (Result[] memory results) {
         results = new Result[](calls.length);
+        // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < calls.length; ++i) {
             Call calldata call = calls[i];
+            // forge-lint: disable-next-line(calls-loop)
             (bool success, bytes memory returnData) = call.target.call(call.data);
             if (!success && call.required) {
                 _revertWith(returnData);
@@ -93,9 +97,11 @@ contract KeeperWallet is Ownable2Step {
     function _revertWith(bytes memory response) private pure {
         if (response.length > 0) {
             assembly ("memory-safe") {
+                // forge-lint: disable-next-line(require-revert-in-loop)
                 revert(add(0x20, response), mload(response))
             }
         }
+        // forge-lint: disable-next-line(require-revert-in-loop)
         revert KeeperWallet_ExecutionFailedNoReason();
     }
 }
