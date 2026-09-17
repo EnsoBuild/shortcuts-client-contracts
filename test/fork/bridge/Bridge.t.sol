@@ -7,6 +7,7 @@ import { EnsoRouter } from "../../../src/router/EnsoRouter.sol";
 import { WeirollPlanner } from "../../utils/WeirollPlanner.sol";
 import { OFTComposeMsgCodec } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oft/libs/OFTComposeMsgCodec.sol";
 import { Test } from "forge-std/Test.sol";
+import { Bytes } from "openzeppelin-contracts/utils/Bytes.sol";
 
 import { console } from "forge-std/console.sol";
 
@@ -42,7 +43,7 @@ contract BridgeTest is Test {
     error TransferFailed();
 
     function setUp() public {
-        _ethereumFork = vm.createFork(_rpcURL);
+        _ethereumFork = vm.createFork(_rpcURL, 25_996_387);
         vm.selectFork(_ethereumFork);
         router = new EnsoRouter();
         shortcuts = EnsoShortcuts(payable(router.shortcuts()));
@@ -99,7 +100,7 @@ contract BridgeTest is Test {
         vm.selectFork(_ethereumFork);
 
         (bytes32[] memory commands, bytes[] memory state) = _buildWethDeposit(ETH_AMOUNT);
-        // exact gas amount needed for execution
+        // Require more gas than the call can supply.
         uint256 estimatedGas = 75_272;
         bytes memory message = _buildLzComposeMessage(ETH_AMOUNT, 0, estimatedGas, commands, state);
 
@@ -108,14 +109,18 @@ contract BridgeTest is Test {
         if (!success) {
             revert TransferFailed();
         }
-        // trigger compose with insufficient gas
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LayerZeroReceiver.InsufficientGas.selector, bytes32(0), estimatedGas, estimatedGas - 1
-            )
+        uint256 receiverBalance = address(lzReceiver).balance;
+        (bool composeSuccess, bytes memory reason) = address(lzReceiver).call{ gas: estimatedGas - 1 }(
+            abi.encodeCall(lzReceiver.lzCompose, (ethPool, bytes32(0), message, address(0), ""))
         );
-        // exactly 1 less gas than needed for lz compose
-        lzReceiver.lzCompose{ gas: 85_663 }(ethPool, bytes32(0), message, address(0), "");
+        assertFalse(composeSuccess);
+        assertEq(bytes4(reason), LayerZeroReceiver.InsufficientGas.selector);
+        (bytes32 guid, uint256 requiredGas, uint256 availableGas) =
+            abi.decode(Bytes.slice(reason, 4), (bytes32, uint256, uint256));
+        assertEq(guid, bytes32(0));
+        assertEq(requiredGas, estimatedGas);
+        assertLt(availableGas, requiredGas);
+        assertEq(address(lzReceiver).balance, receiverBalance);
     }
 
     function testUsdcBridge() public {
