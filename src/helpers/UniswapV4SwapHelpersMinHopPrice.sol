@@ -10,10 +10,10 @@ import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 
-/// @notice UniswapV4SwapHelpers variant for Robinhood (4663): its UniversalRouter forks V4Router,
-///         adding a `minHopPriceX36` field to ExactInputSingleParams. Encoded as 0 (check disabled);
+/// @notice UniswapV4SwapHelpers variant for UniversalRouters whose V4Router adds a `minHopPriceX36`
+///         field to ExactInputSingleParams (Robinhood 4663, Arc 5042). Encoded as 0 (check disabled);
 ///         the canonical 5-field helper is mis-decoded and reverts there.
-contract UniswapV4SwapHelpersRobinhood {
+contract UniswapV4SwapHelpersMinHopPrice {
     using SafeERC20 for IERC20;
 
     struct ExactInputSingleParams {
