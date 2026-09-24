@@ -10,13 +10,16 @@ import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 
+import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import { LiquidityAmounts } from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
+import { PositionInfo, PositionInfoLibrary } from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 
 error ValueExceedsUint160Range();
 
 contract UniswapV4Helpers {
     using StateLibrary for IPoolManager;
+    using PositionInfoLibrary for PositionInfo;
 
     IPoolManager public immutable poolManager;
 
@@ -76,6 +79,42 @@ contract UniswapV4Helpers {
             amount0,
             amount1
         );
+    }
+
+    /// @notice Encode `modifyLiquidities` calldata that adds liquidity to an existing position.
+    /// The pool key and range are read from the position manager and the liquidity is derived from the
+    /// maxes at the current price, so every input may be a runtime value. Actions: INCREASE_LIQUIDITY,
+    /// SETTLE_PAIR, and SWEEP of the native leftover to `refund` when currency0 is native.
+    function encodeIncrease(
+        address positionManager,
+        uint256 tokenId,
+        uint256 amount0Max,
+        uint256 amount1Max,
+        address refund
+    )
+        external
+        view
+        returns (bytes memory)
+    {
+        (PoolKey memory poolKey, PositionInfo info) = IPositionManager(positionManager).getPoolAndPositionInfo(tokenId);
+        uint128 liquidity = getLiquidityForAmounts(poolKey, info.tickLower(), info.tickUpper(), amount0Max, amount1Max);
+
+        // native token is always token0
+        bool isNativeToken = Currency.unwrap(poolKey.currency0) == address(0);
+
+        bytes memory actions = isNativeToken
+            ? abi.encodePacked(uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.SETTLE_PAIR), uint8(Actions.SWEEP))
+            : abi.encodePacked(uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.SETTLE_PAIR));
+
+        bytes[] memory params = new bytes[](isNativeToken ? 3 : 2);
+        params[0] =
+            abi.encode(tokenId, liquidity, uint256ToUint128(amount0Max), uint256ToUint128(amount1Max), bytes(""));
+        params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
+        if (isNativeToken) {
+            params[2] = abi.encode(poolKey.currency0, refund);
+        }
+
+        return abi.encode(actions, params);
     }
 
     function encodeMintWithHooks(
