@@ -8,6 +8,10 @@ import { UniswapV4SwapHelpers } from "../src/helpers/UniswapV4SwapHelpers.sol";
 import { ChainId } from "../src/libraries/DataTypes.sol";
 import { Script } from "forge-std/Script.sol";
 
+/// @notice Deploys the canonical UniswapV4SwapHelpers: 5-field ExactInputSingleParams, as decoded by the
+///         stock UniversalRouter (Tempo included, verified source). Robinhood (4663) and Arc (5042) run a
+///         forked router whose V4Router adds `minHopPriceX36`; they are served by UniswapV4SwapHelpersMinHopPrice
+///         and its own deployer, and must not be added here.
 contract UniswapV4SwapHelpersDeployer is Script {
     IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
