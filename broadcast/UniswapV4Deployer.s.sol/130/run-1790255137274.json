@@ -1,7 +1,7 @@
 {
   "transactions": [
     {
-      "hash": "0x09dc50f5125ed6fd7f3d5e081319bef72464a26e6152027b74385177a1c748ae",
+      "hash": null,
       "transactionType": "CREATE",
       "contractName": null,
       "contractAddress": "0x6024f75be5ec054151950146313effba7cb94100",
@@ -21,45 +21,20 @@
       "isFixedGasLimit": false
     }
   ],
-  "receipts": [
-    {
-      "type": "0x2",
-      "status": "0x1",
-      "cumulativeGasUsed": "0x266126",
-      "logs": [],
-      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "transactionHash": "0x09dc50f5125ed6fd7f3d5e081319bef72464a26e6152027b74385177a1c748ae",
-      "transactionIndex": "0x13",
-      "blockHash": "0x02ce4947bcb48b46e2e4ea75afabff62d0b1f1904362883d50baacde6ab23f1d",
-      "blockNumber": "0x38c018a",
-      "gasUsed": "0x11e502",
-      "effectiveGasPrice": "0x7a121",
-      "blobGasUsed": "0x13a420",
-      "from": "0x030f2c58d064ad0ee5ff59c625b81e4eb5c97944",
-      "to": null,
-      "contractAddress": "0x6024f75be5ec054151950146313effba7cb94100",
-      "l1GasPrice": "0x3c97652d",
-      "l1GasUsed": "0xc92e",
-      "l1Fee": "0x42240a13d0",
-      "l1BaseFeeScalar": "0x7d0",
-      "l1BlobBaseFee": "0x3b0b42c",
-      "l1BlobBaseFeeScalar": "0xdbba0",
-      "daFootprintGasScalar": "0x190"
-    }
-  ],
+  "receipts": [],
   "libraries": [],
   "pending": [],
   "returns": {
-    "uniswapV4Helpers": {
-      "internal_type": "contract UniswapV4Helpers",
-      "value": "0x2129DED42198D1AfeF1ED52063095A97e7C4379A"
-    },
     "poolManager": {
       "internal_type": "address",
       "value": "0x1F98400000000000000000000000000000000004"
+    },
+    "uniswapV4Helpers": {
+      "internal_type": "contract UniswapV4Helpers",
+      "value": "0x2129DED42198D1AfeF1ED52063095A97e7C4379A"
     }
   },
-  "timestamp": 1790255448991,
+  "timestamp": 1790255137274,
   "chain": 130,
   "commit": "d134677"
 }
