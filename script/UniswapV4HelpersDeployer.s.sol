@@ -5,7 +5,7 @@ import { UniswapV4Helpers } from "../src/helpers/UniswapV4Helpers.sol";
 import { ChainId } from "../src/libraries/DataTypes.sol";
 import { Script } from "forge-std/Script.sol";
 
-contract UniswapV4Deployer is Script {
+contract UniswapV4HelpersDeployer is Script {
     function run() public returns (UniswapV4Helpers uniswapV4Helpers, address poolManager) {
         vm.startBroadcast();
 
