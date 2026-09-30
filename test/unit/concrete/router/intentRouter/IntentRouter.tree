@@ -1,0 +1,83 @@
+IntentRouter_Constructor
+├── it should set the keeper
+├── it should deploy shortcuts executed only by the router
+└── it should expose the EIP-712 domain
+
+IntentRouter_Execute
+├── when the caller is not the keeper
+│   └── it should revert with NotKeeper
+├── when the chain id does not match
+│   └── it should revert with WrongChain
+├── when executed before start
+│   └── it should revert with TooEarly
+├── when executed after the deadline
+│   └── it should revert with Expired
+├── when the signature is not the owner's
+│   └── it should revert with InvalidSignature
+├── when the intent is tampered after signing
+│   └── it should revert with InvalidSignature
+├── when the nonce was already used
+│   └── it should revert with NonceUsed
+├── when the nonce was cancelled
+│   └── it should revert with NonceUsed
+├── when the owner is a contract wallet
+│   └── it should accept an ERC-1271 signature
+├── when the owner has code but signs with its key
+│   └── it should accept the ECDSA signature
+├── when the keeper supplies the route
+│   ├── it should pull tokensIn from the owner into shortcuts
+│   ├── it should run the keeper's route
+│   ├── it should measure the delta at the recipient
+│   ├── it should consume the nonce
+│   └── it should emit IntentExecuted
+├── when the route is committed
+│   ├── it should run the committed route and ignore the keeper's bytes
+│   └── it should execute without an outcome floor
+├── when the committed route misses the floor
+│   └── it should revert with AmountTooLow
+├── when the keeper supplies the route and tokensOut is empty
+│   └── it should revert with Unconstrained
+├── when a minimum is zero
+│   └── it should revert with Unconstrained
+├── when the delta is below the minimum
+│   └── it should revert with AmountTooLow
+├── when any tokenOut misses its minimum
+│   └── it should revert with AmountTooLow
+├── when the recipient balance decreases
+│   └── it should revert with AmountTooLow, not a Panic
+├── when tokenOut is native
+│   └── it should measure the native delta at the recipient
+├── when the outcome is a minted NFT
+│   └── it should satisfy the count minimum with whatever id arrived
+├── when the outcome is an ERC1155
+│   └── it should measure the id balance at the recipient
+├── when tokenIn is native
+│   └── it should revert with UnsupportedTokenType
+├── when tokenIn is an NFT
+│   └── it should pull the committed tokenId from the owner
+├── when tokenIn is an ERC1155
+│   └── it should pull the committed amount of the id from the owner
+├── when the owner has not approved
+│   └── it should revert on the pull
+├── when the intent fee is set
+│   ├── it should pull the fee from the owner to the keeper
+│   └── it should ignore the refund fee
+├── when the intent fee is native
+│   └── it should revert with UnsupportedTokenType
+├── when the route reverts
+│   └── it should bubble the revert
+└── when a shortcut reenters execute
+    └── it should revert with NotKeeper
+
+IntentRouter_Cancel
+├── when the owner cancels a nonce
+│   ├── it should mark the nonce used
+│   ├── it should emit IntentCancelled
+│   └── it should leave other nonces and owners untouched
+└── when the nonce is already used
+    └── it should revert with NonceUsed
+
+IntentRouter_Hash
+└── when hashed against the reference encoder
+    ├── it should match the ethers TypedDataEncoder digest
+    └── it should compose the domain from the exposed EIP-712 fields
