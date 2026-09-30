@@ -23,9 +23,11 @@ contract UniswapV4Helpers {
     using PositionInfoLibrary for PositionInfo;
 
     IPoolManager public immutable poolManager;
+    IPositionManager public immutable positionManager;
 
-    constructor(address _poolManager) {
+    constructor(address _poolManager, address _positionManager) {
         poolManager = IPoolManager(_poolManager);
+        positionManager = IPositionManager(_positionManager);
     }
 
     function uint256ToUint128(uint256 input) public pure returns (uint128) {
@@ -91,7 +93,6 @@ contract UniswapV4Helpers {
     /// for each currency (the increase nets accrued fees, so a currency's delta can be a credit; SETTLE_PAIR
     /// reverts on that, CLOSE_CURRENCY pays it to the caller) and SWEEP of the native leftover to `refund`.
     function encodeIncrease(
-        address positionManager,
         uint256 tokenId,
         uint256 amount0Max,
         uint256 amount1Max,
@@ -103,11 +104,8 @@ contract UniswapV4Helpers {
         view
         returns (bytes memory)
     {
-        (PoolKey memory poolKey, PositionInfo info) = IPositionManager(positionManager).getPoolAndPositionInfo(tokenId);
-        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
-        if (sqrtPriceX96 < sqrtPriceMinX96 || sqrtPriceX96 > sqrtPriceMaxX96) {
-            revert PriceOutOfBounds(sqrtPriceX96, sqrtPriceMinX96, sqrtPriceMaxX96);
-        }
+        (PoolKey memory poolKey, PositionInfo info) = positionManager.getPoolAndPositionInfo(tokenId);
+        uint160 sqrtPriceX96 = _boundedSqrtPrice(poolKey, sqrtPriceMinX96, sqrtPriceMaxX96);
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
             TickMath.getSqrtPriceAtTick(info.tickLower()),
@@ -222,6 +220,10 @@ contract UniswapV4Helpers {
         );
     }
 
+    /// @notice Encode `modifyLiquidities` calldata that mints a position sized from the amounts at the
+    /// current price, bounded by a sqrtPrice window: the price the caller quoted the amounts at, ± its
+    /// tolerance. Outside the window the mint reverts instead of pricing the liquidity at a moved price.
+    /// Pass 0 / type(uint160).max to disable the bound.
     function encodeMintFromDeltasWithHooks(
         address currency0,
         address currency1,
@@ -231,6 +233,8 @@ contract UniswapV4Helpers {
         int24 tickUpper,
         uint256 amount0Max,
         uint256 amount1Max,
+        uint160 sqrtPriceMinX96,
+        uint160 sqrtPriceMaxX96,
         address recipient,
         address refund,
         address hooks
@@ -239,8 +243,14 @@ contract UniswapV4Helpers {
         view
         returns (bytes memory)
     {
-        uint128 liquidity = getLiquidityForAmounts(
-            getPoolKey(currency0, currency1, fee, tickSpacing, hooks), tickLower, tickUpper, amount0Max, amount1Max
+        PoolKey memory poolKey = getPoolKey(currency0, currency1, fee, tickSpacing, hooks);
+        uint160 sqrtPriceX96 = _boundedSqrtPrice(poolKey, sqrtPriceMinX96, sqrtPriceMaxX96);
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
+            amount0Max,
+            amount1Max
         );
 
         return encodeMintWithHooks(
@@ -268,6 +278,8 @@ contract UniswapV4Helpers {
         int24 tickUpper,
         uint256 amount0Max,
         uint256 amount1Max,
+        uint160 sqrtPriceMinX96,
+        uint160 sqrtPriceMaxX96,
         address recipient,
         address refund
     )
@@ -284,9 +296,27 @@ contract UniswapV4Helpers {
             tickUpper,
             amount0Max,
             amount1Max,
+            sqrtPriceMinX96,
+            sqrtPriceMaxX96,
             recipient,
             refund,
             address(0)
         );
+    }
+
+    /// @dev The pool's current sqrtPrice, reverting `PriceOutOfBounds` outside `[min, max]`.
+    function _boundedSqrtPrice(
+        PoolKey memory poolKey,
+        uint160 sqrtPriceMinX96,
+        uint160 sqrtPriceMaxX96
+    )
+        private
+        view
+        returns (uint160 sqrtPriceX96)
+    {
+        (sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+        if (sqrtPriceX96 < sqrtPriceMinX96 || sqrtPriceX96 > sqrtPriceMaxX96) {
+            revert PriceOutOfBounds(sqrtPriceX96, sqrtPriceMinX96, sqrtPriceMaxX96);
+        }
     }
 }

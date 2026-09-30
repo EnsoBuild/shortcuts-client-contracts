@@ -34,7 +34,7 @@ contract UniswapV4HelpersForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"), 51_724_776);
-        helper = new UniswapV4Helpers(POOL_MANAGER);
+        helper = new UniswapV4Helpers(POOL_MANAGER, address(POSITION_MANAGER));
         owner = IERC721(address(POSITION_MANAGER)).ownerOf(TOKEN_ID);
 
         vm.deal(owner, 1 ether);
@@ -50,9 +50,7 @@ contract UniswapV4HelpersForkTest is Test {
         uint256 ethBefore = owner.balance;
         uint256 usdcBefore = IERC20(USDC).balanceOf(owner);
 
-        bytes memory data = helper.encodeIncrease(
-            address(POSITION_MANAGER), TOKEN_ID, AMOUNT0_MAX, AMOUNT1_MAX, NO_MIN, NO_MAX, owner
-        );
+        bytes memory data = helper.encodeIncrease(TOKEN_ID, AMOUNT0_MAX, AMOUNT1_MAX, NO_MIN, NO_MAX, owner);
 
         vm.prank(owner);
         POSITION_MANAGER.modifyLiquidities{ value: AMOUNT0_MAX }(data, block.timestamp + 900);
@@ -71,9 +69,7 @@ contract UniswapV4HelpersForkTest is Test {
     }
 
     function test_encodeIncrease_revertsForStranger() public {
-        bytes memory data = helper.encodeIncrease(
-            address(POSITION_MANAGER), TOKEN_ID, AMOUNT0_MAX, AMOUNT1_MAX, NO_MIN, NO_MAX, address(this)
-        );
+        bytes memory data = helper.encodeIncrease(TOKEN_ID, AMOUNT0_MAX, AMOUNT1_MAX, NO_MIN, NO_MAX, address(this));
         vm.deal(address(this), 1 ether);
         vm.expectRevert();
         POSITION_MANAGER.modifyLiquidities{ value: AMOUNT0_MAX }(data, block.timestamp + 900);
@@ -100,7 +96,7 @@ contract UniswapV4HelpersIncreaseBoundsTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"), 51_724_776);
-        helper = new UniswapV4Helpers(address(POOL_MANAGER));
+        helper = new UniswapV4Helpers(address(POOL_MANAGER), address(POSM));
         swapper = new PoolSwapTest(POOL_MANAGER);
         MockERC20 a = new MockERC20("A", "A");
         MockERC20 b = new MockERC20("B", "B");
@@ -155,7 +151,7 @@ contract UniswapV4HelpersIncreaseBoundsTest is Test {
 
         (uint160 sqrtPriceX96,,,) = _slot0();
         vm.expectRevert(abi.encodeWithSelector(PriceOutOfBounds.selector, sqrtPriceX96, lo, hi));
-        helper.encodeIncrease(address(POSM), id, 100e18, 100e18, lo, hi, user);
+        helper.encodeIncrease(id, 100e18, 100e18, lo, hi, user);
     }
 
     function test_encodeIncrease_withinWindowAddsLiquidity() public {
@@ -163,11 +159,36 @@ contract UniswapV4HelpersIncreaseBoundsTest is Test {
         (uint160 lo, uint160 hi) = _window();
         uint128 before = POSM.getPositionLiquidity(id);
 
-        bytes memory data = helper.encodeIncrease(address(POSM), id, 100e18, 100e18, lo, hi, user);
+        bytes memory data = helper.encodeIncrease(id, 100e18, 100e18, lo, hi, user);
         vm.prank(user);
         POSM.modifyLiquidities(data, block.timestamp + 900);
 
         assertGt(POSM.getPositionLiquidity(id), before, "liquidity not added");
+    }
+
+    // The mint derives liquidity from the amounts at the live price; the window bounds that price the
+    // same way it does for the increase.
+    function test_encodeMintFromDeltas_revertsWhenPriceLeftTheWindow() public {
+        (uint160 lo, uint160 hi) = _window();
+        _swap(attacker, false, -1e24, TickMath.getSqrtPriceAtTick(599));
+
+        (uint160 sqrtPriceX96,,,) = _slot0();
+        vm.expectRevert(abi.encodeWithSelector(PriceOutOfBounds.selector, sqrtPriceX96, lo, hi));
+        helper.encodeMintFromDeltas(address(t0), address(t1), 3000, 60, -600, 600, 100e18, 100e18, lo, hi, user, user);
+    }
+
+    function test_encodeMintFromDeltas_withinWindowMints() public {
+        (uint160 lo, uint160 hi) = _window();
+        uint256 id = POSM.nextTokenId();
+
+        bytes memory data = helper.encodeMintFromDeltas(
+            address(t0), address(t1), 3000, 60, -600, 600, 100e18, 100e18, lo, hi, user, user
+        );
+        vm.prank(user);
+        POSM.modifyLiquidities(data, block.timestamp + 900);
+
+        assertEq(IERC721(address(POSM)).ownerOf(id), user, "position not minted to the recipient");
+        assertGt(POSM.getPositionLiquidity(id), 0, "no liquidity minted");
     }
 
     // The increase nets the position's uncollected fees. Out of range with fees in the currency
@@ -181,7 +202,7 @@ contract UniswapV4HelpersIncreaseBoundsTest is Test {
         uint256 t1Before = t1.balanceOf(user);
         uint128 before = POSM.getPositionLiquidity(id);
 
-        bytes memory data = helper.encodeIncrease(address(POSM), id, 1e18, 1e18, 0, type(uint160).max, user);
+        bytes memory data = helper.encodeIncrease(id, 1e18, 1e18, 0, type(uint160).max, user);
         vm.prank(user);
         POSM.modifyLiquidities(data, block.timestamp + 900);
 
