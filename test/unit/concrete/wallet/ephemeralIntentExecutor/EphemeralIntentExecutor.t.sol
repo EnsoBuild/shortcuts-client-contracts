@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Constrained, Intent, KeeperFee, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntent.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { Test } from "forge-std/Test.sol";
@@ -55,9 +55,10 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
         return KeeperFee({ token: token, intentFee: intentFee, refundFee: refundFee });
     }
 
+    /// A committed-route intent: the shortcut bytes are fixed in the blob, no outcome floor.
     function _intent() internal view returns (Intent memory intent) {
-        Token[] memory triggers = new Token[](1);
-        triggers[0] = _erc20(address(s_tokenIn), 100 ether);
+        Token[] memory tokensIn = new Token[](1);
+        tokensIn[0] = _erc20(address(s_tokenIn), 100 ether);
         intent = Intent({
             version: 1,
             chainId: block.chainid,
@@ -65,34 +66,22 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
             start: uint64(block.timestamp),
             deadline: uint64(block.timestamp + 1 days),
             owner: s_user,
-            triggers: triggers,
+            recipient: s_recipient,
+            keeper: s_keeper,
             keeperFee: _fee(address(0), 0, 0),
-            mode: Mode.ROUTE,
-            payload: hex"deadbeef"
+            tokensIn: tokensIn,
+            tokensOut: new Token[](0),
+            route: hex"deadbeef"
         });
     }
 
-    function _constrainedIntent(
-        uint256 minAmountOut,
-        address exclusiveKeeper,
-        uint64 exclusiveUntil
-    )
-        internal
-        view
-        returns (Intent memory intent)
-    {
+    /// A keeper-routed intent: no committed route, one tokenOut minimum at the recipient.
+    function _constrainedIntent(uint256 minAmountOut) internal view returns (Intent memory intent) {
         intent = _intent();
-        intent.mode = Mode.CONSTRAINED;
+        intent.route = "";
         Token[] memory tokensOut = new Token[](1);
         tokensOut[0] = _erc20(address(s_tokenOut), minAmountOut);
-        intent.payload = abi.encode(
-            Constrained({
-                recipient: s_recipient,
-                tokensOut: tokensOut,
-                exclusiveKeeper: exclusiveKeeper,
-                exclusiveUntil: exclusiveUntil
-            })
-        );
+        intent.tokensOut = tokensOut;
     }
 
     function _fund(Intent memory intent, uint256 amount) internal returns (address predicted) {

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent } from "../../../../../src/interfaces/IIntentRouter.sol";
+import { Intent } from "../../../../../src/interfaces/IIntent.sol";
 import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
 import { MockERC1155 } from "../../../../mocks/MockERC1155.sol";
 import { MockERC721 } from "../../../../mocks/MockERC721.sol";
@@ -12,6 +12,7 @@ import { VM } from "enso-weiroll/VM.sol";
 import { IERC1271 } from "openzeppelin-contracts/interfaces/IERC1271.sol";
 import { IERC20Errors } from "openzeppelin-contracts/interfaces/draft-IERC6093.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 
 /// A contract wallet that accepts its signer's ECDSA signatures over any hash.
@@ -28,7 +29,7 @@ contract ERC1271Wallet is IERC1271 {
     }
 }
 
-/// Called from inside a route: attempts to reenter execute and records the error.
+/// Called from inside a route: attempts to reenter executeIntent and records the error.
 contract Reenterer {
     IntentRouter public immutable router;
     bytes4 public lastError;
@@ -39,7 +40,7 @@ contract Reenterer {
 
     function hit() external {
         Intent memory intent;
-        try router.execute(intent, "", "") { }
+        try router.executeIntent(intent, "", "") { }
         catch (bytes memory err) {
             lastError = bytes4(err);
         }
@@ -47,8 +48,8 @@ contract Reenterer {
 }
 
 /// Revert tests sign before `vm.expectRevert`: signing reads `hash()` from the router, and
-/// the expectation must attach to the execute call, not to that view.
-contract IntentRouter_Execute_Unit_Concrete_Test is IntentRouter_Unit_Concrete_Test {
+/// the expectation must attach to the executeIntent call, not to that view.
+contract IntentRouter_ExecuteIntent_Unit_Concrete_Test is IntentRouter_Unit_Concrete_Test {
     function test_WhenTheCallerIsNotTheKeeper() external {
         Intent memory intent = _intent();
         bytes memory signature = _sign(intent);
@@ -56,7 +57,7 @@ contract IntentRouter_Execute_Unit_Concrete_Test is IntentRouter_Unit_Concrete_T
         // it should revert with NotKeeper
         vm.prank(s_owner);
         vm.expectRevert(IntentRouter.NotKeeper.selector);
-        s_router.execute(intent, signature, _transferRoute(address(s_tokenOut), s_recipient, 50 ether));
+        s_router.executeIntent(intent, signature, _transferRoute(address(s_tokenOut), s_recipient, 50 ether));
     }
 
     function test_WhenTheChainIdDoesNotMatch() external {
@@ -403,6 +404,21 @@ contract IntentRouter_Execute_Unit_Concrete_Test is IntentRouter_Unit_Concrete_T
         _execute(intent, signature, _transferRoute(address(s_tokenOut), s_recipient, 50 ether));
     }
 
+    function test_WhenTheKeeperIsZero() external {
+        Intent memory intent = _intent();
+        intent.keeper = address(0);
+        intent.keeperFee = _fee(address(s_tokenIn), 5 ether, 0);
+        bytes memory signature = _sign(intent);
+        address anyone = vm.addr(9);
+
+        vm.prank(anyone);
+        s_router.executeIntent(intent, signature, _transferRoute(address(s_tokenOut), s_recipient, 50 ether));
+
+        // it should let any caller execute and pay them the fee
+        assertEq(s_tokenOut.balanceOf(s_recipient), 50 ether);
+        assertEq(s_tokenIn.balanceOf(anyone), 5 ether);
+    }
+
     function test_WhenTheRouteReverts() external {
         Intent memory intent = _intent();
         bytes memory signature = _sign(intent);
@@ -427,8 +443,8 @@ contract IntentRouter_Execute_Unit_Concrete_Test is IntentRouter_Unit_Concrete_T
 
         _execute(intent, _shortcut(commands, state));
 
-        // it should revert with NotKeeper
-        assertEq(reenterer.lastError(), IntentRouter.NotKeeper.selector);
+        // it should revert with ReentrancyGuardReentrantCall
+        assertEq(reenterer.lastError(), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
         assertEq(s_tokenOut.balanceOf(s_recipient), 50 ether);
     }
 }

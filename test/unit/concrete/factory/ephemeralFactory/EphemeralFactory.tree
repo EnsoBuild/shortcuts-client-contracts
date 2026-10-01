@@ -1,3 +1,6 @@
+EphemeralFactory_Constructor
+└── it should set the router
+
 EphemeralFactory_GetAddress
 ├── when given a typed intent
 │   └── it should predict the executor CREATE2 address
@@ -13,6 +16,8 @@ EphemeralFactory_ExecuteIntent
 │   ├── it should leave no code at the address
 │   └── it should emit IntentPublished with the canonical blob
 ├── when the router reads the context
-│   └── it should expose route, sweep, keeper and router
+│   └── it should expose route, sweep, sender and router
+├── when executeIntent is reentered
+│   └── it should revert the nested call with ReentrancyGuardReentrantCall
 └── when executed twice with the same intent
     └── it should reuse the address

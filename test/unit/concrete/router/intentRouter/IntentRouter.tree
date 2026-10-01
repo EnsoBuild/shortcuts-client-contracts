@@ -1,9 +1,8 @@
 IntentRouter_Constructor
-├── it should set the keeper
 ├── it should deploy shortcuts executed only by the router
 └── it should expose the EIP-712 domain
 
-IntentRouter_Execute
+IntentRouter_ExecuteIntent
 ├── when the caller is not the keeper
 │   └── it should revert with NotKeeper
 ├── when the chain id does not match
@@ -64,10 +63,12 @@ IntentRouter_Execute
 │   └── it should ignore the refund fee
 ├── when the intent fee is native
 │   └── it should revert with UnsupportedTokenType
+├── when the keeper is zero
+│   └── it should let any caller execute and pay them the fee
 ├── when the route reverts
 │   └── it should bubble the revert
-└── when a shortcut reenters execute
-    └── it should revert with NotKeeper
+└── when a shortcut reenters executeIntent
+    └── it should revert with ReentrancyGuardReentrantCall
 
 IntentRouter_Cancel
 ├── when the owner cancels a nonce

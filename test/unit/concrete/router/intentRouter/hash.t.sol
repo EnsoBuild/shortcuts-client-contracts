@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntentRouter.sol";
+import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntent.sol";
 import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
 import { Test } from "forge-std/Test.sol";
 import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
@@ -13,14 +13,14 @@ import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/Mess
 /// signing with the same `types` produces signatures this contract accepts.
 contract IntentRouter_Hash_Unit_Concrete_Test is Test {
     address internal constant ROUTER = 0x7777777777777777777777777777777777777777;
-    bytes32 internal constant STRUCT_HASH = 0xd6e3ddb7f4561e0dc62af4290fa579262eb3fd0921a1165112bbeef1fb09c933;
-    bytes32 internal constant DIGEST = 0xd20e25270bad84f0abcf5199e64067bba51f395e20363fcc93505f68a4644a5d;
+    bytes32 internal constant STRUCT_HASH = 0x5a391d459312c29678ebf253c548a9a4f7b5f11f70bec7d63c32110515d077e5;
+    bytes32 internal constant DIGEST = 0x49b9613b7c01c9cd07cb8678a9531e09657b8c790561677640ff10dcbc684dff;
     bytes32 internal constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     function test_WhenHashedAgainstTheReferenceEncoder() external {
         vm.chainId(31_337);
-        deployCodeTo("IntentRouter.sol:IntentRouter", abi.encode(address(0xBEEF)), ROUTER);
+        deployCodeTo("IntentRouter.sol:IntentRouter", ROUTER);
         IntentRouter router = IntentRouter(ROUTER);
 
         Token[] memory tokensIn = new Token[](2);
@@ -44,11 +44,12 @@ contract IntentRouter_Hash_Unit_Concrete_Test is Test {
             deadline: 1_700_003_600,
             owner: 0x1111111111111111111111111111111111111111,
             recipient: 0x2222222222222222222222222222222222222222,
-            tokensIn: tokensIn,
-            tokensOut: tokensOut,
+            keeper: 0x8888888888888888888888888888888888888888,
             keeperFee: KeeperFee({
                 token: 0x6666666666666666666666666666666666666666, intentFee: 5 ether, refundFee: 1 ether
             }),
+            tokensIn: tokensIn,
+            tokensOut: tokensOut,
             route: hex"deadbeef"
         });
 

@@ -3,30 +3,30 @@ pragma solidity ^0.8.28;
 
 import { EnsoShortcuts } from "../EnsoShortcuts.sol";
 import { Token, TokenType } from "../interfaces/IEnsoRouter.sol";
-import { IIntentRouter, Intent, KeeperFee } from "../interfaces/IIntentRouter.sol";
+import { Intent, KeeperFee } from "../interfaces/IIntent.sol";
+import { IIntentRouter } from "../interfaces/IIntentRouter.sol";
 import { IERC1155 } from "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
 import { IERC20, SafeERC20 } from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
+import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { EIP712 } from "openzeppelin-contracts/utils/cryptography/EIP712.sol";
 import { SignatureChecker } from "openzeppelin-contracts/utils/cryptography/SignatureChecker.sol";
 
 /// @title IntentRouter
 /// @notice Executes EIP-712 signed intents through a dedicated EnsoShortcuts. Users approve this
-///         contract; the keeper submits a signed intent with a route; tokens only ever move from
-///         the intent's owner, and only the amounts the owner signed.
-contract IntentRouter is IIntentRouter, EIP712 {
+///         contract; the intent's keeper submits it with a route; tokens only ever move from the
+///         intent's owner, and only the amounts the owner signed.
+contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
 
     bytes32 private constant TOKEN_TYPEHASH = keccak256("Token(uint8 tokenType,bytes data)");
     bytes32 private constant KEEPER_FEE_TYPEHASH =
         keccak256("KeeperFee(address token,uint256 intentFee,uint256 refundFee)");
     bytes32 private constant INTENT_TYPEHASH = keccak256(
-        "Intent(uint16 version,uint256 chainId,uint256 nonce,uint64 start,uint64 deadline,address owner,address recipient,Token[] tokensIn,Token[] tokensOut,KeeperFee keeperFee,bytes route)KeeperFee(address token,uint256 intentFee,uint256 refundFee)Token(uint8 tokenType,bytes data)"
+        "Intent(uint16 version,uint256 chainId,uint256 nonce,uint64 start,uint64 deadline,address owner,address recipient,address keeper,KeeperFee keeperFee,Token[] tokensIn,Token[] tokensOut,bytes route)KeeperFee(address token,uint256 intentFee,uint256 refundFee)Token(uint8 tokenType,bytes data)"
     );
 
-    /// @notice The only caller of execute. A KeeperWallet, so signer rotation never touches this contract.
-    address public immutable keeper;
     address public immutable shortcuts;
 
     /// @notice Unordered nonces: bit `nonce % 256` of word `nonce / 256`, per owner.
@@ -45,25 +45,24 @@ contract IntentRouter is IIntentRouter, EIP712 {
     error AmountTooLow(Token token, uint256 amount, uint256 minAmount);
     error UnsupportedTokenType(TokenType tokenType);
 
-    // forge-lint: disable-next-line(missing-zero-check)
-    constructor(address keeper_) EIP712("IntentRouter", "1") {
-        keeper = keeper_;
+    constructor() EIP712("IntentRouter", "1") {
         shortcuts = address(new EnsoShortcuts(address(this)));
     }
 
-    /// @notice Execute a signed intent. Keeper only.
+    /// @notice Execute a signed intent. The intent's keeper only, or anyone when it is zero.
     /// @param intent The signed intent
     /// @param signature The owner's EIP-712 signature over hash(intent); ECDSA or ERC-1271
     /// @param route Shortcut data forwarded to EnsoShortcuts when the intent commits none
-    function execute(
+    function executeIntent(
         Intent calldata intent,
         bytes calldata signature,
         bytes calldata route
     )
         external
+        nonReentrant
         returns (bytes memory response)
     {
-        if (msg.sender != keeper) {
+        if (intent.keeper != address(0) && msg.sender != intent.keeper) {
             revert NotKeeper();
         }
         if (intent.chainId != block.chainid) {
@@ -146,9 +145,10 @@ contract IntentRouter is IIntentRouter, EIP712 {
                     intent.deadline,
                     intent.owner,
                     intent.recipient,
+                    intent.keeper,
+                    keccak256(abi.encode(KEEPER_FEE_TYPEHASH, fee.token, fee.intentFee, fee.refundFee)),
                     _hashTokens(intent.tokensIn),
                     _hashTokens(intent.tokensOut),
-                    keccak256(abi.encode(KEEPER_FEE_TYPEHASH, fee.token, fee.intentFee, fee.refundFee)),
                     keccak256(intent.route)
                 )
             )
@@ -174,8 +174,8 @@ contract IntentRouter is IIntentRouter, EIP712 {
         nonceBitmap[owner][word] = bits | bit;
     }
 
-    /// No refund branch exists here — funds never leave the owner before execution — so only
-    /// intentFee applies; refundFee is carried for the shared format and ignored.
+    /// Paid to the executing caller. No refund branch exists here — funds never leave the owner
+    /// before execution — so only intentFee applies; refundFee is carried for the shared format.
     function _payFee(KeeperFee calldata fee, address from) private {
         if (fee.intentFee == 0) {
             return;
@@ -185,7 +185,7 @@ contract IntentRouter is IIntentRouter, EIP712 {
         }
         // `from` is the verified signer, not the caller.
         // forge-lint: disable-next-line(arbitrary-send-erc20)
-        IERC20(fee.token).safeTransferFrom(from, keeper, fee.intentFee);
+        IERC20(fee.token).safeTransferFrom(from, msg.sender, fee.intentFee);
     }
 
     function _execute(bytes calldata data) private returns (bytes memory response) {
