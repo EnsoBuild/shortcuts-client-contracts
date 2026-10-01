@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent, KeeperFee, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntent.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { Test } from "forge-std/Test.sol";
@@ -34,9 +34,10 @@ abstract contract EphemeralFactory_Unit_Concrete_Test is Test {
         vm.label(address(s_tokenIn), "TokenIn");
     }
 
+    /// A committed-route intent: the shortcut bytes are fixed in the blob, no outcome floor.
     function _intent() internal view returns (Intent memory intent) {
-        Token[] memory triggers = new Token[](1);
-        triggers[0] = Token({ tokenType: TokenType.ERC20, data: abi.encode(address(s_tokenIn), uint256(100 ether)) });
+        Token[] memory tokensIn = new Token[](1);
+        tokensIn[0] = Token({ tokenType: TokenType.ERC20, data: abi.encode(address(s_tokenIn), uint256(100 ether)) });
         intent = Intent({
             version: 1,
             chainId: block.chainid,
@@ -44,10 +45,12 @@ abstract contract EphemeralFactory_Unit_Concrete_Test is Test {
             start: uint64(block.timestamp),
             deadline: uint64(block.timestamp + 1 days),
             owner: s_user,
-            triggers: triggers,
+            recipient: s_user,
+            keeper: s_keeper,
             keeperFee: KeeperFee({ token: address(0), intentFee: 0, refundFee: 0 }),
-            mode: Mode.ROUTE,
-            payload: hex"deadbeef"
+            tokensIn: tokensIn,
+            tokensOut: new Token[](0),
+            route: hex"deadbeef"
         });
     }
 

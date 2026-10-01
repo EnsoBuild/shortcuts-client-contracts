@@ -2,13 +2,15 @@
 pragma solidity ^0.8.24;
 
 import { Token } from "../interfaces/IEnsoRouter.sol";
-import { EphemeralIntentExecutor, Intent } from "../wallet/EphemeralIntentExecutor.sol";
+import { Intent } from "../interfaces/IIntent.sol";
+import { EphemeralIntentExecutor } from "../wallet/EphemeralIntentExecutor.sol";
+import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 
-contract EphemeralFactory {
+contract EphemeralFactory is ReentrancyGuardTransient {
     // Transient context for the executor's constructor (EIP-1153, cleared at end of tx).
     // Solidity has no `transient bytes`, so abi.encode(route, sweep) is chunked manually:
-    // KEEPER_SLOT holds the caller, CONTEXT_SLOT holds the length, data words follow it.
-    uint256 private constant KEEPER_SLOT = 0;
+    // SENDER_SLOT holds the caller, CONTEXT_SLOT holds the length, data words follow it.
+    uint256 private constant SENDER_SLOT = 0;
     uint256 private constant CONTEXT_SLOT = 1;
 
     /// The execution layer — the executor's only call target. Immutable, so it joins the
@@ -25,18 +27,20 @@ contract EphemeralFactory {
 
     /// @notice Deploy and run `intent`'s executor at its derived address. Permissionless:
     ///         wrong parameters derive an unfunded address, so the derivation authorizes.
-    /// @param route Shortcut data the router forwards to EnsoShortcuts — CONSTRAINED only,
-    ///              empty for ROUTE mode. The keeper chooses bytes, never a target or function.
-    /// @param sweep Extra assets (any Token type) for the refund branches to sweep. Like
-    ///              `route`, never part of the address. The executor must read context()
-    ///              before its first external call — a nested executeIntent() in the same
-    ///              transaction overwrites it.
+    ///         Not reentrant: a route may not execute another intent mid-flight, so one
+    ///         intent's delivery can never be counted toward another's floor.
+    /// @param route Shortcut data the router forwards to EnsoShortcuts when the intent
+    ///              commits none, or the owner's own route. The caller chooses bytes,
+    ///              never a target or function.
+    /// @param sweep Extra assets (any Token type) for the refund arms to sweep. Like
+    ///              `route`, never part of the address.
     function executeIntent(
         Intent calldata intent,
         bytes calldata route,
         Token[] calldata sweep
     )
         external
+        nonReentrant
         returns (address executor)
     {
         _setContext(abi.encode(route, sweep), msg.sender);
@@ -53,10 +57,10 @@ contract EphemeralFactory {
     }
 
     /// @notice Read by the executor's constructor.
-    function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address) {
+    function context() external view returns (bytes memory route, Token[] memory sweep, address sender, address) {
         bytes memory data;
         assembly ("memory-safe") {
-            keeper := tload(KEEPER_SLOT)
+            sender := tload(SENDER_SLOT)
             let len := tload(CONTEXT_SLOT)
             data := mload(0x40)
             mstore(data, len)
@@ -68,7 +72,7 @@ contract EphemeralFactory {
             mstore(0x40, add(ptr, shl(5, words)))
         }
         (route, sweep) = abi.decode(data, (bytes, Token[]));
-        return (route, sweep, keeper, router);
+        return (route, sweep, sender, router);
     }
 
     /// @notice Canonical executor creation code
@@ -83,9 +87,9 @@ contract EphemeralFactory {
             );
     }
 
-    function _setContext(bytes memory data, address keeper) private {
+    function _setContext(bytes memory data, address sender) private {
         assembly ("memory-safe") {
-            tstore(KEEPER_SLOT, keeper)
+            tstore(SENDER_SLOT, sender)
             let len := mload(data)
             tstore(CONTEXT_SLOT, len)
             let words := shr(5, add(len, 31))

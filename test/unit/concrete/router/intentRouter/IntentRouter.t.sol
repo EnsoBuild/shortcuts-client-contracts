@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { AbstractEnsoShortcuts } from "../../../../../src/AbstractEnsoShortcuts.sol";
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntentRouter.sol";
+import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntent.sol";
 import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { WeirollPlanner } from "../../../../utils/WeirollPlanner.sol";
@@ -33,7 +33,7 @@ abstract contract IntentRouter_Unit_Concrete_Test is Test {
         s_recipient = payable(vm.addr(3));
         vm.label(s_recipient, "Recipient");
 
-        s_router = new IntentRouter(s_keeper);
+        s_router = new IntentRouter();
         vm.label(address(s_router), "IntentRouter");
         s_shortcuts = s_router.shortcuts();
         vm.label(s_shortcuts, "EnsoShortcuts");
@@ -74,9 +74,10 @@ abstract contract IntentRouter_Unit_Concrete_Test is Test {
             deadline: uint64(block.timestamp + 1 days),
             owner: s_owner,
             recipient: s_recipient,
+            keeper: s_keeper,
+            keeperFee: _fee(address(0), 0, 0),
             tokensIn: tokensIn,
             tokensOut: tokensOut,
-            keeperFee: _fee(address(0), 0, 0),
             route: ""
         });
     }
@@ -99,7 +100,7 @@ abstract contract IntentRouter_Unit_Concrete_Test is Test {
         returns (bytes memory)
     {
         vm.prank(s_keeper);
-        return s_router.execute(intent, signature, route);
+        return s_router.executeIntent(intent, signature, route);
     }
 
     /// Shortcut data: `token.transfer(to, amount)` from the shortcuts contract.

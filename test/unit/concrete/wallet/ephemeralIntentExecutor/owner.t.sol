@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { Token } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { EphemeralIntentExecutor, Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent } from "../../../../../src/interfaces/IIntent.sol";
+import { EphemeralIntentExecutor } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
@@ -10,8 +11,8 @@ import { Vm } from "forge-std/Vm.sol";
 
 /// The owner arms: when the factory's caller is `intent.owner`, bytes mean "run them"
 /// and no bytes mean "take everything back". Neither arm consults the chain, window,
-/// trigger, exclusivity, or outcome gates — those protect the user from the keeper,
-/// and here the user is the caller.
+/// tokensIn, keeper, or outcome gates — those protect the user from the keeper, and
+/// here the user is the caller.
 contract EphemeralIntentExecutor_Owner_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
     bytes32 private constant TRANSFER = keccak256("Transfer(address,address,uint256)");
 
@@ -44,7 +45,7 @@ contract EphemeralIntentExecutor_Owner_Unit_Concrete_Test is EphemeralIntentExec
         _executeAsOwner(intent, "", new Token[](0));
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        // it should refund the trigger tokens before the deadline
+        // it should refund tokensIn before the deadline
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
 
         // it should pay no fee — the fee token leaves in one sweep, not fee plus remainder
@@ -74,16 +75,16 @@ contract EphemeralIntentExecutor_Owner_Unit_Concrete_Test is EphemeralIntentExec
     }
 
     /// forge-config: default.isolate = true
-    function test_WhenTheOwnerCallsInsideTheExclusivityWindow() external {
-        Intent memory intent = _constrainedIntent(1 ether, s_keeper, uint64(block.timestamp + 1 hours));
+    function test_WhenTheOwnerCallsOnAKeeperRoutedIntent() external {
+        Intent memory intent = _constrainedIntent(1 ether);
         _fund(intent, 100 ether);
         s_router.setOut(address(s_tokenOut), 1 ether, s_recipient);
 
-        // it should refund without reverting Exclusive
+        // it should refund rather than wait for the keeper
         _executeAsOwner(intent, "", new Token[](0));
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
 
-        // it should leave the exclusive keeper nothing to execute
+        // it should leave the keeper nothing to execute
         vm.expectRevert(EphemeralIntentExecutor.Underfunded.selector);
         _execute(intent, hex"beefcafe");
     }
@@ -96,18 +97,18 @@ contract EphemeralIntentExecutor_Owner_Unit_Concrete_Test is EphemeralIntentExec
 
         Token[] memory sweep = new Token[](2);
         sweep[0] = _erc20(address(extra), 0);
-        sweep[1] = _erc20(address(s_tokenIn), 0); // a trigger, listed again
+        sweep[1] = _erc20(address(s_tokenIn), 0); // a tokenIn, listed again
 
         vm.recordLogs();
         _executeAsOwner(intent, "", sweep);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        // it should sweep them alongside the triggers
+        // it should sweep them alongside tokensIn
         assertEq(extra.balanceOf(s_user), 42 ether);
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
 
-        // it should tolerate a listed trigger token — the second pass reads a zero
-        // balance and skips, so the trigger moves exactly once
+        // it should tolerate a listed tokenIn — the second pass reads a zero balance
+        // and skips, so the token moves exactly once
         assertEq(_transfersFrom(logs, address(s_tokenIn), predicted), 1);
     }
 
@@ -121,11 +122,11 @@ contract EphemeralIntentExecutor_Owner_Unit_Concrete_Test is EphemeralIntentExec
 
         _executeAsOwner(intent, hex"c0ffee", new Token[](0));
 
-        // it should call the router with the owner's bytes, not the committed payload
+        // it should call the router with the owner's bytes, not the committed route
         assertEq(s_router.lastData(), hex"c0ffee");
         assertEq(s_router.lastCaller(), predicted);
 
-        // it should pass the trigger tokens with live balances
+        // it should pass tokensIn with live balances
         (, bytes memory liveData) = s_router.lastTokensIn(0);
         (, uint256 liveAmount) = abi.decode(liveData, (address, uint256));
         assertEq(liveAmount, 100 ether);
@@ -147,16 +148,16 @@ contract EphemeralIntentExecutor_Owner_Unit_Concrete_Test is EphemeralIntentExec
     }
 
     function test_WhenTheOwnerSubmitsARouteUnderClosedGates() external {
-        // Every gate shut at once: before start, underfunded triggers, another keeper's
-        // exclusivity window, and a route that delivers nothing to the recipient.
-        Intent memory intent = _constrainedIntent(50 ether, s_keeper, uint64(block.timestamp + 1 hours));
+        // Every gate shut at once: before start, underfunded tokensIn, a caller who is
+        // not the keeper, and a route that delivers nothing to the recipient.
+        Intent memory intent = _constrainedIntent(50 ether);
         intent.start = uint64(block.timestamp + 1 hours);
         _fund(intent, 50 ether);
 
         vm.expectRevert(EphemeralIntentExecutor.TooEarly.selector);
         _execute(intent, hex"c0ffee");
 
-        // it should execute without the start, trigger, exclusivity, or outcome gates
+        // it should execute without the start, tokensIn, keeper, or outcome gates
         _executeAsOwner(intent, hex"c0ffee", new Token[](0));
         assertEq(s_router.lastData(), hex"c0ffee");
         (, bytes memory liveData) = s_router.lastTokensIn(0);
@@ -192,14 +193,21 @@ contract EphemeralIntentExecutor_Owner_Unit_Concrete_Test is EphemeralIntentExec
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
     }
 
-    function test_WhenAThirdPartySubmitsARouteInROUTEMode() external {
+    function test_WhenTheKeeperIsZeroAndAThirdPartySubmitsARoute() external {
         Intent memory intent = _intent();
+        intent.keeper = address(0);
+        intent.keeperFee = _fee(address(s_tokenIn), 5 ether, 0);
         _fund(intent, 100 ether);
+        address anyone = vm.addr(9);
 
-        _execute(intent, hex"c0ffee");
+        vm.prank(anyone);
+        s_factory.executeIntent(intent, hex"c0ffee", new Token[](0));
 
-        // it should ignore the bytes and run the committed payload
+        // it should ignore the bytes and run the committed route
         assertEq(s_router.lastData(), hex"deadbeef");
+
+        // it should pay the caller the intent fee
+        assertEq(s_tokenIn.balanceOf(anyone), 5 ether);
     }
 
     function test_WhenTheOwnerIsZeroAndAKeeperSubmitsARoute() external {

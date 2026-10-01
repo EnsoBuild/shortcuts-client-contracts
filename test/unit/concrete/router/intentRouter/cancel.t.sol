@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Intent } from "../../../../../src/interfaces/IIntentRouter.sol";
+import { Intent } from "../../../../../src/interfaces/IIntent.sol";
 import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
 import { IntentRouter_Unit_Concrete_Test } from "./IntentRouter.t.sol";
 

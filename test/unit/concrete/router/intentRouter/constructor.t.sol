@@ -6,9 +6,6 @@ import { IntentRouter_Unit_Concrete_Test } from "./IntentRouter.t.sol";
 
 contract IntentRouter_Constructor_Unit_Concrete_Test is IntentRouter_Unit_Concrete_Test {
     function test_Constructor() external {
-        // it should set the keeper
-        assertEq(s_router.keeper(), s_keeper);
-
         // it should deploy shortcuts executed only by the router
         EnsoShortcuts shortcuts = EnsoShortcuts(payable(s_shortcuts));
         assertEq(shortcuts.executor(), address(s_router));

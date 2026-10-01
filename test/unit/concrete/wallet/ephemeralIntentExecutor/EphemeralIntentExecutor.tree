@@ -1,20 +1,25 @@
 EphemeralIntentExecutor_Route
-├── when triggers are unmet
+├── when tokensIn are unmet
 │   └── it should revert with Underfunded
 ├── when executed before start
 │   └── it should revert with TooEarly
-├── when the payload runs
-│   ├── it should call the router with the committed payload
-│   ├── it should pass the trigger tokens with live balances
-│   ├── it should approve trigger tokens to the router for the call
+├── when the caller is not the keeper
+│   └── it should revert with NotKeeper even for a committed route
+├── when the committed route runs
+│   ├── it should call the router with the committed route
+│   ├── it should pass tokensIn with live balances
+│   ├── it should approve tokensIn to the router for the call
 │   ├── it should revoke approvals after the call
 │   ├── it should pay the intent fee, not the refund fee
-│   └── it should sweep remaining native to the refund recipient
-├── when a native trigger exists
+│   └── it should sweep remaining native to the owner
+├── when a committed route carries an outcome floor
+│   ├── it should enforce the floor on the committed route
+│   └── it should execute once the floor clears
+├── when a native tokenIn exists
 │   ├── it should forward the native balance as call value
 │   └── it should carry the live balance in the native entry
-├── when the trigger is an NFT
-│   ├── it should pass the trigger check with the tokenId treated as ownership
+├── when tokenIn is an NFT
+│   ├── it should pass the delivery check with the tokenId treated as ownership
 │   └── it should clear the approval in the epilogue when the NFT stayed
 ├── when the committed NFT is absent
 │   └── it should revert with Underfunded
@@ -37,87 +42,90 @@ EphemeralIntentExecutor_Constrained
 ├── when the delta clears the minimum
 │   ├── it should call the router with the keeper route
 │   └── it should measure the delta at the recipient
-├── when the recipient balance decreases
-│   └── it should revert with Insufficient
-├── when tokensOut is empty
-│   └── it should revert with Insufficient
-├── when a minimum is zero
-│   └── it should revert with Insufficient
 ├── when tokenOut is native
 │   └── it should measure the native delta at the recipient
+├── when any tokenOut misses its minimum
+│   └── it should revert with AmountTooLow
+├── when the delta is below the minimum
+│   └── it should revert with AmountTooLow
+├── when the route delivers to the executor instead
+│   └── it should revert with AmountTooLow
 ├── when the outcome is a minted NFT
 │   └── it should satisfy the count minimum with whatever id arrived
-├── when the delta is below the minimum
-│   └── it should revert with Insufficient
-├── when any tokenOut misses its minimum
-│   └── it should revert with Insufficient
-├── when the route delivers to the executor instead
-│   └── it should revert with Insufficient
-├── when the exclusivity window is open
-│   ├── it should revert with Exclusive for other keepers
-│   └── it should execute for the exclusive keeper
-└── when the exclusivity window has passed
-    └── it should execute for any keeper
+├── when the recipient balance decreases
+│   └── it should revert with AmountTooLow, not a Panic
+├── when tokensOut is empty
+│   └── it should revert with Unconstrained
+├── when a minimum is zero
+│   └── it should revert with Unconstrained
+├── when the keeper is zero
+│   └── it should let any caller route against the floor and pay them the fee
+└── when the caller is not the keeper
+    ├── it should revert with NotKeeper
+    └── it should execute for the keeper
 
 EphemeralIntentExecutor_Refund
-├── when the trigger data is malformed
-│   ├── it should skip the malformed trigger and complete the lifecycle
-│   └── it should recover the skipped asset with a second transaction
-├── when the trigger address word is dirty
-│   └── it should truncate the dirty word and fully refund
-├── when a trigger token returns a dirty bool
-│   └── it should tolerate the non-canonical return and still deliver the refund
-├── when the refund recipient is zero
-│   └── it should substitute the keeper as beneficiary
 ├── when the deadline has passed
-│   ├── it should sweep trigger tokens to the refund recipient
-│   ├── it should sweep keeper-listed tokens to the refund recipient
 │   ├── it should pay the refund fee best-effort, not the intent fee
+│   ├── it should sweep tokensIn to the owner
+│   ├── it should sweep caller-listed tokens to the owner
 │   └── it should not revert on a reverting token
 ├── when NFTs are keeper-listed
-│   └── it should sweep them to the refund recipient
+│   └── it should sweep caller-listed NFTs to the owner
+├── when the tokenIn data is malformed
+│   ├── it should skip the malformed entry and complete the lifecycle
+│   └── it should recover the skipped asset with a second transaction
+├── when the tokenIn address word is dirty
+│   └── it should truncate the dirty word and fully refund
+├── when a tokenIn returns a dirty bool
+│   └── it should tolerate the non-canonical return and still deliver the refund
+├── when the refund recipient is zero
+│   └── it should substitute the caller as beneficiary
 ├── when the fee token is codeless
 │   └── it should skip the fee and still refund
 ├── when the refund fee exceeds the balance
 │   └── it should skip the fee and still refund
-├── when the fee token is not a trigger
-│   ├── it should sweep the fee token remainder to the refund recipient
+├── when the fee token is not a tokenIn
+│   ├── it should sweep the fee token remainder to the owner
 │   └── it should pay nothing on a repeated refund
 ├── when the refund fee is native
 │   └── it should pay the keeper before the selfdestruct sweep
+├── when a refund is permissionless
+│   └── it should let any caller refund and earn the refund fee
 └── when executed on the wrong chain
     ├── it should sweep immediately without waiting for the gates
     └── it should sweep native via selfdestruct
 
 EphemeralIntentExecutor_Owner
 ├── when the owner calls without a route
-│   ├── it should refund the trigger tokens before the deadline
+│   ├── it should refund tokensIn before the deadline
 │   ├── it should pay no fee
 │   ├── it should not call the router
 │   └── it should sweep native via selfdestruct
 ├── when the owner calls before start
 │   └── it should refund without waiting for the start gate
-├── when the owner calls inside the exclusivity window
-│   ├── it should refund without reverting Exclusive
-│   └── it should leave the exclusive keeper nothing to execute
+├── when the owner calls on a keeper-routed intent
+│   ├── it should refund rather than wait for the keeper
+│   └── it should leave the keeper nothing to execute
 ├── when the owner lists extra tokens
-│   ├── it should sweep them alongside the triggers
-│   └── it should tolerate a listed trigger token
+│   ├── it should sweep them alongside tokensIn
+│   └── it should tolerate a listed tokenIn
 ├── when the owner submits a route
-│   ├── it should call the router with the owner's bytes, not the committed payload
-│   ├── it should pass the trigger tokens with live balances
+│   ├── it should call the router with the owner's bytes, not the committed route
+│   ├── it should pass tokensIn with live balances
 │   ├── it should not take a fee off the top
 │   ├── it should revoke approvals after the call
 │   ├── it should sweep remaining native to the owner
 │   └── it should leave route residue recoverable by an owner refund
 ├── when the owner submits a route under closed gates
-│   └── it should execute without the start, trigger, exclusivity, or outcome gates
+│   └── it should execute without the start, tokensIn, keeper, or outcome gates
 ├── when the owner submits a route outside the window
 │   └── it should route rather than refund
 ├── when the owner route reverts
 │   ├── it should bubble the revert reason
 │   └── it should leave the refund arm available
-├── when a third party submits a route in ROUTE mode
-│   └── it should ignore the bytes and run the committed payload
+├── when the keeper is zero and a third party submits a route
+│   ├── it should ignore the bytes and run the committed route
+│   └── it should pay the caller the intent fee
 └── when the owner is zero and a keeper submits a route
     └── it should not grant the keeper owner privileges

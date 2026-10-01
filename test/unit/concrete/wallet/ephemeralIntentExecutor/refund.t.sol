@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent } from "../../../../../src/interfaces/IIntent.sol";
 import { MockDirtyBoolERC20 } from "../../../../mocks/MockDirtyBoolERC20.sol";
 import { MockERC1155 } from "../../../../mocks/MockERC1155.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
@@ -31,10 +31,10 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         // it should pay the refund fee best-effort, not the intent fee
         assertEq(s_tokenIn.balanceOf(s_keeper), 5 ether);
 
-        // it should sweep trigger tokens to the refund recipient
+        // it should sweep tokensIn to the owner
         assertEq(s_tokenIn.balanceOf(s_user), 95 ether);
 
-        // it should sweep keeper-listed tokens to the refund recipient
+        // it should sweep caller-listed tokens to the owner
         // it should not revert on a reverting token
         assertEq(extra.balanceOf(s_user), 42 ether);
     }
@@ -56,15 +56,15 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         vm.prank(s_keeper);
         s_factory.executeIntent(intent, "", sweep);
 
-        // it should sweep keeper-listed NFTs to the refund recipient
+        // it should sweep caller-listed NFTs to the owner
         assertEq(nft.ownerOf(7), s_user);
         assertEq(multi.balanceOf(s_user, 9), 3);
     }
 
     /// forge-config: default.isolate = true
-    function test_WhenTheTriggerDataIsMalformed() external {
+    function test_WhenTheTokenInDataIsMalformed() external {
         Intent memory intent = _intent();
-        intent.triggers[0] = Token({ tokenType: TokenType.ERC20, data: hex"deadbeef" }); // undecodably short
+        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC20, data: hex"deadbeef" }); // undecodably short
         address predicted = s_factory.getAddress(intent);
         s_tokenIn.mint(predicted, 100 ether);
         vm.warp(intent.deadline + 1);
@@ -72,7 +72,7 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         vm.prank(s_keeper);
         s_factory.executeIntent(intent, "", new Token[](0));
 
-        // it should skip the malformed trigger and complete the lifecycle
+        // it should skip the malformed entry and complete the lifecycle
         assertEq(predicted.code.length, 0);
         assertEq(s_tokenIn.balanceOf(predicted), 100 ether); // skipped in place, not lost
 
@@ -84,10 +84,10 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
     }
 
-    function test_WhenTheTriggerAddressWordIsDirty() external {
+    function test_WhenTheTokenInAddressWordIsDirty() external {
         Intent memory intent = _intent();
         bytes32 dirty = bytes32(uint256(uint160(address(s_tokenIn))) | (uint256(0xBAD) << 160));
-        intent.triggers[0] = Token({ tokenType: TokenType.ERC20, data: abi.encodePacked(dirty, uint256(100 ether)) });
+        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC20, data: abi.encodePacked(dirty, uint256(100 ether)) });
         address predicted = s_factory.getAddress(intent);
         s_tokenIn.mint(predicted, 100 ether);
         vm.warp(intent.deadline + 1);
@@ -99,10 +99,10 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
     }
 
-    function test_WhenATriggerTokenReturnsADirtyBool() external {
+    function test_WhenATokenInReturnsADirtyBool() external {
         MockDirtyBoolERC20 dirty = new MockDirtyBoolERC20();
         Intent memory intent = _intent();
-        intent.triggers[0] = _erc20(address(dirty), 100 ether);
+        intent.tokensIn[0] = _erc20(address(dirty), 100 ether);
         address predicted = s_factory.getAddress(intent);
         dirty.mint(predicted, 100 ether);
         vm.warp(intent.deadline + 1);
@@ -125,7 +125,7 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         vm.prank(s_keeper);
         s_factory.executeIntent(intent, "", new Token[](0));
 
-        // it should substitute the keeper as beneficiary — nothing burned or stranded
+        // it should substitute the caller as beneficiary — nothing burned or stranded
         assertEq(s_tokenIn.balanceOf(s_keeper), 100 ether);
         assertEq(s_keeper.balance, keeperNativeBefore + 1 ether);
         assertEq(address(0).balance, 0);
@@ -157,7 +157,7 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
     }
 
     /// forge-config: default.isolate = true
-    function test_WhenTheFeeTokenIsNotATrigger() external {
+    function test_WhenTheFeeTokenIsNotATokenIn() external {
         MockERC20 feeToken = new MockERC20("Fee", "FEE");
         Intent memory intent = _intent();
         intent.keeperFee = _fee(address(feeToken), 0, 5 ether);
@@ -168,7 +168,7 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         vm.prank(s_keeper);
         s_factory.executeIntent(intent, "", new Token[](0));
 
-        // it should sweep the fee token remainder to the refund recipient
+        // it should sweep the fee token remainder to the owner
         assertEq(feeToken.balanceOf(s_keeper), 5 ether);
         assertEq(feeToken.balanceOf(s_user), 37 ether);
         assertEq(feeToken.balanceOf(predicted), 0);
@@ -193,6 +193,21 @@ contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExe
         // it should pay the keeper before the selfdestruct sweep
         assertEq(s_keeper.balance, keeperBefore + 1 ether);
         assertEq(s_user.balance, 2 ether);
+    }
+
+    function test_WhenARefundIsPermissionless() external {
+        Intent memory intent = _intent();
+        intent.keeperFee = _fee(address(s_tokenIn), 0, 5 ether);
+        _fund(intent, 100 ether);
+        vm.warp(intent.deadline + 1);
+        address anyone = vm.addr(9);
+
+        vm.prank(anyone);
+        s_factory.executeIntent(intent, "", new Token[](0));
+
+        // it should let any caller refund and earn the refund fee
+        assertEq(s_tokenIn.balanceOf(anyone), 5 ether);
+        assertEq(s_tokenIn.balanceOf(s_user), 95 ether);
     }
 
     function test_WhenExecutedOnTheWrongChain() external {
