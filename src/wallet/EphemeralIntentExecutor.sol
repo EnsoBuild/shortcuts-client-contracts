@@ -2,43 +2,13 @@
 pragma solidity ^0.8.20;
 
 import { IEnsoRouter, Token, TokenType } from "../interfaces/IEnsoRouter.sol";
+import { Intent, KeeperFee } from "../interfaces/IIntent.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-enum Mode {
-    ROUTE,
-    CONSTRAINED
-}
-
-struct Intent {
-    uint16 version;
-    uint256 chainId; // mismatch = refund-only branch
-    uint256 nonce; // distinguishes otherwise-identical intents (usefull if self-destruct is ever removed)
-    uint64 start;
-    uint64 deadline;
-    address refundRecipient;
-    Token[] triggers; // every entry must pass; amounts are the delivery minimums
-    KeeperFee keeperFee; // flat, committed; paid to the executing caller
-    Mode mode;
-    bytes payload; // ROUTE: shortcut data for the router; CONSTRAINED: abi.encode(Constrained)
-}
-
-struct Constrained {
-    address recipient;
-    Token[] tokensOut; // minimums measured at the recipient; v2 may replace with a dutch-auction decay
-    address exclusiveKeeper;
-    uint64 exclusiveUntil;
-}
-
-struct KeeperFee {
-    address token; // address(0) for native token
-    uint256 intentFee;
-    uint256 refundFee;
-}
-
 interface IEphemeralFactory {
-    function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address router);
+    function context() external view returns (bytes memory route, Token[] memory sweep, address sender, address router);
 }
 
 contract EphemeralIntentExecutor {
@@ -46,135 +16,141 @@ contract EphemeralIntentExecutor {
 
     error TooEarly();
     error Underfunded();
-    error Exclusive();
-    error Insufficient();
+    error NotKeeper();
+    error Unconstrained();
+    error AmountTooLow(Token token, uint256 amount, uint256 minAmount);
     error SendFailed();
 
     /// The entire lifecycle runs in the constructor: the contract never deposits runtime
     /// code, and a selfdestruct in the creating transaction deletes the account (EIP-6780),
     /// so the address stays reusable and the code-deposit cost is never paid.
     constructor(Intent memory intent) {
-        // Read once, before any external interaction — a nested executeIntent() in the
-        // same transaction overwrites the factory's transient context.
-        (bytes memory route, Token[] memory sweep, address keeper, address router) =
+        // Read once, before any external interaction: the factory's transient context is
+        // only guaranteed for this construction.
+        (bytes memory route, Token[] memory sweep, address caller, address router) =
             IEphemeralFactory(msg.sender).context();
 
         // A zero refund recipient would burn native at the selfdestruct and silently
-        // strand every swept ERC20. Substitute the keeper (the factory's caller — never
+        // strand every swept ERC20. Substitute the caller (the factory's caller — never
         // zero) rather than validate: a revert here, before branch selection, would be
         // a permanent brick on every branch, including a perfectly executable one.
-        address beneficiary = intent.refundRecipient == address(0) ? keeper : intent.refundRecipient;
+        address beneficiary = intent.owner == address(0) ? caller : intent.owner;
 
         // forge-lint: disable-next-item(block-timestamp)
-        if (block.chainid != intent.chainId) {
-            // Wrong-chain recovery: execution is unreachable here by construction, so
-            // sweep immediately — no deadline to wait out, nothing to race.
-            _refund(intent, sweep, keeper, beneficiary);
-        } else if (block.timestamp > intent.deadline) {
-            _refund(intent, sweep, keeper, beneficiary);
-        } else {
-            if (block.timestamp < intent.start) {
-                revert TooEarly();
+        if (caller != intent.owner) {
+            if (block.chainid != intent.chainId) {
+                // Wrong-chain recovery: execution is unreachable here by construction, so
+                // sweep immediately — no deadline to wait out, nothing to race.
+                _refund(intent, sweep, caller, beneficiary);
+            } else if (block.timestamp > intent.deadline) {
+                _refund(intent, sweep, caller, beneficiary);
+            } else {
+                if (block.timestamp < intent.start) {
+                    revert TooEarly();
+                }
+                // The committed keeper, or anyone when the intent names none. Refunds stay
+                // permissionless either way.
+                if (intent.keeper != address(0) && caller != intent.keeper) {
+                    revert NotKeeper();
+                }
+                _requireTokensIn(intent.tokensIn);
+                // Fee off the top, before the route: approvals and call value hand the
+                // remaining balances to the router, so a fee paid afterwards would depend
+                // on the route deliberately leaving it behind.
+                _payFee(intent.keeperFee, caller, true);
+
+                _run(intent, route, router);
             }
-            _requireTriggers(intent.triggers);
-            // Fee off the top, before the route: approvals and call value hand the
-            // remaining balances to the router, so a fee paid afterwards would depend
-            // on the route deliberately leaving it behind.
-            _payFee(intent.keeperFee, keeper, true);
-            _run(intent, route, keeper, router);
+        } else if (route.length > 0) {
+            // Owner submitted transaction. No validation necessary as they are free to run any action
+            _route(router, route, intent.tokensIn);
+        } else {
+            // If the owner is calling without a route, trigger a refund
+            _refund(intent, sweep, caller, beneficiary);
         }
 
         // Remaining native balance rides the account deletion.
         selfdestruct(payable(beneficiary));
     }
 
-    function _run(Intent memory intent, bytes memory route, address keeper, address router) private {
-        if (intent.mode == Mode.ROUTE) {
-            // The committed payload is the shortcut data; the route argument is ignored.
-            _route(router, intent.payload, intent.triggers);
-        } else {
-            _constrained(intent, route, keeper, router);
-        }
-    }
-
-    function _constrained(Intent memory intent, bytes memory route, address keeper, address router) private {
-        Constrained memory c = abi.decode(intent.payload, (Constrained));
-
-        // forge-lint: disable-next-line(block-timestamp)
-        if (block.timestamp <= c.exclusiveUntil && keeper != c.exclusiveKeeper) {
-            revert Exclusive();
-        }
-        // No outcome floor means the route is an unconstrained full-balance grant:
-        // reject empty constraint lists and zero minimums. Execute branch — a revert
-        // here is liveness-only, bounded by the deadline.
-        if (c.tokensOut.length == 0) {
-            revert Insufficient();
+    /// Committed route: the intent's own bytes run and the caller's are ignored. Keeper
+    /// route: the caller's bytes run, with the outcome floor as the owner's protection.
+    function _run(Intent memory intent, bytes memory route, address router) private {
+        bool committed = intent.route.length > 0;
+        // No outcome floor means a keeper route is an unconstrained full-balance grant.
+        // Execute branch — a revert here is liveness-only, bounded by the deadline.
+        if (!committed && intent.tokensOut.length == 0) {
+            revert Unconstrained();
         }
 
         // Validation is by measured outcome, never by inspecting the route: snapshot at
         // the recipient, route, assert every delta clears its committed minimum.
-        uint256[] memory before = new uint256[](c.tokensOut.length);
+        uint256[] memory minimums = new uint256[](intent.tokensOut.length);
+        uint256[] memory before = new uint256[](intent.tokensOut.length);
         // forge-lint: disable-next-line(uninitialized-local)
-        for (uint256 i; i < c.tokensOut.length; ++i) {
-            if (_minOut(c.tokensOut[i]) == 0) {
+        for (uint256 i; i < intent.tokensOut.length; ++i) {
+            minimums[i] = _minOut(intent.tokensOut[i]);
+            if (minimums[i] == 0) {
                 // forge-lint: disable-next-line(require-revert-in-loop)
-                revert Insufficient();
+                revert Unconstrained();
             }
-            before[i] = _balance(c.tokensOut[i], c.recipient);
+            before[i] = _balance(intent.tokensOut[i], intent.recipient);
         }
 
-        _route(router, route, intent.triggers);
+        _route(router, committed ? intent.route : route, intent.tokensIn);
 
         // forge-lint: disable-next-line(uninitialized-local)
-        for (uint256 i; i < c.tokensOut.length; ++i) {
-            uint256 after_ = _balance(c.tokensOut[i], c.recipient);
-            // Explicit ordering: checked subtraction would Panic on a recipient balance
-            // decrease instead of reverting Insufficient.
-            if (after_ < before[i] || after_ - before[i] < _minOut(c.tokensOut[i])) {
+        for (uint256 i; i < intent.tokensOut.length; ++i) {
+            uint256 after_ = _balance(intent.tokensOut[i], intent.recipient);
+            // Explicit ordering: a recipient balance decrease is zero delivered, not a Panic.
+            uint256 amountOut = after_ > before[i] ? after_ - before[i] : 0;
+            if (amountOut < minimums[i]) {
                 // forge-lint: disable-next-line(require-revert-in-loop)
-                revert Insufficient();
+                revert AmountTooLow(intent.tokensOut[i], amountOut, minimums[i]);
             }
         }
     }
 
     /// The executor's single protocol-facing call: the router's route entry with the
-    /// trigger tokens re-amounted to their live balances, so shortcuts execute against
-    /// what was actually delivered — amounts are never hardcoded at commit time. The
-    /// data is the inner shortcut payload; committed and keeper bytes alike choose
-    /// neither a target nor a router function. Approvals go to the router, exact
-    /// balances, revoked after the call: approvals survive selfdestruct into the next
-    /// incarnation, so none may outlive it.
-    function _route(address router, bytes memory data, Token[] memory triggers) private {
-        _approveTriggers(triggers, router, true);
-        uint256 value = _value(triggers);
-        if (triggers.length == 1) {
+    /// tokensIn re-amounted to their live balances, so shortcuts execute against what
+    /// was actually delivered — amounts are never hardcoded at commit time. The data is
+    /// the inner shortcut payload; committed and keeper bytes alike choose neither a
+    /// target nor a router function. Approvals go to the router, exact balances, revoked
+    /// after the call: approvals survive selfdestruct into the next incarnation, so none
+    /// may outlive it.
+    function _route(address router, bytes memory data, Token[] memory tokensIn) private {
+        _approveTokensIn(tokensIn, router, true);
+        uint256 value = _value(tokensIn);
+        if (tokensIn.length == 1) {
             // forge-lint: disable-next-line(arbitrary-send-eth, unused-return)
-            IEnsoRouter(router).routeSingle{ value: value }(_liveToken(triggers[0]), data);
+            IEnsoRouter(router).routeSingle{ value: value }(_liveToken(tokensIn[0]), data);
         } else {
-            Token[] memory tokensIn = new Token[](triggers.length);
+            Token[] memory live = new Token[](tokensIn.length);
             // forge-lint: disable-next-line(uninitialized-local)
-            for (uint256 i; i < triggers.length; ++i) {
-                tokensIn[i] = _liveToken(triggers[i]);
+            for (uint256 i; i < tokensIn.length; ++i) {
+                live[i] = _liveToken(tokensIn[i]);
             }
             // forge-lint: disable-next-line(arbitrary-send-eth, unused-return)
-            IEnsoRouter(router).routeMulti{ value: value }(tokensIn, data);
+            IEnsoRouter(router).routeMulti{ value: value }(live, data);
         }
-        _approveTriggers(triggers, router, false);
+        _approveTokensIn(tokensIn, router, false);
     }
 
-    function _refund(Intent memory intent, Token[] memory sweep, address keeper, address to) private {
+    function _refund(Intent memory intent, Token[] memory sweep, address caller, address to) private {
         // Fee first, best-effort, so permissionless refunds are self-incentivizing; then
-        // committed and keeper-listed tokens to the beneficiary. Native rides the
+        // committed and caller-listed tokens to the beneficiary. Native rides the
         // selfdestruct.
-        _payFee(intent.keeperFee, keeper, false);
-        // The fee token itself, whether or not it is a trigger or keeper-listed: the
+        if (caller != intent.owner) {
+            _payFee(intent.keeperFee, caller, false);
+        }
+        // The fee token itself, whether or not it is committed or caller-listed: the
         // address is reusable, so a fee-token balance left behind would fund another
-        // refund fee on the next execution, and any keeper could repeat that until the
+        // refund fee on the next execution, and any caller could repeat that until the
         // balance fell below one fee. Emptying it here caps every exit at one fee.
         _sweep(intent.keeperFee.token, to);
         // forge-lint: disable-next-line(uninitialized-local)
-        for (uint256 i; i < intent.triggers.length; ++i) {
-            _sweep(intent.triggers[i], to);
+        for (uint256 i; i < intent.tokensIn.length; ++i) {
+            _sweep(intent.tokensIn[i], to);
         }
         // forge-lint: disable-next-line(uninitialized-local)
         for (uint256 i; i < sweep.length; ++i) {
@@ -182,7 +158,7 @@ contract EphemeralIntentExecutor {
         }
     }
 
-    /// A trigger entry with its amount replaced by the current balance. ERC721 carries
+    /// A tokensIn entry with its amount replaced by the current balance. ERC721 carries
     /// a tokenId and passes through unchanged. Native is re-amounted in the data as
     /// well as msg.value: current routers take the amount from msg.value, but some
     /// older versions read it from the encoding.
@@ -204,24 +180,24 @@ contract EphemeralIntentExecutor {
         return token;
     }
 
-    function _requireTriggers(Token[] memory triggers) private view {
+    function _requireTokensIn(Token[] memory tokensIn) private view {
         // forge-lint: disable-next-line(uninitialized-local)
-        for (uint256 i; i < triggers.length; ++i) {
+        for (uint256 i; i < tokensIn.length; ++i) {
             // Balance side via the tolerant probe: for ERC721 it checks presence of the
             // committed tokenId (in-side semantics — the router pulls, and the sweep
             // returns, that exact token), and tolerance is safe here because the amount
-            // side stays strict, so a malformed trigger still reverts on this branch.
-            if (_tryBalance(triggers[i]) < _amount(triggers[i])) {
+            // side stays strict, so a malformed entry still reverts on this branch.
+            if (_tryBalance(tokensIn[i]) < _amount(tokensIn[i])) {
                 // forge-lint: disable-next-line(require-revert-in-loop)
                 revert Underfunded();
             }
         }
     }
 
-    function _approveTriggers(Token[] memory triggers, address spender, bool grant) private {
+    function _approveTokensIn(Token[] memory tokensIn, address spender, bool grant) private {
         // forge-lint: disable-next-line(uninitialized-local)
-        for (uint256 i; i < triggers.length; ++i) {
-            _approve(triggers[i], spender, grant);
+        for (uint256 i; i < tokensIn.length; ++i) {
+            _approve(tokensIn[i], spender, grant);
         }
     }
 
@@ -315,7 +291,7 @@ contract EphemeralIntentExecutor {
         return _amount(token);
     }
 
-    /// The committed amount: a trigger minimum or constraint minimum.
+    /// The committed amount: a delivery minimum or constraint minimum.
     function _amount(Token memory token) private pure returns (uint256) {
         TokenType tokenType = token.tokenType;
         if (tokenType == TokenType.Native) {
@@ -325,7 +301,7 @@ contract EphemeralIntentExecutor {
             return amount_;
         } else if (tokenType == TokenType.ERC721) {
             // The second word is a tokenId, not a quantity — reading it as an amount
-            // makes any tokenId >= 2 fail the trigger check. Owning an NFT means one.
+            // makes any tokenId >= 2 fail the delivery check. Owning an NFT means one.
             return 1;
         } else {
             (,, uint256 amount_) = abi.decode(token.data, (IERC1155, uint256, uint256));
@@ -347,7 +323,7 @@ contract EphemeralIntentExecutor {
             // Collection-count read, exactly as EnsoRouter's out-side check: the ERC721
             // second word is direction-dependent — a tokenId when pulling a known token
             // in, a minimum COUNT for outcomes whose id cannot be known at commit time
-            // (a freshly minted LP position). Specific-tokenId presence for triggers
+            // (a freshly minted LP position). Specific-tokenId presence for tokensIn
             // and fees is the in-side concern, handled by _tryBalance's ownerOf probe.
             (IERC721 erc721,) = abi.decode(token.data, (IERC721, uint256));
             // forge-lint: disable-next-line(calls-loop)
@@ -391,7 +367,7 @@ contract EphemeralIntentExecutor {
 
     /// Tolerant balance probe by address, native/ERC20 only: the raw native balance for
     /// address(0), zero for codeless assets or reverting reads. Serves the refund-side
-    /// fee payment and the keeper-listed sweep, where a bad address must never revert.
+    /// fee payment and the caller-listed sweep, where a bad address must never revert.
     function _tryBalance(address token) private view returns (uint256) {
         if (token == address(0)) {
             return address(this).balance;
@@ -459,7 +435,7 @@ contract EphemeralIntentExecutor {
         }
     }
 
-    /// ERC20-only sweep for keeper-listed addresses.
+    /// ERC20-only sweep for caller-listed addresses.
     function _sweep(address token, address to) private {
         if (token == address(0)) {
             return;

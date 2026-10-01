@@ -3,8 +3,9 @@ pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Constrained, Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent } from "../../../../../src/interfaces/IIntent.sol";
 import { EphemeralFactory_Unit_Concrete_Test } from "./EphemeralFactory.t.sol";
+import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 
 contract EphemeralFactory_ExecuteIntent_Unit_Concrete_Test is EphemeralFactory_Unit_Concrete_Test {
     function test_WhenTheIntentExecutes() external {
@@ -26,25 +27,50 @@ contract EphemeralFactory_ExecuteIntent_Unit_Concrete_Test is EphemeralFactory_U
     }
 
     function test_WhenTheRouterReadsTheContext() external {
-        // ROUTE mode: the keeper-supplied route bytes are ignored by the executor but
-        // still ride the transient context, which is what the probe asserts on.
+        // Committed route: the caller-supplied bytes are ignored by the executor but
+        // still ride the transient context, which is what the probe asserts on. The
+        // intent names no keeper, so a third party may submit it.
         Intent memory intent = _intent();
+        intent.keeper = address(0);
         _fund(intent, 100 ether);
         s_router.setProbe(address(s_factory));
+        address anyone = vm.addr(9);
 
         Token[] memory sweep = new Token[](1);
         sweep[0] = Token({ tokenType: TokenType.ERC20, data: abi.encode(address(s_tokenIn), uint256(0)) });
-        vm.prank(s_keeper);
+        vm.prank(anyone);
         s_factory.executeIntent(intent, hex"beefcafe", sweep);
 
-        // it should expose route, sweep, keeper and router
+        // it should expose route, sweep, sender and router
         assertEq(s_router.probedRoute(), hex"beefcafe");
         assertEq(s_router.probedSweepLength(), 1);
         (TokenType sweptType, bytes memory sweptData) = s_router.probedSweep(0);
         assertEq(uint8(sweptType), uint8(TokenType.ERC20));
         assertEq(sweptData, abi.encode(address(s_tokenIn), uint256(0)));
-        assertEq(s_router.probedKeeper(), s_keeper);
+        assertEq(s_router.probedSender(), anyone);
         assertEq(s_router.probedRouter(), address(s_router));
+    }
+
+    function test_WhenExecuteIntentIsReentered() external {
+        // Two keeperless intents to the same recipient: a route for the first tries to
+        // execute the second mid-flight, which would let one delivery satisfy both floors.
+        Intent memory outer = _intent();
+        outer.keeper = address(0);
+        _fund(outer, 100 ether);
+        Intent memory inner = _intent();
+        inner.keeper = address(0);
+        inner.nonce = 1;
+        _fund(inner, 100 ether);
+        s_router.setReenter(
+            address(s_factory), abi.encodeCall(EphemeralFactory.executeIntent, (inner, "", new Token[](0)))
+        );
+
+        vm.prank(vm.addr(9));
+        s_factory.executeIntent(outer, "", new Token[](0));
+
+        // it should revert the nested call with ReentrancyGuardReentrantCall
+        assertEq(s_router.reenterError(), ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
+        assertEq(s_tokenIn.balanceOf(s_factory.getAddress(inner)), 100 ether); // untouched
     }
 
     /// forge-config: default.isolate = true
