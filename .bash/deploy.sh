@@ -1,5 +1,6 @@
 #!/bin/bash
 # e.g. deploy.sh FullDeployer.s.sol ethereum broadcast etherscan
+# verifiers: etherscan | blockscout | routescan | tempo | sourcify (keyless; Arc)
 
 args=("$@")
 
@@ -50,6 +51,10 @@ if [[ $broadcast == "broadcast" ]]; then
             params+=(--etherscan-api-key "verifyContract")
         elif [[ $verifier == "tempo" ]]; then
             params+=(--verifier-url "https://contracts.tempo.xyz/")
+        elif [[ $verifier == "sourcify" ]]; then
+            # Keyless; any chain Sourcify lists (https://sourcify.dev/server/chains). The
+            # only option for Arc mainnet: its Blockscout sits behind Cloudflare Access.
+            params+=(--verifier sourcify)
         else
             params+=(--verifier "${verifier}")
             if [[ $verifier == "etherscan" ]]; then
@@ -66,8 +71,9 @@ if [[ $broadcast == "broadcast" ]]; then
                 elif [[ $network_upper == "ROBINHOOD" ]]; then
                     params+=(--verifier-url "https://robinhoodchain.blockscout.com/api")
                 elif [[ $network_upper == "ARC" ]]; then
-                    # TODO(ENSO-469): verifier pending, the explorer is permissioned
-                    printf '%s\n' "Arc verification is not configured yet" >&2
+                    # Arc mainnet's Blockscout is behind Cloudflare Access (403 for the
+                    # API without an allow-listed session); use the `sourcify` verifier.
+                    printf '%s\n' "Arc: explorer.arc.io is permissioned, verify with 'sourcify' instead" >&2
                     exit 1
                 else
                     params+=(--verifier-url "https://${network}.blockscout.com/api")

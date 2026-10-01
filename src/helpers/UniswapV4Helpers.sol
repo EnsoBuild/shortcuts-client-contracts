@@ -10,18 +10,24 @@ import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 
+import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import { LiquidityAmounts } from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
+import { PositionInfo, PositionInfoLibrary } from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 
 error ValueExceedsUint160Range();
+error PriceOutOfBounds(uint160 sqrtPriceX96, uint160 sqrtPriceMinX96, uint160 sqrtPriceMaxX96);
 
 contract UniswapV4Helpers {
     using StateLibrary for IPoolManager;
+    using PositionInfoLibrary for PositionInfo;
 
     IPoolManager public immutable poolManager;
+    IPositionManager public immutable positionManager;
 
-    constructor(address _poolManager) {
+    constructor(address _poolManager, address _positionManager) {
         poolManager = IPoolManager(_poolManager);
+        positionManager = IPositionManager(_positionManager);
     }
 
     function uint256ToUint128(uint256 input) public pure returns (uint128) {
@@ -76,6 +82,62 @@ contract UniswapV4Helpers {
             amount0,
             amount1
         );
+    }
+
+    /// @notice Encode `modifyLiquidities` calldata that adds liquidity to an existing position.
+    /// The pool key and range are read from the position manager and the liquidity is derived from the
+    /// maxes at the current price, so every input may be a runtime value. The maxes cap the spend, not
+    /// the price: `[sqrtPriceMinX96, sqrtPriceMaxX96]` is the window the pool price must be in, computed by
+    /// the caller from the price it quoted at, otherwise the deposit runs at whatever price a front-runner
+    /// left (pass `0` / `type(uint160).max` to skip the check). Actions: INCREASE_LIQUIDITY, CLOSE_CURRENCY
+    /// for each currency (the increase nets accrued fees, so a currency's delta can be a credit; SETTLE_PAIR
+    /// reverts on that, CLOSE_CURRENCY pays it to the caller) and SWEEP of the native leftover to `refund`.
+    function encodeIncrease(
+        uint256 tokenId,
+        uint256 amount0Max,
+        uint256 amount1Max,
+        uint160 sqrtPriceMinX96,
+        uint160 sqrtPriceMaxX96,
+        address refund
+    )
+        external
+        view
+        returns (bytes memory)
+    {
+        (PoolKey memory poolKey, PositionInfo info) = positionManager.getPoolAndPositionInfo(tokenId);
+        uint160 sqrtPriceX96 = _boundedSqrtPrice(poolKey, sqrtPriceMinX96, sqrtPriceMaxX96);
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(info.tickLower()),
+            TickMath.getSqrtPriceAtTick(info.tickUpper()),
+            amount0Max,
+            amount1Max
+        );
+
+        // native token is always token0
+        bool isNativeToken = Currency.unwrap(poolKey.currency0) == address(0);
+
+        bytes memory actions = isNativeToken
+            ? abi.encodePacked(
+                uint8(Actions.INCREASE_LIQUIDITY),
+                uint8(Actions.CLOSE_CURRENCY),
+                uint8(Actions.CLOSE_CURRENCY),
+                uint8(Actions.SWEEP)
+            )
+            : abi.encodePacked(
+                uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.CLOSE_CURRENCY), uint8(Actions.CLOSE_CURRENCY)
+            );
+
+        bytes[] memory params = new bytes[](isNativeToken ? 4 : 3);
+        params[0] =
+            abi.encode(tokenId, liquidity, uint256ToUint128(amount0Max), uint256ToUint128(amount1Max), bytes(""));
+        params[1] = abi.encode(poolKey.currency0);
+        params[2] = abi.encode(poolKey.currency1);
+        if (isNativeToken) {
+            params[3] = abi.encode(poolKey.currency0, refund);
+        }
+
+        return abi.encode(actions, params);
     }
 
     function encodeMintWithHooks(
@@ -158,6 +220,10 @@ contract UniswapV4Helpers {
         );
     }
 
+    /// @notice Encode `modifyLiquidities` calldata that mints a position sized from the amounts at the
+    /// current price, bounded by a sqrtPrice window: the price the caller quoted the amounts at, ± its
+    /// tolerance. Outside the window the mint reverts instead of pricing the liquidity at a moved price.
+    /// Pass 0 / type(uint160).max to disable the bound.
     function encodeMintFromDeltasWithHooks(
         address currency0,
         address currency1,
@@ -167,6 +233,8 @@ contract UniswapV4Helpers {
         int24 tickUpper,
         uint256 amount0Max,
         uint256 amount1Max,
+        uint160 sqrtPriceMinX96,
+        uint160 sqrtPriceMaxX96,
         address recipient,
         address refund,
         address hooks
@@ -175,8 +243,14 @@ contract UniswapV4Helpers {
         view
         returns (bytes memory)
     {
-        uint128 liquidity = getLiquidityForAmounts(
-            getPoolKey(currency0, currency1, fee, tickSpacing, hooks), tickLower, tickUpper, amount0Max, amount1Max
+        PoolKey memory poolKey = getPoolKey(currency0, currency1, fee, tickSpacing, hooks);
+        uint160 sqrtPriceX96 = _boundedSqrtPrice(poolKey, sqrtPriceMinX96, sqrtPriceMaxX96);
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
+            amount0Max,
+            amount1Max
         );
 
         return encodeMintWithHooks(
@@ -204,6 +278,8 @@ contract UniswapV4Helpers {
         int24 tickUpper,
         uint256 amount0Max,
         uint256 amount1Max,
+        uint160 sqrtPriceMinX96,
+        uint160 sqrtPriceMaxX96,
         address recipient,
         address refund
     )
@@ -220,9 +296,27 @@ contract UniswapV4Helpers {
             tickUpper,
             amount0Max,
             amount1Max,
+            sqrtPriceMinX96,
+            sqrtPriceMaxX96,
             recipient,
             refund,
             address(0)
         );
+    }
+
+    /// @dev The pool's current sqrtPrice, reverting `PriceOutOfBounds` outside `[min, max]`.
+    function _boundedSqrtPrice(
+        PoolKey memory poolKey,
+        uint160 sqrtPriceMinX96,
+        uint160 sqrtPriceMaxX96
+    )
+        private
+        view
+        returns (uint160 sqrtPriceX96)
+    {
+        (sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+        if (sqrtPriceX96 < sqrtPriceMinX96 || sqrtPriceX96 > sqrtPriceMaxX96) {
+            revert PriceOutOfBounds(sqrtPriceX96, sqrtPriceMinX96, sqrtPriceMaxX96);
+        }
     }
 }

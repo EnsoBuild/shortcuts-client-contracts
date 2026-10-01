@@ -5,8 +5,12 @@ import { IPermit2 } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import { IUniversalRouter } from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 
 import { UniswapV4SwapHelpersMinHopPrice } from "../src/helpers/UniswapV4SwapHelpersMinHopPrice.sol";
+import { ChainId } from "../src/libraries/DataTypes.sol";
 import { Script } from "forge-std/Script.sol";
 
+/// @notice Deploys UniswapV4SwapHelpersMinHopPrice for chains whose forked UniversalRouter adds
+///         `minHopPriceX36` to ExactInputSingleParams. Stock-router chains (Tempo included) use
+///         UniswapV4SwapHelpersDeployer instead.
 contract UniswapV4SwapHelpersMinHopPriceDeployer is Script {
     IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
@@ -14,10 +18,10 @@ contract UniswapV4SwapHelpersMinHopPriceDeployer is Script {
 
     constructor() {
         // Robinhood
-        universalRouters[4663] = 0x8876789976dEcBfCbBbe364623C63652db8C0904;
+        universalRouters[ChainId.ROBINHOOD] = 0x8876789976dEcBfCbBbe364623C63652db8C0904;
 
         // Arc
-        universalRouters[5042] = 0x4fcA4a51Ab4F23A7447b3284fBd7D73289A89Fb1;
+        universalRouters[ChainId.ARC] = 0x4fcA4a51Ab4F23A7447b3284fBd7D73289A89Fb1;
     }
 
     function run() public returns (UniswapV4SwapHelpersMinHopPrice uniswapV4SwapHelpers, address universalRouter) {

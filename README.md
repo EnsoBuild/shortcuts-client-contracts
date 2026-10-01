@@ -239,6 +239,12 @@ Preferred — the wrapper picks the right per-network flags and uses the
 $ ./.bash/deploy.sh <Deployer.s.sol> <network> broadcast <verifier>
 ```
 
+`<verifier>` is one of `etherscan` (Etherscan v2 chains, key from
+`ETHEREUM_BLOCKSCAN_KEY`), `blockscout` (per-network URL in the wrapper),
+`routescan`, `tempo`, or `sourcify` (keyless, any chain Sourcify lists; the only
+route for Arc mainnet, whose Blockscout is behind Cloudflare Access). Leave it
+out to deploy without verifying.
+
 Or invoke `forge script` directly:
 
 ```bash
