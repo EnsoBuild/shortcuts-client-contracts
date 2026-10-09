@@ -12,6 +12,7 @@ library ChainId {
     uint256 public constant SONIC = 146;
     uint256 public constant ZKSYNC = 324;
     uint256 public constant WORLD = 480;
+    uint256 public constant HYPER_TESTNET = 998;
     uint256 public constant HYPER = 999;
     uint256 public constant SEI = 1329;
     uint256 public constant SONEIUM = 1868;
