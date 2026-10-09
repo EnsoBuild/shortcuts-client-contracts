@@ -10,7 +10,7 @@ contract EnsoArbitrumDepositorDeployer is Script {
 
     function run() public returns (address depositor, address owner) {
         uint256 chainId = block.chainid;
-        if (chainId != ChainId.ETHEREUM) {
+        if (chainId != ChainId.ETHEREUM && chainId != ChainId.HYPER_TESTNET) {
             revert UnsupportedChainId(chainId);
         }
 
