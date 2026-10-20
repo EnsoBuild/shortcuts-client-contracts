@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import { NftHelpers } from "../../../src/helpers/NftHelpers.sol";
 import { IEnsoRouter, Token, TokenType } from "../../../src/interfaces/IEnsoRouter.sol";
 import { IEnsoWalletV2 } from "../../../src/interfaces/IEnsoWalletV2.sol";
 import { IEnsoWalletV2Factory } from "../../../src/interfaces/IEnsoWalletV2Factory.sol";
@@ -13,6 +14,7 @@ import { Test } from "forge-std/Test.sol";
 contract NftDeploymentCapabilitiesTest is Test {
     address constant FACTORY = 0xC914A663837Eb21c5a650716E015659686597E55;
     address constant ROUTER = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
+    address constant NFT_HELPERS = 0x0EbfA3Ba0CF03418E36f375E3db0Fcf39bbeB302;
 
     function test_ethereumDeployedNftFunding() public {
         _check("ETHEREUM_RPC_URL", 26_234_000, ROUTER);
@@ -41,6 +43,7 @@ contract NftDeploymentCapabilitiesTest is Test {
     /// Blocks are pinned after the NftHelpers deployment (2026-10-20).
     function _check(string memory rpc, uint256 blockNumber, address routerAddress) internal {
         vm.createSelectFork(vm.envString(rpc), blockNumber);
+        assertEq(NFT_HELPERS.codehash, keccak256(type(NftHelpers).runtimeCode));
         address executor = address(EnsoRouter(payable(routerAddress)).shortcuts());
         assertGt(executor.code.length, 0);
         IEnsoWalletV2Factory factory = IEnsoWalletV2Factory(FACTORY);
