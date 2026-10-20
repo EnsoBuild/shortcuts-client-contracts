@@ -28,6 +28,12 @@ fi
 if [[ $network_upper == "POLYGON" ]]; then
     params+=(--gas-estimate-multiplier 300)
 fi
+# forge auto-enables its optimism network family on OP-stack chains (base, optimism, ...), which deploys
+# `new C{ salt: ... }()` with plain CREATE instead of the CREATE2 factory: force the ethereum family so salted
+# deployments get the same address on every chain. Tempo, Monad and zkSync keep their own families.
+if [[ $network_upper != "TEMPO" && $network_upper != "MONAD" && $network_upper != "ZKSYNC" ]]; then
+    params+=(--network ethereum)
+fi
 if [[ $network_upper == "TEMPO" ]]; then
     params+=(--tempo.fee-token "0x20c000000000000000000000b9537d11c60e8b50")
 fi
