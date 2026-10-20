@@ -15,31 +15,32 @@ contract NftDeploymentCapabilitiesTest is Test {
     address constant ROUTER = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
 
     function test_ethereumDeployedNftFunding() public {
-        _check("RPC_URL_ETHEREUM", ROUTER);
+        _check("ETHEREUM_RPC_URL", 26_234_000, ROUTER);
     }
 
     function test_optimismDeployedNftFunding() public {
-        _check("RPC_URL_OPTIMISM", ROUTER);
+        _check("OPTIMISM_RPC_URL", 158_451_600, ROUTER);
     }
 
     function test_baseDeployedNftFunding() public {
-        _check("RPC_URL_BASE", ROUTER);
+        _check("BASE_RPC_URL", 52_856_300, ROUTER);
     }
 
     function test_arbitrumDeployedNftFunding() public {
-        _check("RPC_URL_ARBITRUM", ROUTER);
+        _check("ARBITRUM_RPC_URL", 516_606_700, ROUTER);
     }
 
     function test_avalancheDeployedNftFunding() public {
-        _check("RPC_URL_AVALANCHE", ROUTER);
+        _check("AVALANCHE_RPC_URL", 98_060_700, ROUTER);
     }
 
     function test_robinhoodDeployedNftFunding() public {
-        _check("RPC_URL_ROBINHOOD", 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7);
+        _check("ROBINHOOD_RPC_URL", 93_476_700, 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7);
     }
 
-    function _check(string memory rpc, address routerAddress) internal {
-        vm.createSelectFork(vm.envString(rpc));
+    /// Blocks are pinned after the NftHelpers deployment (2026-10-20).
+    function _check(string memory rpc, uint256 blockNumber, address routerAddress) internal {
+        vm.createSelectFork(vm.envString(rpc), blockNumber);
         address executor = address(EnsoRouter(payable(routerAddress)).shortcuts());
         assertGt(executor.code.length, 0);
         IEnsoWalletV2Factory factory = IEnsoWalletV2Factory(FACTORY);
