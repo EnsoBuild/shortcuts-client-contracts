@@ -5,7 +5,8 @@ import { ChainOwner } from "../src/libraries/ChainOwner.sol";
 import { KeeperWallet } from "../src/wallet/KeeperWallet.sol";
 import { Script } from "forge-std/Script.sol";
 
-contract KeeperWalletDeployer is Script {
+/// @notice Shared KeeperWallet deployment steps, reused by any script that deploys the wallet.
+abstract contract KeeperWalletDeployment is Script {
     /// @notice Executors to authorize on the wallet right after deployment.
     function _executors() internal pure returns (address[] memory executors) {
         executors = new address[](3);
@@ -14,11 +15,10 @@ contract KeeperWalletDeployer is Script {
         executors[2] = 0xEC222703C2187f643ce3b2C78634bd6a8Cb4C401;
     }
 
-    function run() public returns (KeeperWallet wallet, address owner) {
-        owner = ChainOwner.ownerFor(block.chainid);
+    /// @dev Must be called while broadcasting.
+    function _deployKeeperWallet(address owner) internal returns (KeeperWallet wallet) {
         address[] memory executors = _executors();
 
-        vm.startBroadcast();
         // forge-lint: disable-next-line(unused-return)
         (, address deployer,) = vm.readCallers();
 
@@ -33,7 +33,15 @@ contract KeeperWalletDeployer is Script {
 
         // Two-step handoff: the chain owner must call acceptOwnership() to complete it.
         wallet.transferOwnership(owner);
+    }
+}
 
+contract KeeperWalletDeployer is KeeperWalletDeployment {
+    function run() public returns (KeeperWallet wallet, address owner) {
+        owner = ChainOwner.ownerFor(block.chainid);
+
+        vm.startBroadcast();
+        wallet = _deployKeeperWallet(owner);
         vm.stopBroadcast();
     }
 }

@@ -31,6 +31,9 @@ fi
 if [[ $network_upper == "TEMPO" ]]; then
     params+=(--tempo.fee-token "0x20c000000000000000000000b9537d11c60e8b50")
 fi
+if [[ $network_upper == "OPTIMISM" ]] || [[ $network_upper == "BASE" ]]; then
+    params+=(--network "ethereum")
+fi
 if [[ $broadcast == "broadcast" ]]; then
     params+=(--broadcast)
     if [[ -n "$verifier" ]]; then
