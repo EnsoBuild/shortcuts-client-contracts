@@ -2,16 +2,19 @@
 pragma solidity ^0.8.28;
 
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { EphemeralIntentExecutor, Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent } from "../../../../../src/interfaces/IIntent.sol";
+import { EphemeralIntentExecutor } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { MockERC721 } from "../../../../mocks/MockERC721.sol";
 import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
 import { MockNoRevokeERC721 } from "../../../../mocks/MockNoRevokeERC721.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
 
+/// The committed-route arm: `intent.route` is non-empty, so those bytes run and the
+/// caller's bytes are ignored.
 contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
-    function test_WhenTriggersAreUnmet() external {
+    function test_WhenTokensInAreUnmet() external {
         Intent memory intent = _intent();
-        _fund(intent, 50 ether); // below the 100 ether trigger
+        _fund(intent, 50 ether); // below the 100 ether minimum
 
         // it should revert with Underfunded
         vm.expectRevert(EphemeralIntentExecutor.Underfunded.selector);
@@ -28,7 +31,17 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         _execute(intent, "");
     }
 
-    function test_WhenThePayloadRuns() external {
+    function test_WhenTheCallerIsNotTheKeeper() external {
+        Intent memory intent = _intent();
+        _fund(intent, 100 ether);
+
+        // it should revert with NotKeeper even for a committed route
+        vm.prank(vm.addr(9));
+        vm.expectRevert(EphemeralIntentExecutor.NotKeeper.selector);
+        s_factory.executeIntent(intent, "", new Token[](0));
+    }
+
+    function test_WhenTheCommittedRouteRuns() external {
         Intent memory intent = _intent();
         intent.keeperFee = _fee(address(s_tokenIn), 5 ether, 1 ether);
         address predicted = _fund(intent, 100 ether);
@@ -37,15 +50,15 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
 
         _execute(intent, "");
 
-        // it should call the router with the committed payload
+        // it should call the router with the committed route
         assertEq(s_router.lastData(), hex"deadbeef");
         assertEq(s_router.lastCaller(), predicted);
         assertEq(s_router.lastValue(), 0);
 
-        // it should approve trigger tokens to the router for the call (fee off the top)
+        // it should approve tokensIn to the router for the call (fee off the top)
         assertEq(s_router.lastAllowance(), 95 ether);
 
-        // it should pass the trigger tokens with live balances
+        // it should pass tokensIn with live balances
         assertEq(s_router.lastTokensInLength(), 1);
         (, bytes memory liveData) = s_router.lastTokensIn(0);
         (, uint256 liveAmount) = abi.decode(liveData, (address, uint256));
@@ -57,13 +70,34 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         // it should pay the intent fee, not the refund fee
         assertEq(s_tokenIn.balanceOf(s_keeper), 5 ether);
 
-        // it should sweep remaining native to the refund recipient
+        // it should sweep remaining native to the owner
         assertEq(s_user.balance, 1 ether);
     }
 
-    function test_WhenANativeTriggerExists() external {
+    function test_WhenACommittedRouteCarriesAnOutcomeFloor() external {
         Intent memory intent = _intent();
-        intent.triggers[0] = _native(1 ether);
+        Token[] memory tokensOut = new Token[](1);
+        tokensOut[0] = _erc20(address(s_tokenOut), 50 ether);
+        intent.tokensOut = tokensOut;
+        _fund(intent, 100 ether);
+        s_router.setOut(address(s_tokenOut), 40 ether, s_recipient);
+
+        // it should enforce the floor on the committed route
+        vm.expectRevert(
+            abi.encodeWithSelector(EphemeralIntentExecutor.AmountTooLow.selector, tokensOut[0], 40 ether, 50 ether)
+        );
+        _execute(intent, "");
+
+        // it should execute once the floor clears
+        s_router.setOut(address(s_tokenOut), 60 ether, s_recipient);
+        _execute(intent, "");
+        assertEq(s_router.lastData(), hex"deadbeef");
+        assertEq(s_tokenOut.balanceOf(s_recipient), 60 ether);
+    }
+
+    function test_WhenANativeTokenInExists() external {
+        Intent memory intent = _intent();
+        intent.tokensIn[0] = _native(1 ether);
         address predicted = s_factory.getAddress(intent);
         vm.deal(predicted, 1 ether);
 
@@ -78,16 +112,16 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
         assertEq(abi.decode(nativeData, (uint256)), 1 ether);
     }
 
-    function test_WhenTheTriggerIsAnNFT() external {
+    function test_WhenTokenInIsAnNFT() external {
         MockERC721 nft = new MockERC721("NFT", "NFT");
         Intent memory intent = _intent();
-        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(5)) });
+        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(5)) });
         address predicted = s_factory.getAddress(intent);
         nft.mint(predicted, 5); // tokenId >= 2 used to revert Underfunded
 
         _execute(intent, "");
 
-        // it should pass the trigger check with the tokenId treated as ownership
+        // it should pass the delivery check with the tokenId treated as ownership
         assertEq(s_router.lastTokensInLength(), 1);
         (, bytes memory nftData) = s_router.lastTokensIn(0);
         assertEq(nftData, abi.encode(address(nft), uint256(5))); // tokenId passes through
@@ -100,12 +134,12 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
     function test_WhenTheCommittedNFTIsAbsent() external {
         MockERC721 nft = new MockERC721("NFT", "NFT");
         Intent memory intent = _intent();
-        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(5)) });
+        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(5)) });
         address predicted = s_factory.getAddress(intent);
         nft.mint(predicted, 9); // a different id from the same collection
 
         // it should revert with Underfunded — collection count must not satisfy the
-        // trigger; the committed tokenId itself has to be present
+        // delivery check; the committed tokenId itself has to be present
         vm.expectRevert(EphemeralIntentExecutor.Underfunded.selector);
         _execute(intent, "");
     }
@@ -113,7 +147,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
     function test_WhenTheRouteConsumesTheNFT() external {
         MockERC721 nft = new MockERC721("NFT", "NFT");
         Intent memory intent = _intent();
-        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
+        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
         address predicted = s_factory.getAddress(intent);
         nft.mint(predicted, 7);
         s_router.setPullNFT(address(nft), 7);
@@ -127,7 +161,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
     function test_WhenARevokeRejectingNFTStays() external {
         MockNoRevokeERC721 nft = new MockNoRevokeERC721("NoRevoke", "NRV");
         Intent memory intent = _intent();
-        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(3)) });
+        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(3)) });
         address predicted = s_factory.getAddress(intent);
         nft.mint(predicted, 3); // router does not pull — the token stays held
 
@@ -140,7 +174,7 @@ contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExec
     function test_WhenARevokeRejectingNFTIsConsumed() external {
         MockNoRevokeERC721 nft = new MockNoRevokeERC721("NoRevoke", "NRV");
         Intent memory intent = _intent();
-        intent.triggers[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(3)) });
+        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(3)) });
         address predicted = s_factory.getAddress(intent);
         nft.mint(predicted, 3);
         s_router.setPullNFT(address(nft), 3);
