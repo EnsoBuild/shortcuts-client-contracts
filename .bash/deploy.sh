@@ -34,6 +34,9 @@ fi
 if [[ $network_upper == "OPTIMISM" ]] || [[ $network_upper == "BASE" ]]; then
     params+=(--network "ethereum")
 fi
+if [[ $network_upper == "ELYSIUM" ]]; then
+    params+=(--legacy)
+fi
 if [[ $broadcast == "broadcast" ]]; then
     params+=(--broadcast)
     if [[ -n "$verifier" ]]; then
@@ -73,6 +76,8 @@ if [[ $broadcast == "broadcast" ]]; then
                     params+=(--verifier-url "https://explorer.etherlink.com/api")
                 elif [[ $network_upper == "ROBINHOOD" ]]; then
                     params+=(--verifier-url "https://robinhoodchain.blockscout.com/api")
+                elif [[ $network_upper == "ELYSIUM" ]]; then
+                    params+=(--verifier-url "https://elysium.kinetiq.xyz/explorer/api?apikey=${ELYSIUM_ACCESS_CODE}")
                 elif [[ $network_upper == "ARC" ]]; then
                     # Arc mainnet's Blockscout is behind Cloudflare Access (403 for the
                     # API without an allow-listed session); use the `sourcify` verifier.
