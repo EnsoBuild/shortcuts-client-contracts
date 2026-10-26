@@ -66,8 +66,39 @@ contract NftHelpersTest is Test {
         assertEq(new Executor(helpers).stashThenLoad(KEY, 0, KEY), 0);
     }
 
-    function test_stash_overwrites() public {
-        assertEq(new Executor(helpers).stashTwiceThenLoad(KEY, 1, 2), 2);
+    function test_stash_refusesOverwrite() public {
+        Executor executor = new Executor(helpers);
+        vm.expectRevert(abi.encodeWithSelector(NftHelpers.AlreadyStashed.selector, address(executor), KEY));
+        executor.stashTwiceThenLoad(KEY, 1, 2);
+    }
+
+    function test_stash_refusesOverwriteWithSameValue() public {
+        Executor executor = new Executor(helpers);
+        vm.expectRevert(abi.encodeWithSelector(NftHelpers.AlreadyStashed.selector, address(executor), KEY));
+        executor.stashTwiceThenLoad(KEY, 861, 861);
+    }
+
+    // a re-entrant frame of the shared executor cannot replace what the callback stashed for its parent
+    function test_stash_reentrantFrameCannotReplaceCallbackValue() public {
+        Executor executor = new Executor(helpers);
+        vm.expectRevert(abi.encodeWithSelector(NftHelpers.AlreadyStashed.selector, address(executor), KEY));
+        executor.stashInCallbackThenOverwrite(KEY, 861, 1);
+    }
+
+    function test_stash_otherKeysStayWritable() public {
+        assertEq(new Executor(helpers).stashTwoKeysThenLoad(KEY, 1, bytes32(0), 2), 3);
+    }
+
+    function test_stash_otherCallersUseTheirOwnSlots() public {
+        Executor executor = new Executor(helpers);
+        Executor other = new Executor(helpers);
+        assertEq(executor.stashThenLetOtherStashAndLoad(other, KEY, 861, 1), 861);
+    }
+
+    function test_stash_laterTransactionStartsEmpty() public {
+        Executor executor = new Executor(helpers);
+        executor.stash(KEY, 1);
+        assertEq(executor.stashThenLoad(KEY, 2, KEY), 2);
     }
 
     function test_load_revertsWhenNothingStashed() public {
@@ -138,6 +169,31 @@ contract Executor {
     function stashThenCallOther(Executor other, bytes32 key, uint256 value) external returns (uint256) {
         helpers.stash(key, value);
         return other.load(key);
+    }
+
+    function stashTwoKeysThenLoad(bytes32 a, uint256 first, bytes32 b, uint256 second) external returns (uint256) {
+        helpers.stash(a, first);
+        helpers.stash(b, second);
+        return helpers.load(a) + helpers.load(b);
+    }
+
+    function stashThenLetOtherStashAndLoad(
+        Executor other,
+        bytes32 key,
+        uint256 value,
+        uint256 otherValue
+    )
+        external
+        returns (uint256)
+    {
+        helpers.stash(key, value);
+        other.stash(key, otherValue);
+        return helpers.load(key);
+    }
+
+    function stashInCallbackThenOverwrite(bytes32 key, uint256 value, uint256 replacement) external {
+        this.callback(key, value);
+        helpers.stash(key, replacement);
     }
 
     function stashInCallbackThenLoad(bytes32 key, uint256 value) external returns (uint256) {
