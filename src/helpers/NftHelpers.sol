@@ -8,6 +8,7 @@ contract NftHelpers {
 
     error OwnerMismatch(address nft, uint256 tokenId, address expected, address actual);
     error NotStashed(address caller, bytes32 key);
+    error AlreadyStashed(address caller, bytes32 key);
 
     // Reverts unless `owner` holds `tokenId`: an on-chain custody guard, the NFT counterpart of a minAmountOut check.
     // A burned or nonexistent id reverts in ownerOf.
@@ -19,9 +20,18 @@ contract NftHelpers {
     }
 
     // Hands a value from a nested shortcut (e.g. an id minted inside a flashloan callback) to its parent, which runs
-    // as the same caller. Keyed by caller, so executors never share slots; cleared at the end of the transaction.
+    // as the same caller. Keyed by caller and cleared at the end of the transaction. Write-once: a shared executor
+    // (the router's) can be re-entered by anyone mid-shortcut, so a stashed value can never be replaced; callers use
+    // a key unique to their own execution.
     function stash(bytes32 key, uint256 value) external {
         bytes32 slot = _slot(msg.sender, key);
+        uint256 isSet;
+        assembly ("memory-safe") {
+            isSet := tload(add(slot, 1))
+        }
+        if (isSet != 0) {
+            revert AlreadyStashed(msg.sender, key);
+        }
         assembly ("memory-safe") {
             tstore(slot, value)
             tstore(add(slot, 1), 1)
