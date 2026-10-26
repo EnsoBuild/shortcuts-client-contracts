@@ -14,7 +14,7 @@ import { Test } from "forge-std/Test.sol";
 contract NftDeploymentCapabilitiesTest is Test {
     address constant FACTORY = 0xC914A663837Eb21c5a650716E015659686597E55;
     address constant ROUTER = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf;
-    address constant NFT_HELPERS = 0x0EbfA3Ba0CF03418E36f375E3db0Fcf39bbeB302;
+    address constant NFT_HELPERS = 0x703a8389a82C14B46160a792E311Df6d19D29A47;
 
     function test_ethereumDeployedNftFunding() public {
         _check("ETHEREUM_RPC_URL", 26_234_000, ROUTER);
@@ -40,10 +40,41 @@ contract NftDeploymentCapabilitiesTest is Test {
         _check("ROBINHOOD_RPC_URL", 93_476_700, 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7);
     }
 
-    /// Blocks are pinned after the NftHelpers deployment (2026-10-20).
+    // NftHelpers runs exactly this repository's bytecode at its CREATE2 address. Each block is pinned after that
+    // chain's deployment; 0 means not deployed yet, and the test is skipped until the block is filled in.
+    function test_ethereumNftHelpersCode() public {
+        _checkNftHelpers("ETHEREUM_RPC_URL", 0);
+    }
+
+    function test_optimismNftHelpersCode() public {
+        _checkNftHelpers("OPTIMISM_RPC_URL", 0);
+    }
+
+    function test_baseNftHelpersCode() public {
+        _checkNftHelpers("BASE_RPC_URL", 0);
+    }
+
+    function test_arbitrumNftHelpersCode() public {
+        _checkNftHelpers("ARBITRUM_RPC_URL", 0);
+    }
+
+    function test_avalancheNftHelpersCode() public {
+        _checkNftHelpers("AVALANCHE_RPC_URL", 0);
+    }
+
+    function test_robinhoodNftHelpersCode() public {
+        _checkNftHelpers("ROBINHOOD_RPC_URL", 0);
+    }
+
+    function _checkNftHelpers(string memory rpc, uint256 deployedBlock) internal {
+        vm.skip(deployedBlock == 0, "NftHelpers not deployed yet");
+        vm.createSelectFork(vm.envString(rpc), deployedBlock);
+        assertEq(NFT_HELPERS.codehash, keccak256(type(NftHelpers).runtimeCode));
+    }
+
+    /// Blocks are pinned after the router and wallet factory deployments.
     function _check(string memory rpc, uint256 blockNumber, address routerAddress) internal {
         vm.createSelectFork(vm.envString(rpc), blockNumber);
-        assertEq(NFT_HELPERS.codehash, keccak256(type(NftHelpers).runtimeCode));
         address executor = address(EnsoRouter(payable(routerAddress)).shortcuts());
         assertGt(executor.code.length, 0);
         IEnsoWalletV2Factory factory = IEnsoWalletV2Factory(FACTORY);
