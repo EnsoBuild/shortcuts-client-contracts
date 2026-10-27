@@ -43,27 +43,27 @@ contract NftDeploymentCapabilitiesTest is Test {
     // NftHelpers runs exactly this repository's bytecode at its CREATE2 address. Each block is pinned after that
     // chain's deployment; 0 means not deployed yet, and the test is skipped until the block is filled in.
     function test_ethereumNftHelpersCode() public {
-        _checkNftHelpers("ETHEREUM_RPC_URL", 0);
+        _checkNftHelpers("ETHEREUM_RPC_URL", 26_283_306);
     }
 
     function test_optimismNftHelpersCode() public {
-        _checkNftHelpers("OPTIMISM_RPC_URL", 0);
+        _checkNftHelpers("OPTIMISM_RPC_URL", 158_748_397);
     }
 
     function test_baseNftHelpersCode() public {
-        _checkNftHelpers("BASE_RPC_URL", 0);
+        _checkNftHelpers("BASE_RPC_URL", 53_153_146);
     }
 
     function test_arbitrumNftHelpersCode() public {
-        _checkNftHelpers("ARBITRUM_RPC_URL", 0);
+        _checkNftHelpers("ARBITRUM_RPC_URL", 518_709_631);
     }
 
     function test_avalancheNftHelpersCode() public {
-        _checkNftHelpers("AVALANCHE_RPC_URL", 0);
+        _checkNftHelpers("AVALANCHE_RPC_URL", 98_682_354);
     }
 
     function test_robinhoodNftHelpersCode() public {
-        _checkNftHelpers("ROBINHOOD_RPC_URL", 0);
+        _checkNftHelpers("ROBINHOOD_RPC_URL", 99_164_514);
     }
 
     function _checkNftHelpers(string memory rpc, uint256 deployedBlock) internal {
