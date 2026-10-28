@@ -1,6 +1,8 @@
 # Ephemeral Intent Contracts — Auditor Notes
 
-Prepared for the external (Dedaub) engagement. State as of commit `b41ec65`.
+Prepared for the external (Dedaub) engagement. State as of commit `b41ec65`,
+plus the uncommitted owner-privilege change recorded in §7 (the
+`refundRecipient` → `owner` rename and the owner arms of the constructor).
 Scope: `src/factory/EphemeralFactory.sol`,
 `src/wallet/EphemeralIntentExecutor.sol`, `script/EphemeralDeployer.s.sol`,
 `src/helpers/IntentEmitter.sol`.
@@ -48,6 +50,17 @@ LIVENESS ZONE (reverts are acceptable and sometimes intended):
   `_payFee` with `strict=true`, `_approve` `:223`, `_value` `:249`, `_minOut`
   `:261`, `_amount` `:270`, `_balance` `:303`
 
+Owner arms added after `b41ec65` (no pinned line numbers; see §7 for the branch
+table):
+
+- BRICK ZONE: the `keeper != intent.owner` branch test (pure) and the owner
+  refund arm (`_refund`, tolerant family).
+- LIVENESS ZONE, owner-only: the owner route arm (`_route` with owner-supplied
+  bytes). Reachable only when the owner passes non-empty `route`; the owner
+  always has the refund arm as a fallback, so a revert there is confined to the
+  owner's own transaction. The refund-never-reverts fuzz carries two owner
+  properties (committed trigger bytes, owner sweep list) for the refund arm.
+
 Rules that follow from the model (also the maintainer edit rules):
 
 - No validation, `require`, or shape check may be added to the constructor
@@ -69,7 +82,8 @@ Rules that follow from the model (also the maintainer edit rules):
 - `_payFee` serves both zones via the `strict` flag: typed reads + `SendFailed`
   on the execute branch, fully tolerant reads (skip the fee on any abnormality)
   on refund branches. The fee is paid FIRST on both (before sweeps / before the
-  route).
+  route), and skipped entirely when the keeper is the owner (§7) — the owner
+  never pays themselves.
 
 The executable form of this section is
 `test/unit/fuzz/wallet/ephemeralIntentExecutor/refundNeverReverts.t.sol` — four
@@ -98,7 +112,10 @@ and the lifecycle terminates. On the pre-fix tree these found counterexamples in
   a full refund one second later. This is policy, not contract law — the
   contract deliberately retains permissionless-fallback capability for later
   versions. Do not file the absence of an on-chain `exclusiveUntil >= deadline`
-  check as a finding; it is a recorded decision.
+  check as a finding; it is a recorded decision. **The owner is not a third
+  party**: since the owner-privilege change (§7) the owner can refund, sweep, or
+  re-route at any block, inside the exclusive window included. The lock is
+  against outsiders only.
 
 ### ERC721 second-word convention (direction-dependent, inherited from EnsoRouter)
 
@@ -139,10 +156,12 @@ Proportional on-chain minimums were considered and declined for v1;
 purpose and is near-vacuous given `_requireTriggers`). If the trust model
 changes, this is the finding to reopen.
 
-**Beneficiary substitution, not validation** (`:56-60`): `refundRecipient == 0`
-substitutes the keeper everywhere (sweeps and selfdestruct). A prologue
-`revert BadIntent()` was explicitly rejected — it would brick the execute branch
-too, converting a conditional loss into an unconditional one.
+**Beneficiary substitution, not validation** (`:56-60`): `owner == 0` (the field
+was `refundRecipient` at `b41ec65`) substitutes the keeper everywhere (sweeps
+and selfdestruct). A prologue `revert BadIntent()` was explicitly rejected — it
+would brick the execute branch too, converting a conditional loss into an
+unconditional one. A zero owner also never matches the keeper (the factory's
+caller is never zero), so zero-owner intents cannot reach the owner arms of §7.
 
 **The blob is the address.** Funding the derived address is the only
 authorization; `abi.encode(intent)` is inside the CREATE2 preimage. A hostile or
@@ -156,9 +175,11 @@ nobody — not a DoS.
 
 **Primary control is off-chain.** The on-chain tolerant family is defense in
 depth. The primary control is an SDK golden-vector suite asserting every emitted
-`Token.data` round-trips through decode for its declared type,
-`refundRecipient != 0`, `tokensOut` non-empty with non-zero minimums, and
-`start <= deadline`. (Tracked SDK- side; not yet landed at the time of writing.)
+`Token.data` round-trips through decode for its declared type, `owner != 0`
+**and `owner` is the end user's own address** (never the keeper, never a shared
+contract — see §7, the field is now an authority), `tokensOut` non-empty with
+non-zero minimums, and `start <= deadline`. (Tracked SDK- side; not yet landed
+at the time of writing.)
 
 ---
 
@@ -182,7 +203,8 @@ intent address — they landed as one batch while nothing is deployed or funded.
    `== 1` rather than `!= 0` because the helper also serves the strict fee path.
    The USDT/BNB zero-returndata class was always safe via the `ret.length == 0`
    arm.
-3. **B3 (MEDIUM)** — zero `refundRecipient` beneficiary substitution (above).
+3. **B3 (MEDIUM)** — zero `refundRecipient` (since renamed `owner`, §7)
+   beneficiary substitution (above).
 4. **P8 (LOW)** — `_constrained` uses an explicit `after_ < before[i]`
    comparison, so a recipient balance decrease reverts `Insufficient` instead of
    Panic 0x11.
@@ -231,9 +253,10 @@ ERC721):
   deletes an account destroyed in its creating transaction at
   end-of-transaction, so the address is reusable across transactions. Residue
   left after a successful execute is recovered by re-running the same intent
-  post-deadline (committed-trigger sweep or a keeper `sweep[]` entry). **Foundry
-  artifact warning:** a second same-address CREATE2 in one test function fails
-  with `CreateCollision` unless the test carries
+  post-deadline (committed-trigger sweep or a keeper `sweep[]` entry), or at any
+  time by the owner through the owner sweep/refund arms (§7). **Foundry artifact
+  warning:** a second same-address CREATE2 in one test function fails with
+  `CreateCollision` unless the test carries
   `/// forge-config: default.isolate = true`. Two earlier reviewers were misled
   by exactly this into "residue is permanently stranded" findings.
 - **`MockIntentRouter` structurally cannot show the B4 over-pull** — it pulls a
@@ -258,3 +281,100 @@ ERC721):
   over-delivery test (§5), zero-recipient assertion on the execute branch, an
   explicit USDT-shaped zero-return token case, the success-residue re-run pair
   under isolate mode, and the SDK golden-vector suite (§3, the primary control).
+- Owner arms (§7): `owner.t.sol` — owner refund inside the window, before start,
+  and inside another keeper's exclusivity window; extra and duplicate sweep
+  entries; owner route overriding the committed payload with no fee off the top
+  and residue recoverable by a later owner refund; owner route under every
+  closed gate and outside the window; owner route revert leaving the refund arm
+  available; and two privilege-boundary contrasts (a third party's bytes are
+  ignored in ROUTE mode, a zero owner elevates nobody). The fee-skip assertions
+  count `Transfer` events, since with keeper == owner the final balances are the
+  same whether or not a fee was paid. `refundNeverReverts.t.sol` gains two owner
+  properties (committed trigger bytes, owner sweep list) at 1000 runs each. All
+  ephemeral suites green with the change applied.
+
+---
+
+## 7. Owner privileges (post-`b41ec65`, uncommitted at the time of writing)
+
+`Intent.refundRecipient` is renamed `owner` and becomes an authority, not just a
+payee. When the factory's caller (`keeper`, the `msg.sender` of `executeIntent`,
+recorded in transient context) equals `intent.owner`, the executor hands the
+owner full control of the address. Only that address can satisfy the check: the
+owner is inside the CREATE2 preimage and the factory records `msg.sender`
+itself, so no route bytes, sweep entry, or nested call can forge it. Shortcut
+commands run with `EnsoShortcuts` as sender and the executor's approvals go only
+to the router and are revoked after the call, so an owner route cannot reach any
+other intent's address either.
+
+### Branch table (constructor, current tree)
+
+The **standard path** is byte-for-byte the `b41ec65` logic apart from the rename
+and the fee guard inside `_refund`. It is taken whenever the keeper is not the
+owner. The **owner path** is mode-independent and has two verbs:
+
+| route     | action                                                                                       |
+| --------- | -------------------------------------------------------------------------------------------- |
+| non-empty | `_route` with the owner's bytes over the committed triggers at live balance; `sweep` ignored |
+| empty     | `_refund`: fee token, committed triggers, then the owner's `sweep` list; no fee              |
+
+An owner who wants the committed ROUTE payload to run passes it as `route`; that
+produces the same `_route` call minus the gates. Native residue rides the
+selfdestruct to the owner on both arms. `_payFee` is skipped inside `_refund`
+when keeper == owner, and the execute arm is unreachable for the owner, so the
+owner never pays themselves; third-party keepers are paid exactly as at
+`b41ec65`.
+
+### Zone classification
+
+- The `keeper != intent.owner` branch test is pure — brick zone, no reverts.
+- The owner refund arm calls only `_refund` — the tolerant family, brick zone,
+  no new reverts. Two fuzz properties (committed trigger bytes, owner sweep
+  list) assert it never reverts inside the window.
+- The owner route arm calls `_route` strictly. It is reachable only when the
+  owner supplies non-empty `route`, and the owner always has the refund arm as a
+  fallback, so a revert there is liveness-only and confined to the owner's own
+  transaction.
+- Third-party keepers cannot reach either owner arm, so nothing about their
+  brick or liveness analysis changed.
+
+### Trust-model consequences (recorded decisions, not findings)
+
+1. **The owner can exit or re-route at any block**, inside
+   `[start, exclusiveUntil]` included. The §2 lock holds against outsiders only.
+   A keeper that hedges or commits capital before its transaction lands can be
+   front-run by the owner's sweep or route; the keeper must treat inclusion as
+   the only commitment point. This is the trust-model change §3 B4 says to
+   reopen against, in the other direction: the user is trusted with their own
+   funds, the keeper's execution is no longer guaranteed the funds.
+2. **`owner` must be the end user's own address.** Setting it to the keeper's
+   address gives the keeper unconstrained control of every branch. Setting it to
+   a shared contract with open execution (a router, a receiver, a bridge
+   callback contract) gives control to anyone who can make that contract call
+   the factory. A zero owner stays safe (keeper substituted as beneficiary,
+   owner arms unreachable).
+3. **Owner routes are unvalidated by design.** No chain check, no window, no
+   trigger minimums, no `Constrained` outcome floor, no `Exclusive()`.
+   Wrong-chain routing is possible because the router shares its address on
+   every chain.
+
+### Limitations of the owner arms (documented, not bugs)
+
+- The owner route approves and pulls every committed trigger at live balance. A
+  missing ERC721 trigger makes the approve revert, and a zero-balance ERC20
+  trigger issues a zero-amount `transferFrom` that some tokens reject; the owner
+  falls back to the refund arm in those cases. Tokens that are not triggers
+  cannot be routed, only swept.
+- With `route` non-empty, `sweep` is ignored.
+- The owner cannot run the committed payload under the gates; the gates exist
+  against the keeper, and the owner passes the payload as `route` instead.
+- A trigger listed again in `sweep` is harmless: the second pass reads a zero
+  balance and skips, so the token moves once (asserted in `owner.t.sol`).
+
+### Open items
+
+- `EphemeralFactory.executeIntent` NatSpec still describes `route` as
+  CONSTRAINED-only and `sweep` as refund-branch-only; both are also the owner's
+  inputs now.
+- Like §4, this changes the executor's creation code and therefore every derived
+  intent address; it must land before anything is funded.

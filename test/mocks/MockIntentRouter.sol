@@ -6,7 +6,7 @@ import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "openzeppelin-contracts/token/ERC721/IERC721.sol";
 
 interface IContextProbe {
-    function context() external view returns (bytes memory route, Token[] memory sweep, address keeper, address router);
+    function context() external view returns (bytes memory route, Token[] memory sweep, address sender, address router);
 }
 
 /// Implements the router's route entry points, records what the executor sent
@@ -36,11 +36,14 @@ contract MockIntentRouter {
     uint256 public outNFTId;
     bool public shouldRevert;
     address public probe;
+    address public reenterTarget;
+    bytes public reenterData;
 
     bytes public probedRoute;
     Token[] public probedSweep;
-    address public probedKeeper;
+    address public probedSender;
     address public probedRouter;
+    bytes4 public reenterError;
 
     error MockRouterRevert();
 
@@ -69,7 +72,12 @@ contract MockIntentRouter {
             IERC20(pullToken).transferFrom(msg.sender, address(this), pullAmount);
         }
         if (probe != address(0)) {
-            (probedRoute, probedSweep, probedKeeper, probedRouter) = IContextProbe(probe).context();
+            (probedRoute, probedSweep, probedSender, probedRouter) = IContextProbe(probe).context();
+        }
+        if (reenterTarget != address(0)) {
+            // Attempt a nested call from inside the route and record how it failed.
+            (bool ok, bytes memory ret) = reenterTarget.call(reenterData);
+            reenterError = ok ? bytes4(0) : bytes4(ret);
         }
         if (drainToken != address(0)) {
             IERC20(drainToken).transferFrom(drainFrom, address(this), drainAmount);
@@ -116,6 +124,11 @@ contract MockIntentRouter {
 
     function setProbe(address factory) external {
         probe = factory;
+    }
+
+    function setReenter(address target, bytes calldata data) external {
+        reenterTarget = target;
+        reenterData = data;
     }
 
     function setDrain(address token, address from, uint256 amount) external {

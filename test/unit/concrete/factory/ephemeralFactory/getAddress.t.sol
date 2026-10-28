@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Intent } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Intent } from "../../../../../src/interfaces/IIntent.sol";
 import { EphemeralFactory_Unit_Concrete_Test } from "./EphemeralFactory.t.sol";
 
 contract EphemeralFactory_GetAddress_Unit_Concrete_Test is EphemeralFactory_Unit_Concrete_Test {
