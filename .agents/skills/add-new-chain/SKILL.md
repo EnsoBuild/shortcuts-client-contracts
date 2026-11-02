@@ -167,6 +167,24 @@ alphabetically (`ARBITRUM` before `ARC` before `AVALANCHE`).
   chain without LayerZero.
 - Configure `script/FlashloanAdapterConfig.s.sol` only with verified lender
   deployments.
+- Deploy `NftHelpers` (ERC-721 owner checks and a write-once transient id
+  stash) with `script/NftHelpersDeployer.s.sol`. It is its own CREATE2
+  deployment (salt `NftHelpers`, no constructor args), not part of
+  `FullDeployer`, and must land at
+  `0x703a8389a82C14B46160a792E311Df6d19D29A47`; NFT-position bundles that need
+  an owner check fail on a chain without it. `.bash/deploy.sh` passes
+  `--network ethereum` on every network except Tempo, Monad and zkSync: forge's
+  optimism family (OP-stack chains) deploys `new C{ salt: … }()` with plain
+  CREATE, which lands at a different address. Keep a new OP-stack chain on the
+  ethereum family.
+- Extend `test/fork/router/NftDeploymentCapabilities.t.sol` for the chain, each
+  test pinned to a block: `test_<chain>NftHelpersCode` at a block after the
+  NftHelpers deployment (deployed codehash equals this repository's runtime
+  code), and `test_<chain>DeployedNftFunding` at a block after the router and
+  `EnsoWalletV2Factory` deployments (an ERC-721 `Token` input round-trips
+  through `routeMulti` and `deployAndExecute`, and a failed shortcut leaves the
+  NFT with its holder). Pass the chain's router address: it is not the same on
+  every chain. Both need the chain's RPC secret in CI.
 - Audit all core deployment scripts for exhaustive chain branches
   (`grep -rn "block.chainid\|ChainId\." script`).
 - Commit broadcast records only after real broadcasts; never hand-author them to
@@ -268,6 +286,10 @@ cast create2 --deployer 0x4e59b44847b379578588920cA78FbF26c0B4956C \
   --salt "$(cast format-bytes32-string EnsoRouter)" \
   --init-code "$(forge inspect src/router/EnsoRouter.sol:EnsoRouter bytecode)"
 ```
+
+The same check with `--salt "$(cast format-bytes32-string NftHelpers)"` and
+`src/helpers/NftHelpers.sol:NftHelpers` must print
+`0x703a8389a82C14B46160a792E311Df6d19D29A47`.
 
 Dry-run a deployer against the chain without signing by calling
 `.bash/deploy.sh <Script>.s.sol <chain>` without the `broadcast` argument. When
