@@ -22,6 +22,9 @@ contract UniswapV4SwapHelpersMinHopPriceDeployer is Script {
 
         // Arc
         universalRouters[ChainId.ARC] = 0x4fcA4a51Ab4F23A7447b3284fBd7D73289A89Fb1;
+
+        // Elysium
+        universalRouters[ChainId.ELYSIUM] = 0xA13f7611115752DEB2B13813BDDE16A5073e4b45;
     }
 
     function run() public returns (UniswapV4SwapHelpersMinHopPrice uniswapV4SwapHelpers, address universalRouter) {

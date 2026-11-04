@@ -56,6 +56,9 @@ contract UniswapV4HelpersDeployer is Script {
         } else if (chainId == ChainId.INK) {
             poolManager = 0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32;
             positionManager = 0x1b35d13a2E2528f192637F14B05f0Dc0e7dEB566;
+        } else if (chainId == ChainId.ELYSIUM) {
+            poolManager = 0xE2e105d3F7209A9DA11f83cCf3E7398a753823F1;
+            positionManager = 0x1d1C51b9d07fD27d36412A2b66CC23D19Eb3E518;
         } else {
             revert("No pool manager");
         }
