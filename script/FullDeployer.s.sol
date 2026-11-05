@@ -11,6 +11,7 @@ import { MathHelpers } from "../src/helpers/MathHelpers.sol";
 import { PercentageMathHelpers } from "../src/helpers/PercentageMathHelpers.sol";
 import { SignedMathHelpers } from "../src/helpers/SignedMathHelpers.sol";
 import { SwapHelpers } from "../src/helpers/SwapHelpers.sol";
+import { TransferHelpers } from "../src/helpers/TransferHelpers.sol";
 import { TupleHelpers } from "../src/helpers/TupleHelpers.sol";
 import { EnsoRouter } from "../src/router/EnsoRouter.sol";
 import { EnsoWalletV2 } from "../src/wallet/EnsoWalletV2.sol";
@@ -29,6 +30,7 @@ struct DeployerResult {
     PercentageMathHelpers percentageMathHelpers;
     SignedMathHelpers signedMathHelpers;
     SwapHelpers swapHelpers;
+    TransferHelpers transferHelpers;
     TupleHelpers tupleHelpers;
 }
 
@@ -49,6 +51,7 @@ contract FullDeployer is Script {
         result.percentageMathHelpers = new PercentageMathHelpers{ salt: "PercentageMathHelpers" }();
         result.signedMathHelpers = new SignedMathHelpers{ salt: "SignedMathHelpers" }();
         result.swapHelpers = new SwapHelpers{ salt: "SwapHelpers" }();
+        result.transferHelpers = new TransferHelpers{ salt: "TransferHelpers" }();
         result.tupleHelpers = new TupleHelpers{ salt: "TupleHelpers" }();
 
         vm.stopBroadcast();

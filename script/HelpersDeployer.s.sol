@@ -9,6 +9,7 @@ import { MathHelpers } from "../src/helpers/MathHelpers.sol";
 import { PercentageMathHelpers } from "../src/helpers/PercentageMathHelpers.sol";
 import { SignedMathHelpers } from "../src/helpers/SignedMathHelpers.sol";
 import { SwapHelpers } from "../src/helpers/SwapHelpers.sol";
+import { TransferHelpers } from "../src/helpers/TransferHelpers.sol";
 import { TupleHelpers } from "../src/helpers/TupleHelpers.sol";
 import { Script } from "forge-std/Script.sol";
 
@@ -20,6 +21,7 @@ struct DeployerResult {
     PercentageMathHelpers percentageMathHelpers;
     SignedMathHelpers signedMathHelpers;
     SwapHelpers swapHelpers;
+    TransferHelpers transferHelpers;
     TupleHelpers tupleHelpers;
 }
 
@@ -34,6 +36,7 @@ contract HelpersDeployer is Script {
         result.percentageMathHelpers = new PercentageMathHelpers{ salt: "PercentageMathHelpers" }();
         result.signedMathHelpers = new SignedMathHelpers{ salt: "SignedMathHelpers" }();
         result.swapHelpers = new SwapHelpers{ salt: "SwapHelpers" }();
+        result.transferHelpers = new TransferHelpers{ salt: "TransferHelpers" }();
         result.tupleHelpers = new TupleHelpers{ salt: "TupleHelpers" }();
 
         vm.stopBroadcast();
