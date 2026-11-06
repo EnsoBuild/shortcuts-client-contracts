@@ -45,6 +45,7 @@ contract TransferHelpers {
 
     function _transfer(IERC20 token, address receiver, uint256 amount) internal {
         if (token == _ETH) {
+            // forge-lint: disable-next-line(arbitrary-send-eth)
             (bool success,) = receiver.call{ value: amount }("");
             if (!success) {
                 revert TransferFailed(receiver);
