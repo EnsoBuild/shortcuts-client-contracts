@@ -1,67 +1,138 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntent.sol";
+import {
+    Asset,
+    Constraints,
+    Consume,
+    Handoff,
+    InputSet,
+    Intent,
+    Lifetime,
+    Param,
+    Pattern,
+    Predicate,
+    Request,
+    Rule,
+    Source,
+    Term,
+    View
+} from "../../../../../src/interfaces/IIntent.sol";
+import { IntentHash } from "../../../../../src/libraries/IntentHash.sol";
 import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
 import { Test } from "forge-std/Test.sol";
-import { MessageHashUtils } from "openzeppelin-contracts/utils/cryptography/MessageHashUtils.sol";
 
-/// Golden vector produced by ethers v6 `TypedDataEncoder` for the intent below, with the
-/// domain { name: "IntentRouter", version: "1", chainId: 31337, verifyingContract: ROUTER }.
-/// It pins the type string, the nested Token[]/KeeperFee hashing and the domain, so an SDK
-/// signing with the same `types` produces signatures this contract accepts.
+/// Golden vector from viem's hashStruct / hashTypedData for the intent below, which populates every
+/// struct type, with the domain { name: "IntentRouter", version: "2", chainId: 31337,
+/// verifyingContract: ROUTER }. It pins every type string and the nested array hashing, so an SDK
+/// signing with the same types produces signatures the router accepts. LEAF pins the ABI encoding
+/// an ephemeral tree commits to, for the same struct.
 contract IntentRouter_Hash_Unit_Concrete_Test is Test {
     address internal constant ROUTER = 0x7777777777777777777777777777777777777777;
-    bytes32 internal constant STRUCT_HASH = 0x5a391d459312c29678ebf253c548a9a4f7b5f11f70bec7d63c32110515d077e5;
-    bytes32 internal constant DIGEST = 0x49b9613b7c01c9cd07cb8678a9531e09657b8c790561677640ff10dcbc684dff;
-    bytes32 internal constant DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 internal constant STRUCT_HASH = 0x0e2aa7a41fe6c9f8b4a00bfdff04f237417483f2044cb1c40164026281e7b6b3;
+    bytes32 internal constant DIGEST = 0x34b2bce713056612f143e0ace7c386af1bf0af23b92ef3bc89abf2d35acef20b;
+    /// keccak256(keccak256(abi.encode(intent))), from viem's encodeAbiParameters.
+    bytes32 internal constant LEAF = 0x867dd45e00e77e429e2555c870933ae1102348819d1bd16d4cc5c035de4e97f5;
 
     function test_WhenHashedAgainstTheReferenceEncoder() external {
         vm.chainId(31_337);
         deployCodeTo("IntentRouter.sol:IntentRouter", ROUTER);
-        IntentRouter router = IntentRouter(ROUTER);
+        Intent memory intent = _intent();
 
-        Token[] memory tokensIn = new Token[](2);
-        tokensIn[0] = Token({
-            tokenType: TokenType.ERC20, data: abi.encode(0x3333333333333333333333333333333333333333, uint256(100 ether))
+        assertEq(IntentHash.hash(intent), STRUCT_HASH, "struct hash");
+        assertEq(IntentRouter(ROUTER).hash(intent), DIGEST, "digest");
+        assertEq(IntentHash.leaf(intent), LEAF, "ephemeral leaf");
+    }
+
+    function _intent() internal pure returns (Intent memory intent) {
+        Constraints memory c;
+        c.lifetime = Lifetime({ kind: 1, interval: 86_400, count: 12 });
+        c.frame = 1;
+        c.matching = 0;
+        c.router = 0x9999999999999999999999999999999999999999;
+        c.accounts = new address[](1);
+        c.accounts[0] = 0x2222222222222222222222222222222222222222;
+        c.assets = new Asset[](2);
+        c.assets[0] = Asset({ kind: 1, chainId: 31_337, token: 0x3333333333333333333333333333333333333333, id: 0 });
+        c.assets[1] = Asset({ kind: 3, chainId: 42_161, token: 0x5555555555555555555555555555555555555555, id: 9 });
+        c.sources = new Source[](1);
+        c.sources[0] =
+            Source({ kind: 1, target: 0x6666666666666666666666666666666666666666, config: abi.encode(uint8(0)) });
+        c.views = new View[](1);
+        c.views[0] = View({
+            target: 0x7777777777777777777777777777777777777777,
+            selector: 0x70a08231,
+            args: abi.encode(0x1111111111111111111111111111111111111111),
+            word: 0
         });
-        tokensIn[1] = Token({
-            tokenType: TokenType.ERC721, data: abi.encode(0x4444444444444444444444444444444444444444, uint256(42))
+        bytes32[] memory patternArgs = new bytes32[](2);
+        patternArgs[0] = bytes32(uint256(1));
+        patternArgs[1] = bytes32(uint256(2));
+        c.patterns = new Pattern[](1);
+        c.patterns[0] = Pattern({
+            kind: 1,
+            target: 0x3333333333333333333333333333333333333333,
+            sig: bytes32(bytes4(0xa9059cbb)),
+            args: patternArgs,
+            wildcards: 2
         });
-        Token[] memory tokensOut = new Token[](2);
-        tokensOut[0] = Token({ tokenType: TokenType.Native, data: abi.encode(uint256(1 ether)) });
-        tokensOut[1] = Token({
-            tokenType: TokenType.ERC1155,
-            data: abi.encode(0x5555555555555555555555555555555555555555, uint256(9), uint256(3))
+        uint16[] memory inputAssets = new uint16[](1);
+        uint256[] memory minimums = new uint256[](1);
+        minimums[0] = 100 ether;
+        uint16[] memory prices = new uint16[](1);
+        prices[0] = 65_535;
+        uint256[] memory refundFees = new uint256[](1);
+        refundFees[0] = 0.5 ether;
+        c.inputs =
+            InputSet({ assets: inputAssets, minimums: minimums, prices: prices, refundFees: refundFees, threshold: 1 });
+        c.terms = new Term[](4);
+        c.terms[0] = Term({ op: 3, a: 1, b: 1, value: 0, data: "" });
+        c.terms[1] = Term({ op: 7, a: 0, b: 0, value: 0, data: "" });
+        c.terms[2] = Term({ op: 13, a: 1, b: 0, value: 9900, data: "" });
+        c.terms[3] = Term({ op: 6, a: 0, b: 0, value: 0, data: abi.encodePacked(bytes32("buy")) });
+        c.handoffs = new Handoff[](1);
+        c.handoffs[0] = Handoff({
+            source: 0,
+            chainId: 42_161,
+            method: keccak256("cctp"),
+            recipient: 0x2222222222222222222222222222222222222222,
+            refund: 0x1111111111111111111111111111111111111111,
+            input: 0,
+            asset: 1,
+            minAmount: 2,
+            deadline: 1
         });
-        Intent memory intent = Intent({
-            version: 1,
+        c.consumes = new Consume[](1);
+        c.consumes[0] = Consume({ source: 0, key: bytes32("buy"), amount: 1, cap: 150 ether, period: 86_400 });
+        c.predicates = new Predicate[](2);
+        c.predicates[0] = Predicate({ cmp: 0, lhs: 0, rhs: 2, enforce: 0, source: 65_535, group: 0 });
+        c.predicates[1] = Predicate({ cmp: 5, lhs: 0, rhs: 0, enforce: 0, source: 65_535, group: 1 });
+        uint16[] memory ruleInputs = new uint16[](1);
+        uint16[] memory then = new uint16[](2);
+        then[1] = 1;
+        Param[] memory params = new Param[](1);
+        params[0] = Param({ name: bytes32("amount"), kind: 2, index: 1 });
+        c.rules = new Rule[](1);
+        c.rules[0] = Rule({
+            inputs: ruleInputs,
+            when: new uint16[](0),
+            then: then,
+            feeAsset: 0,
+            fee: 1,
+            consume: 1,
+            route: hex"deadbeef",
+            request: Request({ api: keccak256("enso.bundle.v1"), body: '{"a":"{$amount}"}', params: params })
+        });
+        intent = Intent({
+            version: 2,
             chainId: 31_337,
             nonce: 7,
             start: 1_700_000_000,
             deadline: 1_700_003_600,
             owner: 0x1111111111111111111111111111111111111111,
-            recipient: 0x2222222222222222222222222222222222222222,
             keeper: 0x8888888888888888888888888888888888888888,
-            keeperFee: KeeperFee({
-                token: 0x6666666666666666666666666666666666666666, intentFee: 5 ether, refundFee: 1 ether
-            }),
-            tokensIn: tokensIn,
-            tokensOut: tokensOut,
-            route: hex"deadbeef"
+            exclusive: 1_700_001_800,
+            constraints: c
         });
-
-        // it should match the ethers TypedDataEncoder digest
-        assertEq(router.hash(intent), DIGEST);
-
-        // it should compose the domain from the exposed EIP-712 fields
-        (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
-            router.eip712Domain();
-        bytes32 domainSeparator = keccak256(
-            abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), keccak256(bytes(version)), chainId, verifyingContract)
-        );
-        assertEq(MessageHashUtils.toTypedDataHash(domainSeparator, STRUCT_HASH), DIGEST);
     }
 }

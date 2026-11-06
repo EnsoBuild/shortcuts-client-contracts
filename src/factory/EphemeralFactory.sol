@@ -1,64 +1,77 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.24;
 
-import { Token } from "../interfaces/IEnsoRouter.sol";
-import { Intent } from "../interfaces/IIntent.sol";
+import { Execution, IEphemeralFactory } from "../interfaces/IEphemeralFactory.sol";
+import { Lifetime } from "../interfaces/IIntent.sol";
+import { IntentRecord } from "../libraries/IntentRecord.sol";
 import { EphemeralIntentExecutor } from "../wallet/EphemeralIntentExecutor.sol";
 import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
+import { EIP712 } from "openzeppelin-contracts/utils/cryptography/EIP712.sol";
 
-contract EphemeralFactory is ReentrancyGuardTransient {
-    // Transient context for the executor's constructor (EIP-1153, cleared at end of tx).
-    // Solidity has no `transient bytes`, so abi.encode(route, sweep) is chunked manually:
+/// @title EphemeralFactory
+/// @notice Deploys and runs ephemeral intent executors at addresses derived from a Merkle root of
+///         per-chain intents. No constructor arguments, so a salted CREATE2 deployment, and every
+///         intent address, is the same on every chain. Its only immutables are EIP-712's cached
+///         domain, derived from the deployment itself.
+contract EphemeralFactory is IEphemeralFactory, EIP712, ReentrancyGuardTransient {
+    error NonCanonicalEncoding();
+
+    // Transient context for the executor's constructor (EIP-1153, cleared at end of transaction).
+    // Solidity has no `transient bytes`, so abi.encode(execution) is chunked manually:
     // SENDER_SLOT holds the caller, CONTEXT_SLOT holds the length, data words follow it.
     uint256 private constant SENDER_SLOT = 0;
     uint256 private constant CONTEXT_SLOT = 1;
 
-    /// The execution layer — the executor's only call target. Immutable, so it joins the
-    /// factory's initcode: same-address recovery requires the router at one address on
-    /// every chain, exactly like the factory itself.
-    address public immutable router;
+    /// @notice Execution records per executor. An executor's address is unique to its root, and
+    ///         only that executor can write its own entry, so no other authorization is needed.
+    mapping(address executor => uint256 record) public records;
 
-    event IntentPublished(address indexed intentAddress, bytes intent);
+    constructor() EIP712("EphemeralFactory", "2") { }
 
-    // forge-lint: disable-next-line(missing-zero-check)
-    constructor(address router_) {
-        router = router_;
-    }
-
-    /// @notice Deploy and run `intent`'s executor at its derived address. Permissionless:
-    ///         wrong parameters derive an unfunded address, so the derivation authorizes.
-    ///         Not reentrant: a route may not execute another intent mid-flight, so one
-    ///         intent's delivery can never be counted toward another's floor.
-    /// @param route Shortcut data the router forwards to EnsoShortcuts when the intent
-    ///              commits none, or the owner's own route. The caller chooses bytes,
-    ///              never a target or function.
-    /// @param sweep Extra assets (any Token type) for the refund arms to sweep. Like
-    ///              `route`, never part of the address.
-    function executeIntent(
-        Intent calldata intent,
-        bytes calldata route,
-        Token[] calldata sweep
-    )
+    /// @notice Deploy and run the executor for `root` with one of its leaves. Permissionless: a wrong
+    ///         root derives an unfunded address, so the derivation authorizes. Not reentrant: a route
+    ///         may not execute another intent mid-flight.
+    function executeIntent(bytes32 root, Execution calldata execution)
         external
         nonReentrant
         returns (address executor)
     {
-        _setContext(abi.encode(route, sweep), msg.sender);
-        executor = address(new EphemeralIntentExecutor{ salt: bytes32(0) }(intent));
+        // The executor decodes the execution itself; the factory passes its calldata through as the
+        // abi.encode(execution) the executor expects, so it carries no codec for the nested types.
+        (execution);
+        if (uint256(bytes32(msg.data[36:68])) != 0x40) {
+            revert NonCanonicalEncoding();
+        }
+        _setContext(bytes.concat(bytes32(uint256(0x20)), msg.data[68:]), msg.sender);
+        // One copy of the executor's creation code serves both deployment and getAddress; `new`
+        // would embed a second.
+        bytes memory initCode = _initCode(root);
+        assembly ("memory-safe") {
+            executor := create2(0, add(initCode, 0x20), mload(initCode), 0)
+        }
+        if (executor == address(0)) {
+            // Bubble the constructor's revert reason.
+            assembly ("memory-safe") {
+                returndatacopy(0, 0, returndatasize())
+                revert(0, returndatasize())
+            }
+        }
         // forge-lint: disable-next-line(reentrancy-events)
-        emit IntentPublished(executor, abi.encode(intent));
+        emit Executed(executor, root);
     }
 
-    /// @notice Address at which `intent` executes; abi.encode(intent) is the canonical blob.
-    function getAddress(Intent calldata intent) public view returns (address) {
-        // The creation-code prefix is fixed; the suffix is ABI-encoded constructor data.
-        // forge-lint: disable-next-line(encode-packed-collision)
-        return _predict(keccak256(abi.encodePacked(type(EphemeralIntentExecutor).creationCode, abi.encode(intent))));
+    /// @notice Address at which the intent tree with `root` executes.
+    function getAddress(bytes32 root) public view returns (address) {
+        bytes32 initCodeHash = keccak256(_initCode(root));
+        return
+            address(
+                uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), bytes32(0), initCodeHash))))
+            );
     }
 
-    /// @notice Read by the executor's constructor.
-    function context() external view returns (bytes memory route, Token[] memory sweep, address sender, address) {
-        bytes memory data;
+    /// @notice Read by the executor's constructor: abi.encode(execution), the caller, and the domain
+    ///         separator the executor's intent hash is computed under.
+    function context() external view returns (bytes memory data, address sender, bytes32 domain) {
         assembly ("memory-safe") {
             sender := tload(SENDER_SLOT)
             let len := tload(CONTEXT_SLOT)
@@ -71,20 +84,29 @@ contract EphemeralFactory is ReentrancyGuardTransient {
             }
             mstore(0x40, add(ptr, shl(5, words)))
         }
-        (route, sweep) = abi.decode(data, (bytes, Token[]));
-        return (route, sweep, sender, router);
+        domain = _domainSeparatorV4();
     }
 
-    /// @notice Canonical executor creation code
-    function executorCode() external pure returns (bytes memory) {
-        return type(EphemeralIntentExecutor).creationCode;
+    /// @notice Check and write the calling executor's record for one execution.
+    function record(Lifetime calldata lifetime, uint64 start) external returns (uint8 verdict_) {
+        uint256 updated;
+        (verdict_, updated) = IntentRecord.next(lifetime, start, records[msg.sender]);
+        if (verdict_ == IntentRecord.ALLOWED) {
+            records[msg.sender] = updated;
+        }
     }
 
-    function _predict(bytes32 initCodeHash) private view returns (address) {
-        return
-            address(
-                uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), bytes32(0), initCodeHash))))
-            );
+    /// @notice What `record` would return for `executor`, without writing.
+    function verdict(address executor, Lifetime calldata lifetime, uint64 start)
+        external
+        view
+        returns (uint8 verdict_)
+    {
+        (verdict_,) = IntentRecord.next(lifetime, start, records[executor]);
+    }
+
+    function _initCode(bytes32 root) private pure returns (bytes memory) {
+        return abi.encodePacked(type(EphemeralIntentExecutor).creationCode, abi.encode(root));
     }
 
     function _setContext(bytes memory data, address sender) private {

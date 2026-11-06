@@ -1,165 +1,101 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent } from "../../../../../src/interfaces/IIntent.sol";
-import { EphemeralIntentExecutor } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
-import { MockERC721 } from "../../../../mocks/MockERC721.sol";
+import { Codes, Constraints, Intent, Pattern, Predicate, Source } from "../../../../../src/interfaces/IIntent.sol";
+import { IntentEvaluator } from "../../../../../src/libraries/IntentEvaluator.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
 
-/// The keeper-routed (constrained) arm: `intent.route` is empty, the factory's keeper
-/// supplies the bytes, and the tokensOut minimums at the recipient are the constraint.
-contract EphemeralIntentExecutor_Constrained_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
-    function test_WhenTheDeltaClearsTheMinimum() external {
-        Intent memory intent = _constrainedIntent(50 ether);
-        _fund(intent, 100 ether);
-        s_tokenOut.mint(s_recipient, 100 ether); // pre-existing balance must not count
-        s_router.setOut(address(s_tokenOut), 60 ether, s_recipient);
+/// Intents this version refuses: attestation, trace patterns, and keeper routes nothing checks.
+/// Each is refunded at once, by anyone, paying the refund fee.
+contract EphemeralIntentExecutor_Rejected_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
+    uint256 internal constant DEPOSIT = 100 ether;
+    uint256 internal constant REFUND_FEE = 0.5 ether;
 
-        _execute(intent, hex"beefcafe");
-
-        // it should call the router with the keeper route
-        assertEq(s_router.lastData(), hex"beefcafe");
-
-        // it should measure the delta at the recipient
-        assertEq(s_tokenOut.balanceOf(s_recipient), 160 ether);
+    function _swapConstraints() internal view returns (Constraints memory) {
+        return
+            _swap(address(s_router), address(s_tokenIn), address(s_tokenOut), DEPOSIT, 2e18, 0, REFUND_FEE, Codes.DRAIN);
     }
 
-    function test_WhenTokenOutIsNative() external {
-        Intent memory intent = _constrainedIntent(1 ether);
-        intent.tokensOut[0] = _native(1 ether);
-        _fund(intent, 100 ether);
-        vm.deal(address(s_router), 2 ether);
-        s_router.setOutNative(2 ether, s_recipient);
-
-        _execute(intent, hex"beefcafe");
-
-        // it should measure the native delta at the recipient
-        assertEq(s_recipient.balance, 2 ether);
+    /// Statically refused intents refund for anyone: a stranger, not the keeper.
+    function _assertRefunded(Constraints memory c, uint8 status) internal {
+        _assertRefunded(c, status, s_stranger);
     }
 
-    function test_WhenAnyTokenOutMissesItsMinimum() external {
-        Intent memory intent = _constrainedIntent(50 ether);
-        Token[] memory tokensOut = new Token[](2);
-        tokensOut[0] = intent.tokensOut[0];
-        tokensOut[1] = _erc20(address(s_tokenIn), 10 ether); // never delivered
-        intent.tokensOut = tokensOut;
-        _fund(intent, 100 ether);
-        s_router.setOut(address(s_tokenOut), 60 ether, s_recipient); // first minimum clears
+    function _assertRefunded(Constraints memory c, uint8 status, address caller) internal {
+        Intent memory intent = _intent(c, s_user, s_keeper);
+        assertEq(IntentEvaluator.check(intent), status, "status");
+        bytes32 root = _root(intent);
+        address at = _fund(root, DEPOSIT);
 
-        // it should revert with AmountTooLow
-        vm.expectRevert(
-            abi.encodeWithSelector(EphemeralIntentExecutor.AmountTooLow.selector, tokensOut[1], 0, 10 ether)
-        );
-        _execute(intent, hex"beefcafe");
+        _run(caller, root, _withRoute(_execution(intent), hex"c0ffee"));
+
+        assertEq(s_tokenIn.balanceOf(caller), REFUND_FEE, "refund fee to the caller");
+        assertEq(s_tokenIn.balanceOf(s_user), DEPOSIT - REFUND_FEE, "the rest to the owner");
+        assertEq(s_tokenIn.balanceOf(at), 0, "nothing left");
+        assertEq(s_router.calls(), 0, "nothing routed");
     }
 
-    function test_WhenTheDeltaIsBelowTheMinimum() external {
-        Intent memory intent = _constrainedIntent(50 ether);
-        _fund(intent, 100 ether);
-        s_router.setOut(address(s_tokenOut), 40 ether, s_recipient);
-
-        // it should revert with AmountTooLow
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                EphemeralIntentExecutor.AmountTooLow.selector, intent.tokensOut[0], 40 ether, 50 ether
-            )
-        );
-        _execute(intent, hex"beefcafe");
+    function test_AttestedPredicate_Refunds() external {
+        Constraints memory c = _swapConstraints();
+        c.predicates[0].enforce = Codes.ENFORCE_ATTESTED;
+        _assertRefunded(c, IntentEvaluator.UNSUPPORTED);
     }
 
-    function test_WhenTheRouteDeliversToTheExecutorInstead() external {
-        Intent memory intent = _constrainedIntent(50 ether);
-        address predicted = _fund(intent, 100 ether);
-        s_router.setOut(address(s_tokenOut), 60 ether, predicted); // wrong receiver
-
-        // it should revert with AmountTooLow
-        vm.expectRevert(
-            abi.encodeWithSelector(EphemeralIntentExecutor.AmountTooLow.selector, intent.tokensOut[0], 0, 50 ether)
-        );
-        _execute(intent, hex"beefcafe");
+    function test_BothPredicate_Refunds() external {
+        Constraints memory c = _swapConstraints();
+        c.predicates[0].enforce = Codes.BOTH;
+        _assertRefunded(c, IntentEvaluator.UNSUPPORTED);
     }
 
-    function test_WhenTheOutcomeIsAMintedNFT() external {
-        // A freshly created position NFT: the id is unknowable at commit time, so the
-        // 721 out-entry commits a minimum COUNT, not a tokenId.
-        MockERC721 nft = new MockERC721("Position", "POS");
-        Intent memory intent = _constrainedIntent(1 ether);
-        intent.tokensOut[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(1)) });
-        _fund(intent, 100 ether);
-        nft.mint(address(s_router), 42); // id decided at execution time
-        s_router.setOutNFT(address(nft), 42, s_recipient);
-
-        _execute(intent, hex"beefcafe");
-
-        // it should satisfy the count minimum with whatever id arrived
-        assertEq(nft.ownerOf(42), s_recipient);
-        assertEq(nft.balanceOf(s_recipient), 1);
+    function test_AttestedSource_Refunds() external {
+        Constraints memory c = _swapConstraints();
+        c.sources = new Source[](1);
+        c.sources[0] = Source({ kind: Codes.ATTESTED, target: address(1), config: "" });
+        _assertRefunded(c, IntentEvaluator.UNSUPPORTED);
     }
 
-    function test_WhenTheRecipientBalanceDecreases() external {
-        Intent memory intent = _constrainedIntent(1 ether);
-        _fund(intent, 100 ether);
-        s_tokenOut.mint(s_recipient, 100 ether);
-        vm.prank(s_recipient);
-        s_tokenOut.approve(address(s_router), 60 ether);
-        s_router.setDrain(address(s_tokenOut), s_recipient, 60 ether);
-
-        // it should revert with AmountTooLow, not a Panic
-        vm.expectRevert(
-            abi.encodeWithSelector(EphemeralIntentExecutor.AmountTooLow.selector, intent.tokensOut[0], 0, 1 ether)
-        );
-        _execute(intent, hex"beefcafe");
+    function test_Pattern_Refunds() external {
+        Constraints memory c = _swapConstraints();
+        c.patterns = new Pattern[](1);
+        _assertRefunded(c, IntentEvaluator.UNSUPPORTED);
     }
 
-    function test_WhenTokensOutIsEmpty() external {
-        Intent memory intent = _constrainedIntent(1 ether);
-        intent.tokensOut = new Token[](0);
-        _fund(intent, 100 ether);
-
-        // it should revert with Unconstrained — no floor means unconstrained theft
-        vm.expectRevert(EphemeralIntentExecutor.Unconstrained.selector);
-        _execute(intent, hex"beefcafe");
+    function test_KeeperRouteWithoutOutcome_Refunds() external {
+        Constraints memory c = _swapConstraints();
+        c.rules[0].then = new uint16[](0);
+        _assertRefunded(c, IntentEvaluator.CUSTODIAL);
     }
 
-    function test_WhenAMinimumIsZero() external {
-        Intent memory intent = _constrainedIntent(0);
-        _fund(intent, 100 ether);
-        s_router.setOut(address(s_tokenOut), 1 ether, s_recipient);
-
-        // it should revert with Unconstrained — a zero minimum enforces nothing
-        vm.expectRevert(EphemeralIntentExecutor.Unconstrained.selector);
-        _execute(intent, hex"beefcafe");
+    function test_KeeperRouteWithOnlyAPreStateCheck_Refunds() external {
+        Constraints memory c = _swapConstraints();
+        // CONSUMED >= rate: a comparison, but over nothing the keeper delivers.
+        c.predicates[0] = _pred(Codes.CMP_GTE, 1, 2);
+        _assertRefunded(c, IntentEvaluator.CUSTODIAL);
     }
 
-    function test_WhenTheKeeperIsZero() external {
-        Intent memory intent = _constrainedIntent(1 ether);
-        intent.keeper = address(0);
-        intent.keeperFee = _fee(address(s_tokenIn), 5 ether, 0);
-        _fund(intent, 100 ether);
-        s_router.setOut(address(s_tokenOut), 1 ether, s_recipient);
-        address anyone = vm.addr(9);
-
-        vm.prank(anyone);
-        s_factory.executeIntent(intent, hex"beefcafe", new Token[](0));
-
-        // it should let any caller route against the floor and pay them the fee
-        assertEq(s_tokenOut.balanceOf(s_recipient), 1 ether);
-        assertEq(s_tokenIn.balanceOf(anyone), 5 ether);
+    function test_UnboundedOrGroup_Refunds() external {
+        Constraints memory c = _swapConstraints();
+        // Group 1 holds only a pre-state comparison, so the keeper could satisfy the rule by it alone.
+        c.predicates = _twoPredicates(c);
+        c.rules[0].then = _two(0, 1);
+        _assertRefunded(c, IntentEvaluator.CUSTODIAL);
     }
 
-    function test_WhenTheCallerIsNotTheKeeper() external {
-        Intent memory intent = _constrainedIntent(1 ether);
-        _fund(intent, 100 ether);
-        s_router.setOut(address(s_tokenOut), 1 ether, s_recipient);
+    /// A spend cap passes the static test (a lower bound on a delta) but its floor is negative at
+    /// execution, so it bounds nothing the keeper delivers. Found in the execute arm, after the
+    /// keeper gate, so the keeper's attempt is what refunds it.
+    function test_SpendCapOnly_RefundsAtExecution() external {
+        Constraints memory c = _swapConstraints();
+        // floor = 0 - consumed: delta(out, owner) >= -consumed
+        c.terms[2] = _term(Codes.OP_CONST, 0, 0, 0);
+        c.terms[3] = _term(Codes.OP_SUB, 2, 1, 0);
+        _assertRefunded(c, IntentEvaluator.OK, s_keeper);
+    }
 
-        // it should revert with NotKeeper
-        vm.prank(vm.addr(9));
-        vm.expectRevert(EphemeralIntentExecutor.NotKeeper.selector);
-        s_factory.executeIntent(intent, hex"beefcafe", new Token[](0));
-
-        // it should execute for the keeper
-        _execute(intent, hex"beefcafe");
-        assertEq(s_tokenOut.balanceOf(s_recipient), 1 ether);
+    function _twoPredicates(Constraints memory c) internal pure returns (Predicate[] memory list) {
+        list = new Predicate[](2);
+        list[0] = c.predicates[0];
+        list[1] = _pred(Codes.CMP_GTE, 1, 2);
+        list[1].group = 1;
     }
 }

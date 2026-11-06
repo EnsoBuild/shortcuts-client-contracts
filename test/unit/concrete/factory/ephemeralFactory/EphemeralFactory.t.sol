@@ -1,61 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
-import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntent.sol";
-import { MockERC20 } from "../../../../mocks/MockERC20.sol";
-import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
-import { Test } from "forge-std/Test.sol";
+import { Codes, Constraints, Intent } from "../../../../../src/interfaces/IIntent.sol";
+import {
+    EphemeralIntentExecutor_Unit_Concrete_Test
+} from "../../wallet/ephemeralIntentExecutor/EphemeralIntentExecutor.t.sol";
 
-abstract contract EphemeralFactory_Unit_Concrete_Test is Test {
-    address payable internal s_user;
-    address payable internal s_keeper;
+abstract contract EphemeralFactory_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
+    uint256 internal constant DEPOSIT = 100 ether;
 
-    MockIntentRouter internal s_router;
-    EphemeralFactory internal s_factory;
-    MockERC20 internal s_tokenIn;
-
-    function setUp() public virtual {
-        s_user = payable(vm.addr(1));
-        vm.label(s_user, "User");
-
-        s_keeper = payable(vm.addr(2));
-        vm.deal(s_keeper, 100 ether);
-        vm.label(s_keeper, "Keeper");
-
-        s_router = new MockIntentRouter();
-        vm.label(address(s_router), "MockIntentRouter");
-
-        s_factory = new EphemeralFactory(address(s_router));
-        vm.label(address(s_factory), "EphemeralFactory");
-
-        s_tokenIn = new MockERC20("TokenIn", "TIN");
-        vm.label(address(s_tokenIn), "TokenIn");
-    }
-
-    /// A committed-route intent: the shortcut bytes are fixed in the blob, no outcome floor.
-    function _intent() internal view returns (Intent memory intent) {
-        Token[] memory tokensIn = new Token[](1);
-        tokensIn[0] = Token({ tokenType: TokenType.ERC20, data: abi.encode(address(s_tokenIn), uint256(100 ether)) });
-        intent = Intent({
-            version: 1,
-            chainId: block.chainid,
-            nonce: 0,
-            start: uint64(block.timestamp),
-            deadline: uint64(block.timestamp + 1 days),
-            owner: s_user,
-            recipient: s_user,
-            keeper: s_keeper,
-            keeperFee: KeeperFee({ token: address(0), intentFee: 0, refundFee: 0 }),
-            tokensIn: tokensIn,
-            tokensOut: new Token[](0),
-            route: hex"deadbeef"
-        });
-    }
-
-    function _fund(Intent memory intent, uint256 amount) internal returns (address predicted) {
-        predicted = s_factory.getAddress(intent);
-        s_tokenIn.mint(predicted, amount);
+    function _swapIntent() internal view returns (Intent memory) {
+        Constraints memory c =
+            _swap(address(s_router), address(s_tokenIn), address(s_tokenOut), DEPOSIT, 2e18, 0, 0, Codes.DRAIN);
+        return _intent(c, s_user, s_keeper);
     }
 }

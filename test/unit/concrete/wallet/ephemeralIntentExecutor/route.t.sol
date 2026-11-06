@@ -1,232 +1,112 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent } from "../../../../../src/interfaces/IIntent.sol";
-import { EphemeralIntentExecutor } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
-import { MockERC721 } from "../../../../mocks/MockERC721.sol";
-import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
-import { MockNoRevokeERC721 } from "../../../../mocks/MockNoRevokeERC721.sol";
+import { Execution } from "../../../../../src/interfaces/IEphemeralFactory.sol";
+import { Codes, Constraints, Intent } from "../../../../../src/interfaces/IIntent.sol";
+import { IntentEvaluator } from "../../../../../src/libraries/IntentEvaluator.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
 
-/// The committed-route arm: `intent.route` is non-empty, so those bytes run and the
-/// caller's bytes are ignored.
-contract EphemeralIntentExecutor_Route_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
-    function test_WhenTokensInAreUnmet() external {
-        Intent memory intent = _intent();
-        _fund(intent, 50 ether); // below the 100 ether minimum
+contract EphemeralIntentExecutor_Route_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
+    uint256 internal constant DEPOSIT = 100 ether;
+    uint256 internal constant FEE = 1 ether;
 
-        // it should revert with Underfunded
-        vm.expectRevert(EphemeralIntentExecutor.Underfunded.selector);
-        _execute(intent, "");
+    /// Swap 100 TIN with a 2 TOUT/TIN floor on what was consumed (fee included): at least 200 TOUT.
+    function _swapIntent(uint8 consume) internal view returns (Intent memory) {
+        Constraints memory c =
+            _swap(address(s_router), address(s_tokenIn), address(s_tokenOut), DEPOSIT, 2e18, FEE, 0, consume);
+        return _intent(c, s_user, s_keeper);
     }
 
-    function test_WhenExecutedBeforeStart() external {
-        Intent memory intent = _intent();
-        intent.start = uint64(block.timestamp + 1 hours);
-        _fund(intent, 100 ether);
+    function test_WhenFloorMet_DeliversAndPaysFeeFirst() external {
+        Intent memory intent = _swapIntent(Codes.DRAIN);
+        bytes32 root = _root(intent);
+        address at = _fund(root, DEPOSIT);
+        s_router.addOut(address(s_tokenOut), 200 ether, s_user);
 
-        // it should revert with TooEarly
-        vm.expectRevert(EphemeralIntentExecutor.TooEarly.selector);
-        _execute(intent, "");
+        address executor = _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
+
+        assertEq(executor, at, "deployed at the derived address");
+        assertEq(s_tokenIn.balanceOf(s_keeper), FEE, "fee to the keeper");
+        assertEq(s_tokenIn.balanceOf(address(s_router)), DEPOSIT - FEE, "route got the rest");
+        assertEq(s_tokenIn.balanceOf(at), 0, "drained");
+        assertEq(s_tokenOut.balanceOf(s_user), 200 ether, "delivered to the owner");
+        assertEq(s_router.lastData(), hex"c0ffee", "keeper bytes");
+        assertEq(s_tokenIn.allowance(at, address(s_router)), 0, "approval revoked");
     }
 
-    function test_WhenTheCallerIsNotTheKeeper() external {
-        Intent memory intent = _intent();
-        _fund(intent, 100 ether);
+    function test_WhenFloorMissed_Reverts() external {
+        Intent memory intent = _swapIntent(Codes.DRAIN);
+        bytes32 root = _root(intent);
+        address at = _fund(root, DEPOSIT);
+        s_router.addOut(address(s_tokenOut), 199 ether, s_user);
 
-        // it should revert with NotKeeper even for a committed route
-        vm.prank(vm.addr(9));
-        vm.expectRevert(EphemeralIntentExecutor.NotKeeper.selector);
-        s_factory.executeIntent(intent, "", new Token[](0));
+        vm.expectRevert(abi.encodeWithSelector(IntentEvaluator.PredicateFailed.selector, uint16(0)));
+        _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
+        assertEq(s_tokenIn.balanceOf(at), DEPOSIT, "funds stay for a later attempt or refund");
     }
 
-    function test_WhenTheCommittedRouteRuns() external {
-        Intent memory intent = _intent();
-        intent.keeperFee = _fee(address(s_tokenIn), 5 ether, 1 ether);
-        address predicted = _fund(intent, 100 ether);
-        vm.deal(predicted, 1 ether);
-        s_router.setPull(address(s_tokenIn), 90 ether);
+    function test_Exact_ConsumesTheMinimumAndLeavesTheRest() external {
+        Intent memory intent = _swapIntent(Codes.EXACT);
+        bytes32 root = _root(intent);
+        address at = _fund(root, DEPOSIT + 50 ether);
+        s_router.addOut(address(s_tokenOut), 200 ether, s_user);
 
-        _execute(intent, "");
+        _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
 
-        // it should call the router with the committed route
-        assertEq(s_router.lastData(), hex"deadbeef");
-        assertEq(s_router.lastCaller(), predicted);
-        assertEq(s_router.lastValue(), 0);
-
-        // it should approve tokensIn to the router for the call (fee off the top)
-        assertEq(s_router.lastAllowance(), 95 ether);
-
-        // it should pass tokensIn with live balances
-        assertEq(s_router.lastTokensInLength(), 1);
-        (, bytes memory liveData) = s_router.lastTokensIn(0);
-        (, uint256 liveAmount) = abi.decode(liveData, (address, uint256));
-        assertEq(liveAmount, 95 ether); // the post-fee balance, not the committed minimum
-
-        // it should revoke approvals after the call
-        assertEq(s_tokenIn.allowance(predicted, address(s_router)), 0);
-
-        // it should pay the intent fee, not the refund fee
-        assertEq(s_tokenIn.balanceOf(s_keeper), 5 ether);
-
-        // it should sweep remaining native to the owner
-        assertEq(s_user.balance, 1 ether);
+        assertEq(s_tokenIn.balanceOf(address(s_router)), DEPOSIT - FEE, "exactly the minimum, less the fee");
+        assertEq(s_tokenIn.balanceOf(at), 50 ether, "the rest stays at the address");
     }
 
-    function test_WhenACommittedRouteCarriesAnOutcomeFloor() external {
-        Intent memory intent = _intent();
-        Token[] memory tokensOut = new Token[](1);
-        tokensOut[0] = _erc20(address(s_tokenOut), 50 ether);
-        intent.tokensOut = tokensOut;
-        _fund(intent, 100 ether);
-        s_router.setOut(address(s_tokenOut), 40 ether, s_recipient);
+    function test_AddressIsReusable() external {
+        Intent memory intent = _swapIntent(Codes.DRAIN);
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
+        s_router.addOut(address(s_tokenOut), 200 ether, s_user);
+        _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
 
-        // it should enforce the floor on the committed route
-        vm.expectRevert(
-            abi.encodeWithSelector(EphemeralIntentExecutor.AmountTooLow.selector, tokensOut[0], 40 ether, 50 ether)
-        );
-        _execute(intent, "");
-
-        // it should execute once the floor clears
-        s_router.setOut(address(s_tokenOut), 60 ether, s_recipient);
-        _execute(intent, "");
-        assertEq(s_router.lastData(), hex"deadbeef");
-        assertEq(s_tokenOut.balanceOf(s_recipient), 60 ether);
+        // A second deposit in a later transaction runs again at the same address.
+        vm.roll(block.number + 1);
+        _fund(root, DEPOSIT);
+        _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
+        assertEq(s_tokenOut.balanceOf(s_user), 400 ether, "both deposits delivered");
     }
 
-    function test_WhenANativeTokenInExists() external {
-        Intent memory intent = _intent();
-        intent.tokensIn[0] = _native(1 ether);
-        address predicted = s_factory.getAddress(intent);
-        vm.deal(predicted, 1 ether);
+    function test_CommittedRoute_IgnoresKeeperBytesAndNeedsNoFloor() external {
+        Constraints memory c =
+            _swap(address(s_router), address(s_tokenIn), address(s_tokenOut), DEPOSIT, 2e18, 0, 0, Codes.DRAIN);
+        c.rules[0].then = new uint16[](0); // no outcome predicate: the committed bytes are the constraint
+        c.rules[0].route = hex"beef";
+        Intent memory intent = _intent(c, s_user, s_keeper);
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
 
-        _execute(intent, "");
-
-        // it should forward the native balance as call value
-        assertEq(s_router.lastValue(), 1 ether);
-        assertEq(address(s_router).balance, 1 ether);
-
-        // it should carry the live balance in the native entry (older-router compat)
-        (, bytes memory nativeData) = s_router.lastTokensIn(0);
-        assertEq(abi.decode(nativeData, (uint256)), 1 ether);
+        _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
+        assertEq(s_router.lastData(), hex"beef", "committed bytes ran");
     }
 
-    function test_WhenTokenInIsAnNFT() external {
-        MockERC721 nft = new MockERC721("NFT", "NFT");
-        Intent memory intent = _intent();
-        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(5)) });
-        address predicted = s_factory.getAddress(intent);
-        nft.mint(predicted, 5); // tokenId >= 2 used to revert Underfunded
+    function test_NotKeeper_RevertsUntilExclusiveHandover() external {
+        Intent memory intent = _swapIntent(Codes.DRAIN);
+        intent.exclusive = uint64(block.timestamp + 1 hours);
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
+        s_router.addOut(address(s_tokenOut), 200 ether, s_user);
+        Execution memory e = _withRoute(_execution(intent), hex"c0ffee");
 
-        _execute(intent, "");
+        vm.expectRevert(bytes4(keccak256("NotKeeper()")));
+        _run(s_stranger, root, e);
 
-        // it should pass the delivery check with the tokenId treated as ownership
-        assertEq(s_router.lastTokensInLength(), 1);
-        (, bytes memory nftData) = s_router.lastTokensIn(0);
-        assertEq(nftData, abi.encode(address(nft), uint256(5))); // tokenId passes through
-
-        // it should clear the approval in the epilogue when the NFT stayed
-        assertEq(nft.getApproved(5), address(0));
-        assertEq(nft.ownerOf(5), predicted);
+        vm.warp(block.timestamp + 1 hours);
+        _run(s_stranger, root, e);
+        assertEq(s_tokenIn.balanceOf(s_stranger), FEE, "after the handover, anyone executes for the fee");
     }
 
-    function test_WhenTheCommittedNFTIsAbsent() external {
-        MockERC721 nft = new MockERC721("NFT", "NFT");
-        Intent memory intent = _intent();
-        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(5)) });
-        address predicted = s_factory.getAddress(intent);
-        nft.mint(predicted, 9); // a different id from the same collection
+    function test_KeeperForever_WhenExclusiveIsZero() external {
+        Intent memory intent = _swapIntent(Codes.DRAIN);
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
+        vm.warp(block.timestamp + 12 hours);
 
-        // it should revert with Underfunded — collection count must not satisfy the
-        // delivery check; the committed tokenId itself has to be present
-        vm.expectRevert(EphemeralIntentExecutor.Underfunded.selector);
-        _execute(intent, "");
-    }
-
-    function test_WhenTheRouteConsumesTheNFT() external {
-        MockERC721 nft = new MockERC721("NFT", "NFT");
-        Intent memory intent = _intent();
-        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
-        address predicted = s_factory.getAddress(intent);
-        nft.mint(predicted, 7);
-        s_router.setPullNFT(address(nft), 7);
-
-        // it should tolerate the post-move approval revoke and complete
-        _execute(intent, "");
-        assertEq(nft.ownerOf(7), address(s_router));
-        assertEq(predicted.code.length, 0);
-    }
-
-    function test_WhenARevokeRejectingNFTStays() external {
-        MockNoRevokeERC721 nft = new MockNoRevokeERC721("NoRevoke", "NRV");
-        Intent memory intent = _intent();
-        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(3)) });
-        address predicted = s_factory.getAddress(intent);
-        nft.mint(predicted, 3); // router does not pull — the token stays held
-
-        // it should stay strict: a swallowed revoke would leave a live approval keyed
-        // to the reusable address, outliving the account into its next incarnation
-        vm.expectRevert(bytes("zero approve"));
-        _execute(intent, "");
-    }
-
-    function test_WhenARevokeRejectingNFTIsConsumed() external {
-        MockNoRevokeERC721 nft = new MockNoRevokeERC721("NoRevoke", "NRV");
-        Intent memory intent = _intent();
-        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(3)) });
-        address predicted = s_factory.getAddress(intent);
-        nft.mint(predicted, 3);
-        s_router.setPullNFT(address(nft), 3);
-
-        // it should tolerate the impossible revoke once the token has moved
-        _execute(intent, "");
-        assertEq(nft.ownerOf(3), address(s_router));
-        assertEq(predicted.code.length, 0);
-    }
-
-    function test_WhenTheFeeIsNative() external {
-        Intent memory intent = _intent();
-        intent.keeperFee = _fee(address(0), 1 ether, 0);
-        address predicted = _fund(intent, 100 ether);
-        vm.deal(predicted, 3 ether);
-        uint256 keeperBefore = s_keeper.balance;
-
-        _execute(intent, "");
-
-        // it should pay the keeper in native
-        assertEq(s_keeper.balance, keeperBefore + 1 ether);
-        assertEq(s_user.balance, 2 ether); // remainder rides the selfdestruct
-    }
-
-    function test_WhenTheRouterCallReverts() external {
-        Intent memory intent = _intent();
-        _fund(intent, 100 ether);
-        s_router.setRevert(true);
-
-        // it should bubble the revert reason
-        vm.expectRevert(MockIntentRouter.MockRouterRevert.selector);
-        _execute(intent, "");
-    }
-
-    function test_WhenTheFeeCannotBePaid() external {
-        Intent memory intent = _intent();
-        intent.keeperFee = _fee(address(s_tokenIn), 1000 ether, 0); // more than delivered
-        _fund(intent, 100 ether);
-
-        // it should revert with SendFailed
-        vm.expectRevert(EphemeralIntentExecutor.SendFailed.selector);
-        _execute(intent, "");
-    }
-
-    function test_WhenTheFeeTokenIsCodeless() external {
-        Intent memory intent = _intent();
-        intent.keeperFee = _fee(address(0xDEAD), 5 ether, 0);
-        _fund(intent, 100 ether);
-
-        // it should revert on the strict balance read — the execute branch reads the
-        // fee token typed, so a codeless address fails loudly instead of skipping
-        vm.expectRevert();
-        _execute(intent, "");
+        vm.expectRevert(bytes4(keccak256("NotKeeper()")));
+        _run(s_stranger, root, _withRoute(_execution(intent), hex"c0ffee"));
     }
 }
