@@ -3,17 +3,19 @@ pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntent.sol";
+import { Execution } from "../../../../../src/interfaces/IEphemeralFactory.sol";
+import { Intent } from "../../../../../src/interfaces/IIntent.sol";
+import { IntentHash } from "../../../../../src/libraries/IntentHash.sol";
+import { MockConstraintRouter } from "../../../../mocks/MockConstraintRouter.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
-import { MockIntentRouter } from "../../../../mocks/MockIntentRouter.sol";
-import { Test } from "forge-std/Test.sol";
+import { IntentFixtures } from "../../../../utils/IntentFixtures.sol";
 
-abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
+abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is IntentFixtures {
     address payable internal s_user;
     address payable internal s_keeper;
-    address payable internal s_recipient;
+    address payable internal s_stranger;
 
-    MockIntentRouter internal s_router;
+    MockConstraintRouter internal s_router;
     EphemeralFactory internal s_factory;
     MockERC20 internal s_tokenIn;
     MockERC20 internal s_tokenOut;
@@ -21,76 +23,75 @@ abstract contract EphemeralIntentExecutor_Unit_Concrete_Test is Test {
     function setUp() public virtual {
         s_user = payable(vm.addr(1));
         vm.label(s_user, "User");
-
         s_keeper = payable(vm.addr(2));
         vm.deal(s_keeper, 100 ether);
         vm.label(s_keeper, "Keeper");
+        s_stranger = payable(vm.addr(3));
+        vm.label(s_stranger, "Stranger");
 
-        s_recipient = payable(vm.addr(3));
-        vm.label(s_recipient, "Recipient");
-
-        s_router = new MockIntentRouter();
-        vm.label(address(s_router), "MockIntentRouter");
-
-        s_factory = new EphemeralFactory(address(s_router));
+        s_router = new MockConstraintRouter();
+        vm.label(address(s_router), "Router");
+        s_factory = new EphemeralFactory();
         vm.label(address(s_factory), "EphemeralFactory");
 
         s_tokenIn = new MockERC20("TokenIn", "TIN");
         vm.label(address(s_tokenIn), "TokenIn");
-
         s_tokenOut = new MockERC20("TokenOut", "TOUT");
-        s_tokenOut.mint(address(s_router), 1_000_000 ether); // router inventory
+        s_tokenOut.mint(address(s_router), 1_000_000 ether);
         vm.label(address(s_tokenOut), "TokenOut");
     }
 
-    function _erc20(address token, uint256 amount) internal pure returns (Token memory) {
-        return Token({ tokenType: TokenType.ERC20, data: abi.encode(token, amount) });
+    /// A tree of one leaf: the root is the leaf and the proof is empty.
+    function _root(Intent memory intent) internal pure returns (bytes32) {
+        return IntentHash.leaf(intent);
     }
 
-    function _native(uint256 amount) internal pure returns (Token memory) {
-        return Token({ tokenType: TokenType.Native, data: abi.encode(amount) });
+    /// A tree of two leaves (sorted-pair hashing), with each leaf's one-element proof.
+    function _pair(
+        Intent memory a,
+        Intent memory b
+    )
+        internal
+        pure
+        returns (bytes32 root, bytes32[] memory proofA, bytes32[] memory proofB)
+    {
+        bytes32 leafA = IntentHash.leaf(a);
+        bytes32 leafB = IntentHash.leaf(b);
+        root = leafA < leafB ? keccak256(abi.encode(leafA, leafB)) : keccak256(abi.encode(leafB, leafA));
+        proofA = new bytes32[](1);
+        proofA[0] = leafB;
+        proofB = new bytes32[](1);
+        proofB[0] = leafA;
     }
 
-    function _fee(address token, uint256 intentFee, uint256 refundFee) internal pure returns (KeeperFee memory) {
-        return KeeperFee({ token: token, intentFee: intentFee, refundFee: refundFee });
+    function _execution(Intent memory intent) internal pure returns (Execution memory e) {
+        e.intent = intent;
+        e.proof = new bytes32[](0);
+        e.routes = new bytes[](0);
+        e.contexts = new bytes[](0);
+        e.sweep = new Token[](0);
     }
 
-    /// A committed-route intent: the shortcut bytes are fixed in the blob, no outcome floor.
-    function _intent() internal view returns (Intent memory intent) {
-        Token[] memory tokensIn = new Token[](1);
-        tokensIn[0] = _erc20(address(s_tokenIn), 100 ether);
-        intent = Intent({
-            version: 1,
-            chainId: block.chainid,
-            nonce: 0,
-            start: uint64(block.timestamp),
-            deadline: uint64(block.timestamp + 1 days),
-            owner: s_user,
-            recipient: s_recipient,
-            keeper: s_keeper,
-            keeperFee: _fee(address(0), 0, 0),
-            tokensIn: tokensIn,
-            tokensOut: new Token[](0),
-            route: hex"deadbeef"
-        });
+    /// A caller sweep list of one ERC20.
+    function _sweepOf(address token) internal pure returns (Token[] memory list) {
+        list = new Token[](1);
+        list[0] = Token({ tokenType: TokenType.ERC20, data: abi.encode(token, uint256(0)) });
     }
 
-    /// A keeper-routed intent: no committed route, one tokenOut minimum at the recipient.
-    function _constrainedIntent(uint256 minAmountOut) internal view returns (Intent memory intent) {
-        intent = _intent();
-        intent.route = "";
-        Token[] memory tokensOut = new Token[](1);
-        tokensOut[0] = _erc20(address(s_tokenOut), minAmountOut);
-        intent.tokensOut = tokensOut;
+    function _withRoute(Execution memory e, bytes memory data) internal pure returns (Execution memory) {
+        e.routes = new bytes[](1);
+        e.routes[0] = data;
+        return e;
     }
 
-    function _fund(Intent memory intent, uint256 amount) internal returns (address predicted) {
-        predicted = s_factory.getAddress(intent);
-        s_tokenIn.mint(predicted, amount);
+    function _run(address caller, bytes32 root, Execution memory e) internal returns (address executor) {
+        vm.prank(caller);
+        executor = s_factory.executeIntent(root, e);
     }
 
-    function _execute(Intent memory intent, bytes memory route) internal returns (address) {
-        vm.prank(s_keeper);
-        return s_factory.executeIntent(intent, route, new Token[](0));
+    /// Deposit `amount` of tokenIn at the address of `root`.
+    function _fund(bytes32 root, uint256 amount) internal returns (address at) {
+        at = s_factory.getAddress(root);
+        s_tokenIn.mint(at, amount);
     }
 }

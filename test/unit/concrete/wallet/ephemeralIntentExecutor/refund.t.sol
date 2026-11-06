@@ -1,228 +1,124 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent } from "../../../../../src/interfaces/IIntent.sol";
-import { MockDirtyBoolERC20 } from "../../../../mocks/MockDirtyBoolERC20.sol";
-import { MockERC1155 } from "../../../../mocks/MockERC1155.sol";
-import { MockERC20 } from "../../../../mocks/MockERC20.sol";
-import { MockERC721 } from "../../../../mocks/MockERC721.sol";
-import { MockRevertingERC20 } from "../../../../mocks/MockRevertingERC20.sol";
+import { Execution } from "../../../../../src/interfaces/IEphemeralFactory.sol";
+import { Codes, Constraints, Intent, Rule } from "../../../../../src/interfaces/IIntent.sol";
+import { EphemeralIntentExecutor } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
 
-contract EphemeralIntentExecutor_Refund_Unit_Concrete_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
-    function test_WhenTheDeadlineHasPassed() external {
-        Intent memory intent = _intent();
-        intent.keeperFee = _fee(address(s_tokenIn), 50 ether, 5 ether);
-        address predicted = _fund(intent, 100 ether);
+contract EphemeralIntentExecutor_Refund_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
+    uint256 internal constant DEPOSIT = 100 ether;
+    uint256 internal constant REFUND_FEE = 0.5 ether;
 
-        MockERC20 extra = new MockERC20("Extra", "EXT");
-        extra.mint(predicted, 42 ether);
-        MockRevertingERC20 reverting = new MockRevertingERC20();
+    function _swapIntent() internal view returns (Intent memory) {
+        Constraints memory c = _swap(
+            address(s_router), address(s_tokenIn), address(s_tokenOut), DEPOSIT, 2e18, 0, REFUND_FEE, Codes.DRAIN
+        );
+        return _intent(c, s_user, s_keeper);
+    }
 
+    /// The same intent for another chain: its leaf proves, but not here. Built fresh: assigning a
+    /// memory struct aliases it.
+    function _elsewhere() internal view returns (Intent memory other) {
+        other = _swapIntent();
+        other.chainId = block.chainid + 1;
+    }
+
+    /// A default leaf: chain 0, no rules, no inputs.
+    function _defaultLeaf(address owner) internal view returns (Intent memory) {
+        Intent memory leaf = _intent(_constraints(address(0)), owner, address(0));
+        leaf.chainId = 0;
+        return leaf;
+    }
+
+    function test_AfterDeadline_AnyoneRefundsForTheFee() external {
+        Intent memory intent = _swapIntent();
+        bytes32 root = _root(intent);
+        address at = _fund(root, DEPOSIT);
         vm.warp(intent.deadline + 1);
 
-        Token[] memory sweep = new Token[](2);
-        sweep[0] = _erc20(address(reverting), 0);
-        sweep[1] = _erc20(address(extra), 0);
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", sweep);
+        _run(s_stranger, root, _execution(intent));
 
-        // it should pay the refund fee best-effort, not the intent fee
-        assertEq(s_tokenIn.balanceOf(s_keeper), 5 ether);
-
-        // it should sweep tokensIn to the owner
-        assertEq(s_tokenIn.balanceOf(s_user), 95 ether);
-
-        // it should sweep caller-listed tokens to the owner
-        // it should not revert on a reverting token
-        assertEq(extra.balanceOf(s_user), 42 ether);
+        assertEq(s_tokenIn.balanceOf(s_stranger), REFUND_FEE, "refund fee");
+        assertEq(s_tokenIn.balanceOf(s_user), DEPOSIT - REFUND_FEE, "rest to the owner");
+        assertEq(s_tokenIn.balanceOf(at), 0, "empty");
     }
 
-    function test_WhenNFTsAreKeeperListed() external {
-        Intent memory intent = _intent();
-        address predicted = _fund(intent, 100 ether);
+    function test_RefundOnlyChain_RefundsImmediately() external {
+        Constraints memory c = _swap(
+            address(s_router), address(s_tokenIn), address(s_tokenOut), DEPOSIT, 2e18, 0, REFUND_FEE, Codes.DRAIN
+        );
+        c.rules = new Rule[](0); // listed for mistaken deposits: nothing to execute
+        Intent memory intent = _intent(c, s_user, s_keeper);
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
 
-        MockERC721 nft = new MockERC721("NFT", "NFT");
-        nft.mint(predicted, 7);
-        MockERC1155 multi = new MockERC1155("uri");
-        multi.mint(predicted, 9, 3);
-
-        vm.warp(intent.deadline + 1);
-
-        Token[] memory sweep = new Token[](2);
-        sweep[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(nft), uint256(7)) });
-        sweep[1] = Token({ tokenType: TokenType.ERC1155, data: abi.encode(address(multi), uint256(9), uint256(0)) });
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", sweep);
-
-        // it should sweep caller-listed NFTs to the owner
-        assertEq(nft.ownerOf(7), s_user);
-        assertEq(multi.balanceOf(s_user, 9), 3);
+        _run(s_stranger, root, _execution(intent));
+        assertEq(s_tokenIn.balanceOf(s_user), DEPOSIT - REFUND_FEE, "returned at once, less the fee");
     }
 
-    /// forge-config: default.isolate = true
-    function test_WhenTheTokenInDataIsMalformed() external {
-        Intent memory intent = _intent();
-        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC20, data: hex"deadbeef" }); // undecodably short
-        address predicted = s_factory.getAddress(intent);
-        s_tokenIn.mint(predicted, 100 ether);
-        vm.warp(intent.deadline + 1);
+    function test_DefaultLeaf_OwnerRecoversOnAnUncoveredChain() external {
+        // The tree covers another chain only, plus the default leaf.
+        Intent memory other = _elsewhere();
+        Intent memory fallback_ = _defaultLeaf(s_user);
+        (bytes32 root,, bytes32[] memory proof) = _pair(other, fallback_);
+        address at = _fund(root, DEPOSIT);
 
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", new Token[](0));
+        Execution memory e = _execution(fallback_);
+        e.proof = proof;
+        e.sweep = _sweepOf(address(s_tokenIn));
+        _run(s_user, root, e);
 
-        // it should skip the malformed entry and complete the lifecycle
-        assertEq(predicted.code.length, 0);
-        assertEq(s_tokenIn.balanceOf(predicted), 100 ether); // skipped in place, not lost
-
-        // it should recover the skipped asset with a second transaction
-        Token[] memory sweep = new Token[](1);
-        sweep[0] = _erc20(address(s_tokenIn), 0);
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", sweep);
-        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+        assertEq(s_tokenIn.balanceOf(s_user), DEPOSIT, "the owner's sweep, no fee");
+        assertEq(s_tokenIn.balanceOf(at), 0, "empty");
     }
 
-    function test_WhenTheTokenInAddressWordIsDirty() external {
-        Intent memory intent = _intent();
-        bytes32 dirty = bytes32(uint256(uint160(address(s_tokenIn))) | (uint256(0xBAD) << 160));
-        intent.tokensIn[0] = Token({ tokenType: TokenType.ERC20, data: abi.encodePacked(dirty, uint256(100 ether)) });
-        address predicted = s_factory.getAddress(intent);
-        s_tokenIn.mint(predicted, 100 ether);
-        vm.warp(intent.deadline + 1);
+    function test_DefaultLeaf_RevertsForAnyoneButTheOwner() external {
+        Intent memory other = _elsewhere();
+        Intent memory fallback_ = _defaultLeaf(s_user);
+        (bytes32 root,, bytes32[] memory proof) = _pair(other, fallback_);
+        _fund(root, DEPOSIT);
 
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", new Token[](0));
-
-        // it should truncate the dirty word and fully refund
-        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
+        Execution memory e = _execution(fallback_);
+        e.proof = proof;
+        vm.expectRevert(EphemeralIntentExecutor.InvalidProof.selector);
+        _run(s_stranger, root, e);
     }
 
-    function test_WhenATokenInReturnsADirtyBool() external {
-        MockDirtyBoolERC20 dirty = new MockDirtyBoolERC20();
-        Intent memory intent = _intent();
-        intent.tokensIn[0] = _erc20(address(dirty), 100 ether);
-        address predicted = s_factory.getAddress(intent);
-        dirty.mint(predicted, 100 ether);
-        vm.warp(intent.deadline + 1);
+    function test_AnotherChainsLeaf_Reverts() external {
+        Intent memory other = _elsewhere();
+        Intent memory fallback_ = _defaultLeaf(s_user);
+        (bytes32 root, bytes32[] memory proof,) = _pair(other, fallback_);
+        _fund(root, DEPOSIT);
 
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", new Token[](0));
-
-        // it should tolerate the non-canonical return and still deliver the refund
-        assertEq(dirty.balanceOf(s_user), 100 ether);
+        Execution memory e = _execution(other);
+        e.proof = proof;
+        vm.expectRevert(EphemeralIntentExecutor.InvalidProof.selector);
+        _run(s_keeper, root, e);
     }
 
-    function test_WhenTheRefundRecipientIsZero() external {
-        Intent memory intent = _intent();
-        intent.owner = address(0);
-        address predicted = _fund(intent, 100 ether);
-        vm.deal(predicted, 1 ether);
-        vm.warp(intent.deadline + 1);
-        uint256 keeperNativeBefore = s_keeper.balance;
+    function test_BadProof_Reverts() external {
+        Intent memory intent = _swapIntent();
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
 
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", new Token[](0));
-
-        // it should substitute the caller as beneficiary — nothing burned or stranded
-        assertEq(s_tokenIn.balanceOf(s_keeper), 100 ether);
-        assertEq(s_keeper.balance, keeperNativeBefore + 1 ether);
-        assertEq(address(0).balance, 0);
+        Execution memory e = _execution(intent);
+        e.proof = new bytes32[](1);
+        e.proof[0] = keccak256("not a sibling");
+        vm.expectRevert(EphemeralIntentExecutor.InvalidProof.selector);
+        _run(s_keeper, root, e);
     }
 
-    function test_WhenTheFeeTokenIsCodeless() external {
-        Intent memory intent = _intent();
-        intent.chainId = 999; // wrong-chain recovery — fee is best-effort here
-        intent.keeperFee = _fee(address(0xDEAD), 0, 5 ether); // no code at this address
-        _fund(intent, 100 ether);
+    function test_TwoChainTree_ExecutesThisChainsLeaf() external {
+        Intent memory here = _swapIntent();
+        Intent memory other = _elsewhere();
+        (bytes32 root, bytes32[] memory proof,) = _pair(here, other);
+        _fund(root, DEPOSIT);
+        s_router.addOut(address(s_tokenOut), 200 ether, s_user);
 
-        _execute(intent, "");
-
-        // it should skip the fee and still refund
-        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
-    }
-
-    function test_WhenTheRefundFeeExceedsTheBalance() external {
-        Intent memory intent = _intent();
-        intent.chainId = 999;
-        intent.keeperFee = _fee(address(s_tokenIn), 0, 1000 ether); // more than held
-        _fund(intent, 100 ether);
-
-        _execute(intent, "");
-
-        // it should skip the fee and still refund
-        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
-        assertEq(s_tokenIn.balanceOf(s_keeper), 0);
-    }
-
-    /// forge-config: default.isolate = true
-    function test_WhenTheFeeTokenIsNotATokenIn() external {
-        MockERC20 feeToken = new MockERC20("Fee", "FEE");
-        Intent memory intent = _intent();
-        intent.keeperFee = _fee(address(feeToken), 0, 5 ether);
-        address predicted = _fund(intent, 100 ether);
-        feeToken.mint(predicted, 42 ether); // several fees' worth, as a reused address would hold
-        vm.warp(intent.deadline + 1);
-
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", new Token[](0));
-
-        // it should sweep the fee token remainder to the owner
-        assertEq(feeToken.balanceOf(s_keeper), 5 ether);
-        assertEq(feeToken.balanceOf(s_user), 37 ether);
-        assertEq(feeToken.balanceOf(predicted), 0);
-
-        // it should pay nothing on a repeated refund
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", new Token[](0));
-        assertEq(feeToken.balanceOf(s_keeper), 5 ether);
-    }
-
-    function test_WhenTheRefundFeeIsNative() external {
-        Intent memory intent = _intent();
-        intent.keeperFee = _fee(address(0), 0, 1 ether);
-        address predicted = _fund(intent, 100 ether);
-        vm.deal(predicted, 3 ether);
-        vm.warp(intent.deadline + 1);
-        uint256 keeperBefore = s_keeper.balance;
-
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", new Token[](0));
-
-        // it should pay the keeper before the selfdestruct sweep
-        assertEq(s_keeper.balance, keeperBefore + 1 ether);
-        assertEq(s_user.balance, 2 ether);
-    }
-
-    function test_WhenARefundIsPermissionless() external {
-        Intent memory intent = _intent();
-        intent.keeperFee = _fee(address(s_tokenIn), 0, 5 ether);
-        _fund(intent, 100 ether);
-        vm.warp(intent.deadline + 1);
-        address anyone = vm.addr(9);
-
-        vm.prank(anyone);
-        s_factory.executeIntent(intent, "", new Token[](0));
-
-        // it should let any caller refund and earn the refund fee
-        assertEq(s_tokenIn.balanceOf(anyone), 5 ether);
-        assertEq(s_tokenIn.balanceOf(s_user), 95 ether);
-    }
-
-    function test_WhenExecutedOnTheWrongChain() external {
-        Intent memory intent = _intent();
-        intent.chainId = 999; // committed for another chain
-        intent.start = uint64(block.timestamp + 1 hours); // gates must not apply
-        address predicted = _fund(intent, 100 ether);
-        vm.deal(predicted, 1 ether);
-
-        _execute(intent, "");
-
-        // it should sweep immediately without waiting for the gates
-        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
-
-        // it should sweep native via selfdestruct
-        assertEq(s_user.balance, 1 ether);
+        Execution memory e = _withRoute(_execution(here), hex"c0ffee");
+        e.proof = proof;
+        _run(s_keeper, root, e);
+        assertEq(s_tokenOut.balanceOf(s_user), 200 ether, "delivered");
     }
 }

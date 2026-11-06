@@ -1,119 +1,69 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { AbstractEnsoShortcuts } from "../../../../../src/AbstractEnsoShortcuts.sol";
-import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Intent, KeeperFee } from "../../../../../src/interfaces/IIntent.sol";
+import { Codes, Constraints, Intent, Lifetime } from "../../../../../src/interfaces/IIntent.sol";
 import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
+import { MockConstraintRouter } from "../../../../mocks/MockConstraintRouter.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
-import { WeirollPlanner } from "../../../../utils/WeirollPlanner.sol";
-import { Test } from "forge-std/Test.sol";
-import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { IntentFixtures } from "../../../../utils/IntentFixtures.sol";
 
-abstract contract IntentRouter_Unit_Concrete_Test is Test {
+abstract contract IntentRouter_Unit_Concrete_Test is IntentFixtures {
     uint256 internal constant OWNER_PK = 0xA11CE;
+    uint256 internal constant AMOUNT = 100 ether;
+    uint256 internal constant FEE = 1 ether;
 
     address payable internal s_owner;
     address payable internal s_keeper;
-    address payable internal s_recipient;
+    address payable internal s_stranger;
 
-    IntentRouter internal s_router;
-    address internal s_shortcuts;
+    IntentRouter internal s_intentRouter;
+    MockConstraintRouter internal s_router;
     MockERC20 internal s_tokenIn;
     MockERC20 internal s_tokenOut;
 
     function setUp() public virtual {
         s_owner = payable(vm.addr(OWNER_PK));
         vm.label(s_owner, "Owner");
-
         s_keeper = payable(vm.addr(2));
         vm.deal(s_keeper, 100 ether);
         vm.label(s_keeper, "Keeper");
+        s_stranger = payable(vm.addr(3));
+        vm.label(s_stranger, "Stranger");
 
-        s_recipient = payable(vm.addr(3));
-        vm.label(s_recipient, "Recipient");
-
-        s_router = new IntentRouter();
-        vm.label(address(s_router), "IntentRouter");
-        s_shortcuts = s_router.shortcuts();
-        vm.label(s_shortcuts, "EnsoShortcuts");
+        s_intentRouter = new IntentRouter();
+        vm.label(address(s_intentRouter), "IntentRouter");
+        s_router = new MockConstraintRouter();
+        vm.label(address(s_router), "Router");
 
         s_tokenIn = new MockERC20("TokenIn", "TIN");
         s_tokenIn.mint(s_owner, 1000 ether);
         vm.prank(s_owner);
-        s_tokenIn.approve(address(s_router), type(uint256).max);
-        vm.label(address(s_tokenIn), "TokenIn");
-
+        s_tokenIn.approve(address(s_intentRouter), type(uint256).max);
         s_tokenOut = new MockERC20("TokenOut", "TOUT");
-        s_tokenOut.mint(s_shortcuts, 1_000_000 ether); // route inventory
-        vm.label(address(s_tokenOut), "TokenOut");
+        s_tokenOut.mint(address(s_router), 1_000_000 ether);
     }
 
-    function _erc20(address token, uint256 amount) internal pure returns (Token memory) {
-        return Token({ tokenType: TokenType.ERC20, data: abi.encode(token, amount) });
-    }
-
-    function _native(uint256 amount) internal pure returns (Token memory) {
-        return Token({ tokenType: TokenType.Native, data: abi.encode(amount) });
-    }
-
-    function _fee(address token, uint256 intentFee, uint256 refundFee) internal pure returns (KeeperFee memory) {
-        return KeeperFee({ token: token, intentFee: intentFee, refundFee: refundFee });
-    }
-
-    function _intent() internal view returns (Intent memory intent) {
-        Token[] memory tokensIn = new Token[](1);
-        tokensIn[0] = _erc20(address(s_tokenIn), 100 ether);
-        Token[] memory tokensOut = new Token[](1);
-        tokensOut[0] = _erc20(address(s_tokenOut), 50 ether);
-        intent = Intent({
-            version: 1,
-            chainId: block.chainid,
-            nonce: 0,
-            start: uint64(block.timestamp),
-            deadline: uint64(block.timestamp + 1 days),
-            owner: s_owner,
-            recipient: s_recipient,
-            keeper: s_keeper,
-            keeperFee: _fee(address(0), 0, 0),
-            tokensIn: tokensIn,
-            tokensOut: tokensOut,
-            route: ""
-        });
+    /// A signed swap of exactly AMOUNT (fee included), floor 2 TOUT per TIN consumed, once.
+    function _swapIntent(uint8 consume) internal view returns (Intent memory intent) {
+        Constraints memory c =
+            _swap(address(s_router), address(s_tokenIn), address(s_tokenOut), AMOUNT, 2e18, FEE, 0, consume);
+        c.lifetime = Lifetime({ kind: Codes.ONCE, interval: 0, count: 0 });
+        intent = _intent(c, s_owner, s_keeper);
+        intent.nonce = 7;
     }
 
     function _sign(Intent memory intent) internal view returns (bytes memory) {
-        return _sign(OWNER_PK, intent);
-    }
-
-    function _sign(uint256 pk, Intent memory intent) internal view returns (bytes memory) {
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, s_router.hash(intent));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PK, s_intentRouter.hash(intent));
         return abi.encodePacked(r, s, v);
     }
 
-    function _execute(Intent memory intent, bytes memory route) internal returns (bytes memory) {
-        return _execute(intent, _sign(intent), route);
+    function _routes(bytes memory data) internal pure returns (bytes[] memory routes) {
+        routes = new bytes[](1);
+        routes[0] = data;
     }
 
-    function _execute(Intent memory intent, bytes memory signature, bytes memory route)
-        internal
-        returns (bytes memory)
-    {
-        vm.prank(s_keeper);
-        return s_router.executeIntent(intent, signature, route);
-    }
-
-    /// Shortcut data: `token.transfer(to, amount)` from the shortcuts contract.
-    function _transferRoute(address token, address to, uint256 amount) internal pure returns (bytes memory) {
-        bytes32[] memory commands = new bytes32[](1);
-        bytes[] memory state = new bytes[](2);
-        commands[0] = WeirollPlanner.buildCommand(IERC20.transfer.selector, 0x01, 0x0001ffffffff, 0xff, token);
-        state[0] = abi.encode(to);
-        state[1] = abi.encode(amount);
-        return _shortcut(commands, state);
-    }
-
-    function _shortcut(bytes32[] memory commands, bytes[] memory state) internal pure returns (bytes memory) {
-        return abi.encodeCall(AbstractEnsoShortcuts.executeShortcut, (bytes32(0), bytes32(0), commands, state));
+    function _exec(address caller, Intent memory intent, bytes memory signature) internal {
+        vm.prank(caller);
+        s_intentRouter.executeIntent(intent, signature, address(0), _routes(hex"c0ffee"), new bytes[](0));
     }
 }

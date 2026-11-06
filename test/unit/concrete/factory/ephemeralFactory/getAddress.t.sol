@@ -4,22 +4,24 @@ pragma solidity ^0.8.28;
 import { Intent } from "../../../../../src/interfaces/IIntent.sol";
 import { EphemeralFactory_Unit_Concrete_Test } from "./EphemeralFactory.t.sol";
 
-contract EphemeralFactory_GetAddress_Unit_Concrete_Test is EphemeralFactory_Unit_Concrete_Test {
-    function test_WhenGivenATypedIntent() external view {
-        Intent memory intent = _intent();
+contract EphemeralFactory_GetAddress_Test is EphemeralFactory_Unit_Concrete_Test {
+    function test_MatchesTheDeployment() external {
+        Intent memory intent = _swapIntent();
+        bytes32 root = _root(intent);
+        address predicted = s_factory.getAddress(root);
+        _fund(root, DEPOSIT);
+        s_router.addOut(address(s_tokenOut), 200 ether, s_user);
 
-        // it should predict the executor CREATE2 address
-        bytes32 initCodeHash = keccak256(abi.encodePacked(s_factory.executorCode(), abi.encode(intent)));
-        address expected = computeCreate2Address(bytes32(0), initCodeHash, address(s_factory));
-        assertEq(s_factory.getAddress(intent), expected);
+        address executor = _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
+        assertEq(executor, predicted, "deployed where predicted");
     }
 
-    function test_WhenAnyParameterChanges() external view {
-        Intent memory intent = _intent();
-        address original = s_factory.getAddress(intent);
-
-        // it should derive a different address
+    function test_DependsOnTheRootOnly() external view {
+        Intent memory intent = _swapIntent();
+        bytes32 root = _root(intent);
         intent.nonce = 1;
-        assertNotEq(s_factory.getAddress(intent), original);
+        assertTrue(
+            s_factory.getAddress(root) != s_factory.getAddress(_root(intent)), "distinct roots, distinct addresses"
+        );
     }
 }
