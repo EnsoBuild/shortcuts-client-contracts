@@ -151,7 +151,7 @@ contract PropAMMSwapHelpers is ReentrancyGuardTransient {
         returns (bytes memory)
     {
         uint256 length = pointers.length;
-        for (uint256 i; i < length; ++i) {
+        for (uint256 i = 0; i < length; ++i) {
             uint256 pointer = pointers[i];
             if (data.length < _DATA_ARGS_OFFSET || pointer > data.length - _DATA_ARGS_OFFSET) {
                 // forge-lint: disable-next-line(require-revert-in-loop)
