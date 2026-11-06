@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import { PropAMMSwapHelpers } from "../../../src/helpers/PropAMMSwapHelpers.sol";
 import { IPropAMM } from "../../../src/interfaces/IPropAMM.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import { Test } from "forge-std/Test.sol";
 
 /// Real pAMM fills: replays a Titan `pamm_quote_stream_v2` frame on a fork.
@@ -19,10 +18,11 @@ contract PropAMMSwapHelpersTitanForkTest is Test {
         bytes32 value;
     }
 
-    IPoolManager constant POOL_MANAGER = IPoolManager(0x000000000004444c5dc75cB358380D2e3dE08A90);
     address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address constant UNISWAP_V3_USDC_WETH_500 = 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640;
+    // A placeholder fallback: the pAMM fills, so it never runs. An empty call to it would revert
+    // `AmountInMismatch`, failing the test.
+    address constant FALLBACK_TARGET = address(0xdead);
 
     // Swap entry points. Metric streams its prices under other addresses than the one it swaps at.
     address constant METRIC = 0x99Ab7c1C5eab47801F7937075998527a550fbA8a;
@@ -47,7 +47,7 @@ contract PropAMMSwapHelpersTitanForkTest is Test {
         vm.roll(pendingBlock);
         vm.warp(vm.parseJsonUint(json, ".timestamp"));
 
-        helper = new PropAMMSwapHelpers(POOL_MANAGER);
+        helper = new PropAMMSwapHelpers();
         deal(WETH, address(this), AMOUNT_IN);
         IERC20(WETH).approve(address(helper), AMOUNT_IN);
     }
@@ -64,25 +64,18 @@ contract PropAMMSwapHelpersTitanForkTest is Test {
         _assertPammFills(FERMI);
     }
 
-    /// The pAMM quotes at this snapshot, so the helper must route to it and pay out its quote.
+    /// The pAMM quotes at this snapshot, so the helper must route to it and pay out its quote. The helper holds
+    /// the pAMM to that quote, so a venue whose fill rounds below it would fall back here and fail the test.
     function _assertPammFills(address pamm) internal {
-        bytes memory fallbackData = abi.encode(UNISWAP_V3_USDC_WETH_500);
         uint256 pammQuote = IPropAMM(pamm).quote(WETH, USDC, AMOUNT_IN);
         assertGt(pammQuote, 0, "pAMM does not quote at this snapshot");
 
         vm.expectEmit(address(helper));
         emit PropAMMSwapHelpers.PropAMMSwap(
-            pamm,
-            WETH,
-            USDC,
-            AMOUNT_IN,
-            pammQuote,
-            receiver,
-            PropAMMSwapHelpers.Outcome.PropAMMFilled,
-            PropAMMSwapHelpers.FallbackProtocol.UniswapV3
+            pamm, WETH, USDC, AMOUNT_IN, pammQuote, receiver, PropAMMSwapHelpers.Outcome.PropAMMFilled, FALLBACK_TARGET
         );
         uint256 amountOut = helper.swap(
-            pamm, WETH, USDC, AMOUNT_IN, 0, receiver, PropAMMSwapHelpers.FallbackProtocol.UniswapV3, fallbackData
+            pamm, WETH, USDC, AMOUNT_IN, 0, receiver, FALLBACK_TARGET, FALLBACK_TARGET, "", new uint256[](0)
         );
         assertEq(amountOut, pammQuote, "pAMM paid a different amount than it quoted");
     }

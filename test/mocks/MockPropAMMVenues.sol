@@ -76,78 +76,6 @@ contract MockPropAMM is IPropAMM {
     }
 }
 
-interface IV3Callback {
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external;
-
-    function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external;
-}
-
-/// @dev Fixed-rate V3-style pool. Pays out first, then calls back for the input, like Uniswap V3.
-/// `maxAmountIn` caps how much it fills, as a price limit would.
-contract MockUniswapV3Pool {
-    address public immutable token0;
-    address public immutable token1;
-    uint256 public immutable rate; // token1 per token0, scaled by 1e18
-    bool public immutable pancake;
-    uint256 public maxAmountIn = type(uint256).max;
-    uint256 public overcharge;
-    // When set, sent to the callback in place of the swap's `data`, as a hostile pool could.
-    bytes public forgedData;
-
-    constructor(address tokenA, address tokenB, uint256 rate_, bool pancake_) {
-        (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        rate = rate_;
-        pancake = pancake_;
-    }
-
-    function setMaxAmountIn(uint256 maxAmountIn_) external {
-        maxAmountIn = maxAmountIn_;
-    }
-
-    function setOvercharge(uint256 overcharge_) external {
-        overcharge = overcharge_;
-    }
-
-    function setForgedData(bytes calldata forgedData_) external {
-        forgedData = forgedData_;
-    }
-
-    function swap(
-        address recipient,
-        bool zeroForOne,
-        int256 amountSpecified,
-        uint160,
-        bytes calldata data
-    )
-        external
-        returns (int256 amount0, int256 amount1)
-    {
-        require(amountSpecified > 0, "MockV3: exact input only");
-        uint256 amountIn = uint256(amountSpecified);
-        if (amountIn > maxAmountIn) {
-            amountIn = maxAmountIn;
-        }
-        uint256 amountOut = zeroForOne ? amountIn * rate / 1e18 : amountIn * 1e18 / rate;
-        uint256 charged = amountIn + overcharge;
-
-        (address tokenIn, address tokenOut) = zeroForOne ? (token0, token1) : (token1, token0);
-        IERC20(tokenOut).transfer(recipient, amountOut);
-        (amount0, amount1) = zeroForOne ? (int256(charged), -int256(amountOut)) : (-int256(amountOut), int256(charged));
-
-        uint256 balanceBefore = IERC20(tokenIn).balanceOf(address(this));
-        bytes memory callbackData = data;
-        if (forgedData.length != 0) {
-            callbackData = forgedData;
-        }
-        if (pancake) {
-            IV3Callback(msg.sender).pancakeV3SwapCallback(amount0, amount1, callbackData);
-        } else {
-            IV3Callback(msg.sender).uniswapV3SwapCallback(amount0, amount1, callbackData);
-        }
-        require(IERC20(tokenIn).balanceOf(address(this)) >= balanceBefore + charged, "MockV3: unpaid");
-    }
-}
-
 /// @dev Fixed-rate two-coin Curve pool exposing both index flavours of `get_dy` and `exchange`.
 abstract contract MockCurvePoolBase {
     address[2] internal _coins;
@@ -196,11 +124,53 @@ contract MockCurvePool is MockCurvePoolBase {
     }
 }
 
-/// @dev A pre-2021 Curve pool whose `coins` getter takes `int128`.
-contract MockCurveLegacyPool is MockCurvePoolBase {
-    constructor(address coin0, address coin1, uint256 rate_) MockCurvePoolBase(coin0, coin1, rate_) { }
+/// @dev Pulls tokens for `MockRouter`, so the approved operator differs from the called target.
+contract MockTokenPuller {
+    function pull(address token, address from, address to, uint256 amount) external {
+        IERC20(token).transferFrom(from, to, amount);
+    }
+}
 
-    function coins(int128 i) external view returns (address) {
-        return _coins[uint256(uint128(i))];
+/// @dev Fixed-rate router that pulls its input by approval and mints its output to `recipient`.
+contract MockRouter {
+    uint256 public immutable rate; // tokenOut per tokenIn, scaled by 1e18
+    MockTokenPuller public immutable puller;
+    // Pulls `amountIn / pullDivisor`, as a router filling part of the order would.
+    uint256 public pullDivisor = 1;
+    bool public reverts;
+
+    constructor(uint256 rate_, MockTokenPuller puller_) {
+        rate = rate_;
+        puller = puller_;
+    }
+
+    function setPullDivisor(uint256 pullDivisor_) external {
+        pullDivisor = pullDivisor_;
+    }
+
+    function setReverts(bool reverts_) external {
+        reverts = reverts_;
+    }
+
+    function swapExactIn(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient
+    )
+        external
+        returns (uint256 amountOut)
+    {
+        require(!reverts, "MockRouter: failed");
+        uint256 pulled = amountIn / pullDivisor;
+        if (address(puller) == address(0)) {
+            IERC20(tokenIn).transferFrom(msg.sender, address(this), pulled);
+        } else {
+            puller.pull(tokenIn, msg.sender, address(this), pulled);
+        }
+        amountOut = pulled * rate / 1e18;
+        require(amountOut >= minAmountOut, "MockRouter: slippage");
+        MockERC20(tokenOut).mint(recipient, amountOut);
     }
 }
