@@ -12,6 +12,7 @@ Issue: `{{TICKET}}` · Downstream integration: tracked internally
 | `script/LayerZeroDeployer.s.sol`                           | TBD, or explicit revert when LayerZero is absent |
 | `script/FlashloanAdapterConfig.s.sol`                      | TBD, or not in scope                             |
 | `.bash/deploy.sh`                                          | verifier branch, or TODO when unconfirmed        |
+| `test/fork/router/NftDeploymentCapabilities.t.sol`         | NftHelpers code and NFT funding fork tests       |
 | `foundry.toml`, `.github/workflows/ci.yml`, `.env.example` | rpc alias, CI secret, env vars                   |
 
 ### Integration status
@@ -39,6 +40,10 @@ done and its evidence is in this PR.
       zero.
 - [ ] `LayerZeroDeployer.s.sol`: endpoint group, or explicit revert.
 - [ ] `FlashloanAdapterConfig.s.sol`: one box per lender: `<lender>`.
+- [ ] `NftDeploymentCapabilities.t.sol`: `test_<chain>NftHelpersCode`, pinned
+      after the NftHelpers deployment.
+- [ ] `NftDeploymentCapabilities.t.sol`: `test_<chain>DeployedNftFunding`,
+      pinned after the router and wallet factory deployments.
 - [ ] Focused tests, or "no test surface" with the reason.
 
 ### Pre-deploy verification, one artifact per box
@@ -50,6 +55,8 @@ done and its evidence is in this PR.
 - [ ] Expected `EnsoRouter` address via `cast create2`, and the family it
       matches.
 - [ ] Expected helper addresses via `cast create2`.
+- [ ] Expected `NftHelpers` address via `cast create2` equals
+      `0x703a8389a82C14B46160a792E311Df6d19D29A47`.
 - [ ] Expected receiver addresses via `cast create2` (owner-dependent; note the
       owner used).
 - [ ] Lender bytecode checked on the target network (one box per lender).
@@ -70,6 +77,8 @@ done and its evidence is in this PR.
 - [ ] `FullDeployer` broadcast; transaction links: TBD
 - [ ] `EnsoRouter` address confirmed equal to the expected one.
 - [ ] Helper addresses confirmed equal to the expected ones.
+- [ ] `NftHelpersDeployer` broadcast; address confirmed equal to the expected
+      one.
 - [ ] `EnsoCCIPReceiver` broadcast; address: TBD (or not in scope)
 - [ ] `LayerZeroReceiver` broadcast; address: TBD (or not in scope)
 - [ ] Flashloan adapters broadcast; addresses: TBD (or not in scope)
