@@ -44,6 +44,9 @@ library ChainOwner {
         if (chainId == ChainId.WORLD) {
             return ENSO_OWNER;
         }
+        if (chainId == ChainId.HYPER_TESTNET) {
+            return TODO_OWNER;
+        }
         if (chainId == ChainId.HYPER) {
             return ENSO_OWNER;
         }
