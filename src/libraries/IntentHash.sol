@@ -5,13 +5,15 @@ import {
     Asset,
     Constraints,
     Consume,
+    Fee,
     Handoff,
-    InputSet,
+    Input,
     Intent,
     Lifetime,
     Param,
     Pattern,
     Predicate,
+    Refund,
     Request,
     Rule,
     Source,
@@ -27,12 +29,12 @@ library IntentHash {
     string internal constant ASSET = "Asset(uint8 kind,uint256 chainId,address token,uint256 id)";
     string internal constant CONSUME = "Consume(uint16 source,bytes32 key,uint16 amount,uint256 cap,uint64 period)";
     string internal constant CONSTRAINTS = "Constraints(Lifetime lifetime,uint8 frame,uint8 matching,address router,"
-        "address[] accounts,Asset[] assets,Source[] sources,View[] views,Pattern[] patterns,InputSet inputs,"
+        "address[] accounts,Asset[] assets,Source[] sources,View[] views,Pattern[] patterns,Refund[] refunds,"
         "Term[] terms,Handoff[] handoffs,Consume[] consumes,Predicate[] predicates,Rule[] rules)";
+    string internal constant FEE = "Fee(uint16 asset,uint16 amount)";
     string internal constant HANDOFF = "Handoff(uint16 source,uint256 chainId,bytes32 method,address recipient,"
         "address refund,uint16 input,uint16 asset,uint16 minAmount,uint16 deadline)";
-    string internal constant INPUT_SET =
-        "InputSet(uint16[] assets,uint256[] minimums,uint16[] prices,uint256[] refundFees,uint8 threshold)";
+    string internal constant INPUT = "Input(uint16 asset,uint256 minimum,uint16 price)";
     string internal constant INTENT = "Intent(uint16 version,uint256 chainId,uint256 nonce,uint64 start,"
         "uint64 deadline,address owner,address keeper,uint64 exclusive,Constraints constraints)";
     string internal constant LIFETIME = "Lifetime(uint8 kind,uint64 interval,uint32 count)";
@@ -41,9 +43,10 @@ library IntentHash {
         "Pattern(uint8 kind,address target,bytes32 sig,bytes32[] args,uint256 wildcards)";
     string internal constant PREDICATE =
         "Predicate(uint8 cmp,uint16 lhs,uint16 rhs,uint8 enforce,uint16 source,uint8 group)";
+    string internal constant REFUND = "Refund(uint16 asset,uint256 fee)";
     string internal constant REQUEST = "Request(bytes32 api,string body,Param[] params)";
-    string internal constant RULE = "Rule(uint16[] inputs,uint16[] when,uint16[] then,uint16 feeAsset,uint16 fee,"
-        "uint8 consume,bytes route,Request request)";
+    string internal constant RULE = "Rule(Input[] inputs,uint8 threshold,uint16[] when,uint16[] then,"
+        "Fee[] fees,uint8 consume,uint8 routing,bytes route,Request request)";
     string internal constant SOURCE = "Source(uint8 kind,address target,bytes config)";
     string internal constant TERM = "Term(uint8 op,uint16 a,uint16 b,uint256 value,bytes data)";
     string internal constant VIEW = "View(address target,bytes4 selector,bytes args,uint8 word)";
@@ -55,12 +58,14 @@ library IntentHash {
             ASSET,
             CONSTRAINTS,
             CONSUME,
+            FEE,
             HANDOFF,
-            INPUT_SET,
+            INPUT,
             LIFETIME,
             PARAM,
             PATTERN,
             PREDICATE,
+            REFUND,
             REQUEST,
             RULE,
             SOURCE,
@@ -73,12 +78,14 @@ library IntentHash {
             CONSTRAINTS,
             ASSET,
             CONSUME,
+            FEE,
             HANDOFF,
-            INPUT_SET,
+            INPUT,
             LIFETIME,
             PARAM,
             PATTERN,
             PREDICATE,
+            REFUND,
             REQUEST,
             RULE,
             SOURCE,
@@ -88,14 +95,16 @@ library IntentHash {
     );
     bytes32 internal constant ASSET_TYPEHASH = keccak256(bytes(ASSET));
     bytes32 internal constant CONSUME_TYPEHASH = keccak256(bytes(CONSUME));
+    bytes32 internal constant FEE_TYPEHASH = keccak256(bytes(FEE));
     bytes32 internal constant HANDOFF_TYPEHASH = keccak256(bytes(HANDOFF));
-    bytes32 internal constant INPUT_SET_TYPEHASH = keccak256(bytes(INPUT_SET));
+    bytes32 internal constant INPUT_TYPEHASH = keccak256(bytes(INPUT));
     bytes32 internal constant LIFETIME_TYPEHASH = keccak256(bytes(LIFETIME));
     bytes32 internal constant PARAM_TYPEHASH = keccak256(bytes(PARAM));
     bytes32 internal constant PATTERN_TYPEHASH = keccak256(bytes(PATTERN));
     bytes32 internal constant PREDICATE_TYPEHASH = keccak256(bytes(PREDICATE));
+    bytes32 internal constant REFUND_TYPEHASH = keccak256(bytes(REFUND));
     bytes32 internal constant REQUEST_TYPEHASH = keccak256(abi.encodePacked(REQUEST, PARAM));
-    bytes32 internal constant RULE_TYPEHASH = keccak256(abi.encodePacked(RULE, PARAM, REQUEST));
+    bytes32 internal constant RULE_TYPEHASH = keccak256(abi.encodePacked(RULE, FEE, INPUT, PARAM, REQUEST));
     bytes32 internal constant SOURCE_TYPEHASH = keccak256(bytes(SOURCE));
     bytes32 internal constant TERM_TYPEHASH = keccak256(bytes(TERM));
     bytes32 internal constant VIEW_TYPEHASH = keccak256(bytes(VIEW));
@@ -139,7 +148,7 @@ library IntentHash {
         );
         bytes memory tail = abi.encode(
             _patterns(c.patterns),
-            _inputs(c.inputs),
+            _refunds(c.refunds),
             _terms(c.terms),
             _handoffs(c.handoffs),
             _consumes(c.consumes),
@@ -191,17 +200,12 @@ library IntentHash {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _inputs(InputSet memory s) private pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                INPUT_SET_TYPEHASH,
-                keccak256(abi.encodePacked(s.assets)),
-                keccak256(abi.encodePacked(s.minimums)),
-                keccak256(abi.encodePacked(s.prices)),
-                keccak256(abi.encodePacked(s.refundFees)),
-                s.threshold
-            )
-        );
+    function _refunds(Refund[] memory items) private pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](items.length);
+        for (uint256 i; i < items.length; ++i) {
+            hashes[i] = keccak256(abi.encode(REFUND_TYPEHASH, items[i].asset, items[i].fee));
+        }
+        return keccak256(abi.encodePacked(hashes));
     }
 
     function _terms(Term[] memory items) private pure returns (bytes32) {
@@ -260,16 +264,34 @@ library IntentHash {
             hashes[i] = keccak256(
                 abi.encode(
                     RULE_TYPEHASH,
-                    keccak256(abi.encodePacked(r.inputs)),
+                    _inputs(r.inputs),
+                    r.threshold,
                     keccak256(abi.encodePacked(r.when)),
                     keccak256(abi.encodePacked(r.then)),
-                    r.feeAsset,
-                    r.fee,
+                    _fees(r.fees),
                     r.consume,
+                    r.routing,
                     keccak256(r.route),
                     _request(r.request)
                 )
             );
+        }
+        return keccak256(abi.encodePacked(hashes));
+    }
+
+    function _fees(Fee[] memory items) private pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](items.length);
+        for (uint256 i; i < items.length; ++i) {
+            hashes[i] = keccak256(abi.encode(FEE_TYPEHASH, items[i].asset, items[i].amount));
+        }
+        return keccak256(abi.encodePacked(hashes));
+    }
+
+    function _inputs(Input[] memory items) private pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](items.length);
+        for (uint256 i; i < items.length; ++i) {
+            Input memory input = items[i];
+            hashes[i] = keccak256(abi.encode(INPUT_TYPEHASH, input.asset, input.minimum, input.price));
         }
         return keccak256(abi.encodePacked(hashes));
     }

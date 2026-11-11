@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { Codes, Intent, Lifetime } from "../interfaces/IIntent.sol";
+import { Codes, Intent, Lifetime, Rule } from "../interfaces/IIntent.sol";
 import { IIntentRouter } from "../interfaces/IIntentRouter.sol";
 import { IntentEvaluator, Run } from "../libraries/IntentEvaluator.sol";
 import { IntentHash } from "../libraries/IntentHash.sol";
@@ -31,6 +31,10 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
     error NotYet();
 
     constructor() EIP712("IntentRouter", "2") { }
+
+    /// Unused messaging-fee native returned by a guardian; sent back to the keeper at the end of the
+    /// execution that forwarded it.
+    receive() external payable { }
 
     /// @inheritdoc IIntentRouter
     function executeIntent(
@@ -71,11 +75,13 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
         // A standing intent pulling from a wallet needs a schedule or a count: otherwise a keeper
         // could repeat it within one block until the owner's allowance runs out.
         Lifetime memory lifetime = signed.constraints.lifetime;
-        if (
-            lifetime.kind == Codes.STANDING && lifetime.interval == 0 && lifetime.count == 0
-                && signed.constraints.inputs.assets.length > 0
-        ) {
-            revert Rejected(IntentEvaluator.MALFORMED);
+        if (lifetime.kind == Codes.STANDING && lifetime.interval == 0 && lifetime.count == 0) {
+            Rule[] memory rules = signed.constraints.rules;
+            for (uint256 r; r < rules.length; ++r) {
+                if (rules[r].inputs.length > 0) {
+                    revert Rejected(IntentEvaluator.MALFORMED);
+                }
+            }
         }
         // Written first; any revert below undoes it.
         _useRecord(signed);

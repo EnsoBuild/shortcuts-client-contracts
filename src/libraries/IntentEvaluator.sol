@@ -8,8 +8,9 @@ import {
     Codes,
     Constraints,
     Consume,
+    Fee,
     Handoff,
-    InputSet,
+    Input,
     Intent,
     Predicate,
     Rule,
@@ -70,8 +71,9 @@ library IntentEvaluator {
     error UnsupportedAsset(uint16 asset);
 
     struct State {
-        bool[] present; // per input position
-        uint256[] consumed; // per input position; includes the rule fee when paid in that asset
+        uint256[] held; // per asset: pre-state holding, read for rule inputs only
+        bool[] present; // per asset: a present input of an active rule
+        uint256[] consumed; // per asset: what active rules consume; includes a rule fee paid in it
         bool[] active; // per rule
         bool[] post; // per term: depends on post-state
         bool[] scoped; // per term: depends on CONSUMED_VALUE
@@ -84,6 +86,7 @@ library IntentEvaluator {
         bool[] accepted; // per handoff
         uint256[] framePre; // per asset: holder balance before execution
         uint256[] fees; // per rule: fee paid
+        uint16[] feeAsset; // per rule: the candidate paid; Codes.NONE when none
         address router;
         address[] grantedToken;
         address[] grantedSpender;
@@ -124,15 +127,19 @@ library IntentEvaluator {
                 return MALFORMED;
             }
         }
-        uint8 status = _checkInputs(c);
-        if (status != OK) {
-            return status;
+        if (c.assets.length > 256) {
+            return MALFORMED; // asset sets are tracked as bitmasks
+        }
+        for (uint256 i; i < c.refunds.length; ++i) {
+            if (c.refunds[i].asset >= c.assets.length) {
+                return MALFORMED;
+            }
         }
         (bool[] memory post, bool[] memory consumed, uint8 termStatus) = _checkTerms(c);
         if (termStatus != OK) {
             return termStatus;
         }
-        status = _checkPredicates(c);
+        uint8 status = _checkPredicates(c);
         if (status != OK) {
             return status;
         }
@@ -140,31 +147,28 @@ library IntentEvaluator {
         if (status != OK) {
             return status;
         }
-        if (intent.chainId == 0 && (c.rules.length > 0 || c.inputs.assets.length > 0)) {
+        if (intent.chainId == 0 && c.rules.length > 0) {
             return MALFORMED; // a default leaf only refunds
         }
         return _checkRules(c, post, consumed);
     }
 
-    function _checkInputs(Constraints memory c) private pure returns (uint8) {
-        InputSet memory s = c.inputs;
-        uint256 n = s.assets.length;
-        if (s.minimums.length != n || s.prices.length != n || s.refundFees.length != n || n > 256) {
+    /// A rule's inputs: valid assets and price sources, and a threshold within them.
+    function _checkInputs(Constraints memory c, Rule memory rule) private pure returns (uint8) {
+        uint256 n = rule.inputs.length;
+        if (rule.threshold > n || (n > 0 && rule.threshold == 0)) {
             return MALFORMED;
         }
-        if (s.threshold > n || (n > 0 && s.threshold == 0)) {
-            return MALFORMED;
-        }
-        for (uint256 p; p < n; ++p) {
-            if (s.assets[p] >= c.assets.length) {
+        for (uint256 j; j < n; ++j) {
+            uint16 asset = rule.inputs[j].asset;
+            uint16 price = rule.inputs[j].price;
+            if (asset >= c.assets.length) {
                 return MALFORMED;
             }
-            uint16 price = s.prices[p];
             if (price != Codes.NONE && (price >= c.sources.length || c.sources[price].kind != Codes.ORACLE)) {
                 return MALFORMED;
             }
-            uint8 kind = c.assets[s.assets[p]].kind;
-            if (kind == Codes.ERC1155 && c.router == address(0)) {
+            if (c.assets[asset].kind == Codes.ERC1155 && c.router == address(0)) {
                 return UNSUPPORTED; // collection-wide approval to a keeper-chosen router
             }
         }
@@ -287,38 +291,52 @@ library IntentEvaluator {
         returns (uint8)
     {
         uint256 covered;
-        uint256 n = c.inputs.assets.length;
-        bool any = c.inputs.threshold < n;
         for (uint256 r; r < c.rules.length; ++r) {
             Rule memory rule = c.rules[r];
             if (rule.consume > Codes.DRAIN) {
                 return MALFORMED;
             }
-            for (uint256 j; j < rule.inputs.length; ++j) {
-                uint16 p = rule.inputs[j];
-                if (p >= n) {
-                    return MALFORMED;
-                }
-                uint256 bit = uint256(1) << p;
-                // Under ALL matching, each input counts toward exactly one rule.
-                if (c.matching == Codes.MATCH_ALL && covered & bit != 0) {
-                    return MALFORMED;
-                }
-                covered |= bit;
+            uint8 status = _checkInputs(c, rule);
+            if (status != OK) {
+                return status;
             }
-            if (any && c.lifetime.kind == Codes.ONCE && rule.inputs.length > 0 && rule.consume != Codes.DRAIN) {
+            uint256 mine;
+            for (uint256 j; j < rule.inputs.length; ++j) {
+                uint256 bit = uint256(1) << rule.inputs[j].asset;
+                // An asset appears once per rule, and under ALL matching in only one rule, so what
+                // each rule consumes is unambiguous.
+                if (mine & bit != 0 || (c.matching == Codes.MATCH_ALL && covered & bit != 0)) {
+                    return MALFORMED;
+                }
+                mine |= bit;
+            }
+            covered |= mine;
+            if (c.lifetime.kind == Codes.ONCE && rule.threshold < rule.inputs.length && rule.consume != Codes.DRAIN) {
                 return MALFORMED; // a keeper could take the profitable input and strand the rest
             }
-            if ((rule.feeAsset == Codes.NONE) != (rule.fee == Codes.NONE)) {
+            // A rule with inputs pays in one of them, so the fee is always inside what it consumes;
+            // a rule without inputs has a single candidate, paid from the holder.
+            if (rule.inputs.length == 0 && rule.fees.length > 1) {
                 return MALFORMED;
             }
-            if (
-                rule.fee != Codes.NONE
-                    && (rule.fee >= c.terms.length || rule.feeAsset >= c.assets.length || post[rule.fee])
-            ) {
+            for (uint256 j; j < rule.fees.length; ++j) {
+                Fee memory fee = rule.fees[j];
+                if (fee.amount >= c.terms.length || fee.asset >= c.assets.length || post[fee.amount]) {
+                    return MALFORMED;
+                }
+                if (rule.inputs.length > 0 && mine & (uint256(1) << fee.asset) == 0) {
+                    return MALFORMED;
+                }
+            }
+            // The mode is stated, never inferred from empty fields: a committed rule carries its bytes
+            // and a router to run them, and nothing else carries bytes at all.
+            if (rule.routing > Codes.ROUTE_KEEPER) {
                 return MALFORMED;
             }
-            if (rule.route.length > 0 && c.router == address(0)) {
+            if ((rule.routing == Codes.ROUTE_COMMITTED) != (rule.route.length > 0)) {
+                return MALFORMED;
+            }
+            if (rule.routing == Codes.ROUTE_COMMITTED && c.router == address(0)) {
                 return MALFORMED; // committed shortcut data is specific to a router
             }
             for (uint256 j; j < rule.when.length; ++j) {
@@ -337,13 +355,11 @@ library IntentEvaluator {
                     return MALFORMED;
                 }
             }
-            if (rule.route.length == 0 && !_bounded(c, rule, post)) {
+            // Only a keeper route is the keeper's discretion; a rule with no route can only pay its
+            // fee and hand off, both built from committed data.
+            if (rule.routing == Codes.ROUTE_KEEPER && !_bounded(c, rule, post)) {
                 return CUSTODIAL;
             }
-        }
-        // Every input is consumed by some rule, except in refund-only constraints.
-        if (c.rules.length > 0 && n > 0 && covered != (n == 256 ? type(uint256).max : (uint256(1) << n) - 1)) {
-            return MALFORMED;
         }
         return OK;
     }
@@ -441,29 +457,37 @@ library IntentEvaluator {
         return true;
     }
 
-    /// @notice The owner's route: every input of this chain at its live balance through the router,
-    ///         unvalidated. The owner's own transaction; ephemeral executors only.
+    /// @notice The owner's route: every rule input of this chain at its live balance through the
+    ///         router, unvalidated. The owner's own transaction; ephemeral executors only.
     function ownerRoute(Intent memory intent, address keeperRouter, bytes memory data) public {
         Constraints memory c = intent.constraints;
         address router = c.router != address(0) ? c.router : keeperRouter;
         if (router == address(0)) {
             revert NoRouter();
         }
-        uint256 n = c.inputs.assets.length;
-        Token[] memory tokens = new Token[](n);
+        Token[] memory tokens = new Token[](c.assets.length);
         uint256 count;
         uint256 value;
-        for (uint256 p; p < n; ++p) {
-            Asset memory a = c.assets[c.inputs.assets[p]];
-            uint256 amount = _balanceOf(a, address(this));
-            if (amount == 0) {
-                continue;
-            }
-            tokens[count++] = _token(a, amount);
-            if (a.kind == Codes.NATIVE) {
-                value = amount;
-            } else {
-                _grant(a, router, amount);
+        uint256 seen;
+        for (uint256 r; r < c.rules.length; ++r) {
+            Input[] memory inputs = c.rules[r].inputs;
+            for (uint256 j; j < inputs.length; ++j) {
+                uint16 asset = inputs[j].asset;
+                if (seen & (uint256(1) << asset) != 0) {
+                    continue;
+                }
+                seen |= uint256(1) << asset;
+                Asset memory a = c.assets[asset];
+                uint256 amount = _balanceOf(a, address(this));
+                if (amount == 0) {
+                    continue;
+                }
+                tokens[count++] = _token(a, amount);
+                if (a.kind == Codes.NATIVE) {
+                    value = amount;
+                } else {
+                    _grant(a, router, amount);
+                }
             }
         }
         assembly ("memory-safe") {
@@ -476,8 +500,9 @@ library IntentEvaluator {
     }
 
     function _state(Constraints memory c) private pure returns (State memory s) {
-        uint256 n = c.inputs.assets.length;
+        uint256 n = c.assets.length;
         uint256 terms = c.terms.length;
+        s.held = new uint256[](n);
         s.present = new bool[](n);
         s.consumed = new uint256[](n);
         s.active = new bool[](c.rules.length);
@@ -491,6 +516,7 @@ library IntentEvaluator {
         s.accepted = new bool[](c.handoffs.length);
         s.framePre = new uint256[](c.assets.length);
         s.fees = new uint256[](c.rules.length);
+        s.feeAsset = new uint16[](c.rules.length);
         uint256 maxGrants = n + c.handoffs.length;
         s.grantedToken = new address[](maxGrants);
         s.grantedSpender = new address[](maxGrants);
@@ -509,21 +535,19 @@ library IntentEvaluator {
         }
     }
 
-    /// Pre-state: input presence and threshold, DELTA baselines, and the frame's baselines.
+    /// Pre-state: rule input holdings, DELTA baselines, and the frame's baselines.
     function _snapshot(Constraints memory c, Run memory run, State memory s) private view {
-        InputSet memory inputs = c.inputs;
-        uint256 present;
-        for (uint256 p; p < inputs.assets.length; ++p) {
-            uint256 held = _held(c.assets[inputs.assets[p]], run.holder);
-            // Cached for DRAIN, which consumes exactly this pre-state balance.
-            s.consumed[p] = held;
-            if (held >= inputs.minimums[p] && (inputs.minimums[p] > 0 || held > 0)) {
-                s.present[p] = true;
-                ++present;
+        uint256 read;
+        for (uint256 r; r < c.rules.length; ++r) {
+            Input[] memory inputs = c.rules[r].inputs;
+            for (uint256 j; j < inputs.length; ++j) {
+                uint16 asset = inputs[j].asset;
+                if (read & (uint256(1) << asset) == 0) {
+                    read |= uint256(1) << asset;
+                    // Cached for DRAIN, which consumes exactly this pre-state holding.
+                    s.held[asset] = _held(c.assets[asset], run.holder);
+                }
             }
-        }
-        if (present < inputs.threshold) {
-            revert NotExecutable();
         }
         for (uint256 i; i < c.terms.length; ++i) {
             Term memory t = c.terms[i];
@@ -544,16 +568,14 @@ library IntentEvaluator {
         bool any;
         for (uint256 r; r < c.rules.length; ++r) {
             Rule memory rule = c.rules[r];
-            bool on;
-            if (rule.when.length == 0) {
-                on = rule.inputs.length == 0;
-                for (uint256 j; j < rule.inputs.length && !on; ++j) {
-                    on = s.present[rule.inputs[j]];
+            uint256 present;
+            for (uint256 j; j < rule.inputs.length; ++j) {
+                if (_present(rule.inputs[j], s)) {
+                    ++present;
                 }
-            } else {
-                on = _groups(c, run, s, rule.when, r);
             }
-            if (on) {
+            // The threshold first, then the guard; a rule without inputs rests on its guard alone.
+            if (present >= rule.threshold && (rule.when.length == 0 || _groups(c, run, s, rule.when, r))) {
                 s.active[r] = true;
                 any = true;
                 if (c.matching == Codes.MATCH_FIRST) {
@@ -564,10 +586,9 @@ library IntentEvaluator {
         if (!any) {
             revert NotExecutable();
         }
-        // _snapshot left each input's pre-state balance in consumed; only active rules' present
-        // inputs are consumed, all of it under DRAIN, exactly the minimum under EXACT.
-        uint256[] memory held = s.consumed;
-        s.consumed = new uint256[](held.length);
+        // Active rules consume their present inputs: all of the holding under DRAIN, exactly the
+        // minimum under EXACT. Active rules never share an input asset (disjoint under ALL, one
+        // rule under FIRST), so per-asset state is unambiguous.
         for (uint256 r; r < c.rules.length; ++r) {
             if (!s.active[r]) {
                 continue;
@@ -576,12 +597,19 @@ library IntentEvaluator {
             s.scopedKnown[r] = new bool[](c.terms.length);
             Rule memory rule = c.rules[r];
             for (uint256 j; j < rule.inputs.length; ++j) {
-                uint16 p = rule.inputs[j];
-                if (s.present[p]) {
-                    s.consumed[p] = rule.consume == Codes.DRAIN ? held[p] : c.inputs.minimums[p];
+                Input memory input = rule.inputs[j];
+                if (_present(input, s)) {
+                    s.present[input.asset] = true;
+                    s.consumed[input.asset] = rule.consume == Codes.DRAIN ? s.held[input.asset] : input.minimum;
                 }
             }
         }
+    }
+
+    /// Below the minimum an input counts as absent; with no minimum, any holding counts.
+    function _present(Input memory input, State memory s) private pure returns (bool) {
+        uint256 held = s.held[input.asset];
+        return held >= input.minimum && (input.minimum > 0 || held > 0);
     }
 
     /// Runtime half of the custody test: every OR group of a keeper-routed active rule's outcome
@@ -589,7 +617,7 @@ library IntentEvaluator {
     /// cap (a negative floor) bounds nothing the keeper delivers.
     function _positive(Constraints memory c, Run memory run, State memory s) private view returns (bool) {
         for (uint256 r; r < c.rules.length; ++r) {
-            if (!s.active[r] || c.rules[r].route.length > 0) {
+            if (!s.active[r] || c.rules[r].routing != Codes.ROUTE_KEEPER) {
                 continue;
             }
             Rule memory rule = c.rules[r];
@@ -616,18 +644,29 @@ library IntentEvaluator {
         return true;
     }
 
+    /// Each active rule pays its first candidate whose asset is a present input, or its single
+    /// candidate when it has no inputs. With no candidate present, the keeper goes unpaid.
     function _payFees(Constraints memory c, Run memory run, State memory s) private {
         for (uint256 r; r < c.rules.length; ++r) {
+            s.feeAsset[r] = Codes.NONE;
             Rule memory rule = c.rules[r];
-            if (!s.active[r] || rule.fee == Codes.NONE) {
+            if (!s.active[r]) {
                 continue;
             }
-            int256 fee = _eval(c, run, s, rule.fee, r);
-            if (fee <= 0 || run.caller == address(0)) {
-                continue; // a non-positive fee is skipped, never inverted
+            for (uint256 j; j < rule.fees.length; ++j) {
+                Fee memory candidate = rule.fees[j];
+                if (rule.inputs.length > 0 && !s.present[candidate.asset]) {
+                    continue;
+                }
+                int256 fee = _eval(c, run, s, candidate.amount, r);
+                if (fee > 0 && run.caller != address(0)) {
+                    // a non-positive fee is skipped, never inverted
+                    s.feeAsset[r] = candidate.asset;
+                    s.fees[r] = uint256(fee);
+                    _send(c.assets[candidate.asset], run, run.caller, uint256(fee));
+                }
+                break;
             }
-            s.fees[r] = uint256(fee);
-            _send(c.assets[rule.feeAsset], run, run.caller, uint256(fee));
         }
     }
 
@@ -681,14 +720,13 @@ library IntentEvaluator {
         tokens = new Token[](rule.inputs.length);
         uint256 count;
         for (uint256 j; j < rule.inputs.length; ++j) {
-            uint16 p = rule.inputs[j];
-            if (!s.present[p]) {
+            uint16 assetIndex = rule.inputs[j].asset;
+            if (!s.present[assetIndex]) {
                 continue;
             }
-            uint16 assetIndex = c.inputs.assets[p];
             Asset memory a = c.assets[assetIndex];
-            uint256 amount = s.consumed[p];
-            if (rule.feeAsset == assetIndex) {
+            uint256 amount = s.consumed[assetIndex];
+            if (s.feeAsset[r] == assetIndex) {
                 amount = amount > s.fees[r] ? amount - s.fees[r] : 0;
             }
             if (amount == 0) {
@@ -709,8 +747,11 @@ library IntentEvaluator {
 
     function _handoffs(Constraints memory c, Run memory run, State memory s) private {
         bool nativeInputs;
-        for (uint256 p; p < c.inputs.assets.length; ++p) {
-            nativeInputs = nativeInputs || c.assets[c.inputs.assets[p]].kind == Codes.NATIVE;
+        for (uint256 r; r < c.rules.length; ++r) {
+            Input[] memory inputs = c.rules[r].inputs;
+            for (uint256 j; j < inputs.length; ++j) {
+                nativeInputs = nativeInputs || c.assets[inputs[j].asset].kind == Codes.NATIVE;
+            }
         }
         for (uint256 r; r < c.rules.length; ++r) {
             if (!s.active[r]) {
@@ -795,23 +836,23 @@ library IntentEvaluator {
         if (_ruleData(rule, run, r).length > 0) {
             return (false, 0);
         }
-        for (uint256 j; j < rule.inputs.length; ++j) {
-            uint16 p = rule.inputs[j];
-            if (s.present[p] && c.inputs.assets[p] == assetIndex) {
-                direct = true;
-                amount += s.consumed[p];
-            }
-        }
-        if (direct && rule.feeAsset == assetIndex) {
+        direct = s.present[assetIndex] && _isRuleInput(rule, assetIndex);
+        amount = direct ? s.consumed[assetIndex] : 0;
+        if (direct && s.feeAsset[r] == assetIndex) {
             amount = amount > s.fees[r] ? amount - s.fees[r] : 0;
         }
     }
 
+    /// The bytes a rule runs: its own when committed, the keeper's only under ROUTE_KEEPER, and none
+    /// under ROUTE_NONE, whatever the keeper sends.
     function _ruleData(Rule memory rule, Run memory run, uint256 r) private pure returns (bytes memory) {
-        if (rule.route.length > 0) {
+        if (rule.routing == Codes.ROUTE_COMMITTED) {
             return rule.route;
         }
-        return r < run.routes.length ? run.routes[r] : bytes("");
+        if (rule.routing == Codes.ROUTE_KEEPER && r < run.routes.length) {
+            return run.routes[r];
+        }
+        return "";
     }
 
     function _outcomes(Constraints memory c, Run memory run, State memory s) private {
@@ -869,12 +910,12 @@ library IntentEvaluator {
             }
             Rule memory rule = c.rules[r];
             for (uint256 j; j < rule.inputs.length; ++j) {
-                uint16 p = rule.inputs[j];
-                permitted[c.inputs.assets[p]] += s.consumed[p];
+                uint16 asset = rule.inputs[j].asset;
+                permitted[asset] += s.consumed[asset];
             }
             // A fee in an input asset is already inside what the rule consumes.
-            if (rule.fee != Codes.NONE && !_isRuleInput(c, rule, rule.feeAsset)) {
-                permitted[rule.feeAsset] += s.fees[r];
+            if (s.feeAsset[r] != Codes.NONE && rule.inputs.length == 0) {
+                permitted[s.feeAsset[r]] += s.fees[r];
             }
         }
         for (uint256 i; i < c.assets.length; ++i) {
@@ -986,7 +1027,7 @@ library IntentEvaluator {
         } else if (op == Codes.OP_SOURCE) {
             value = _signed(_source(c, run, t));
         } else if (op == Codes.OP_CONSUMED) {
-            value = _signed(_consumedOf(c, s, t.a));
+            value = _signed(s.consumed[t.a]);
         } else if (op == Codes.OP_CONSUMED_VALUE) {
             value = _signed(_consumedValue(c, run, s, t.a, r));
         } else {
@@ -1018,14 +1059,6 @@ library IntentEvaluator {
         }
     }
 
-    function _consumedOf(Constraints memory c, State memory s, uint16 assetIndex) private pure returns (uint256 sum) {
-        for (uint256 p; p < c.inputs.assets.length; ++p) {
-            if (c.inputs.assets[p] == assetIndex) {
-                sum += s.consumed[p];
-            }
-        }
-    }
-
     function _consumedValue(
         Constraints memory c,
         Run memory run,
@@ -1039,16 +1072,15 @@ library IntentEvaluator {
     {
         Rule memory rule = c.rules[r];
         for (uint256 j; j < rule.inputs.length; ++j) {
-            uint16 p = rule.inputs[j];
-            uint256 amount = s.consumed[p];
+            Input memory input = rule.inputs[j];
+            uint256 amount = s.consumed[input.asset];
             if (amount == 0) {
                 continue;
             }
-            uint16 price = c.inputs.prices[p];
-            if (price == Codes.NONE) {
+            if (input.price == Codes.NONE) {
                 revert NotExecutable(); // CONSUMED_VALUE needs a price for every input it sums
             }
-            uint256 rate = _oracle(c, run, price, c.assets[c.inputs.assets[p]].token, c.assets[quote].token);
+            uint256 rate = _oracle(c, run, input.price, c.assets[input.asset].token, c.assets[quote].token);
             sum += amount * rate / 1e18;
         }
     }
@@ -1223,9 +1255,9 @@ library IntentEvaluator {
         }
     }
 
-    function _isRuleInput(Constraints memory c, Rule memory rule, uint16 assetIndex) private pure returns (bool) {
+    function _isRuleInput(Rule memory rule, uint16 assetIndex) private pure returns (bool) {
         for (uint256 j; j < rule.inputs.length; ++j) {
-            if (c.inputs.assets[rule.inputs[j]] == assetIndex) {
+            if (rule.inputs[j].asset == assetIndex) {
                 return true;
             }
         }

@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import { Token, TokenType } from "../interfaces/IEnsoRouter.sol";
 import { Execution, IEphemeralFactory } from "../interfaces/IEphemeralFactory.sol";
-import { Asset, Codes, InputSet, Intent } from "../interfaces/IIntent.sol";
+import { Asset, Codes, Constraints, Input, Intent, Refund } from "../interfaces/IIntent.sol";
 import { IntentEvaluator, Run } from "../libraries/IntentEvaluator.sol";
 import { IntentHash } from "../libraries/IntentHash.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -103,21 +103,29 @@ contract EphemeralIntentExecutor {
     }
 
     /// Brick zone: every call here is tolerant. Fees first, best-effort, so permissionless refunds
-    /// are self-incentivizing; then the inputs and the caller's list to the beneficiary.
+    /// are self-incentivizing; then the refund assets, every rule input and the caller's list to
+    /// the beneficiary.
     function _refund(Intent memory intent, Token[] memory sweep, address caller, address to, bool withFee) private {
-        InputSet memory inputs = intent.constraints.inputs;
-        Asset[] memory assets = intent.constraints.assets;
-        uint256 n = inputs.assets.length;
-        bool consistent = inputs.refundFees.length == n;
-        for (uint256 p; p < n; ++p) {
-            if (inputs.assets[p] >= assets.length) {
+        Constraints memory c = intent.constraints;
+        Asset[] memory assets = c.assets;
+        bool paid = withFee && caller != intent.owner && caller != address(0);
+        for (uint256 i; i < c.refunds.length; ++i) {
+            Refund memory refund = c.refunds[i];
+            if (refund.asset >= assets.length) {
                 continue; // malformed entry: skipped, never indexed
             }
-            Asset memory a = assets[inputs.assets[p]];
-            if (withFee && consistent && caller != intent.owner && caller != address(0)) {
-                _tryPay(a, caller, inputs.refundFees[p]);
+            if (paid) {
+                _tryPay(assets[refund.asset], caller, refund.fee);
             }
-            _sweep(a, to);
+            _sweep(assets[refund.asset], to);
+        }
+        for (uint256 r; r < c.rules.length; ++r) {
+            Input[] memory inputs = c.rules[r].inputs;
+            for (uint256 j; j < inputs.length; ++j) {
+                if (inputs[j].asset < assets.length) {
+                    _sweep(assets[inputs[j].asset], to);
+                }
+            }
         }
         for (uint256 i; i < sweep.length; ++i) {
             _sweep(sweep[i], to);
@@ -131,10 +139,11 @@ contract EphemeralIntentExecutor {
         // Tolerant address decoding intentionally keeps the low 160 bits.
         // forge-lint: disable-next-line(unsafe-typecast)
         address asset = token.tokenType == TokenType.Native ? address(0) : address(uint160(_word(token.data, 0)));
-        InputSet memory inputs = intent.constraints.inputs;
-        for (uint256 p; p < inputs.assets.length; ++p) {
-            if (inputs.assets[p] < intent.constraints.assets.length) {
-                if (intent.constraints.assets[inputs.assets[p]].token == asset) {
+        Constraints memory c = intent.constraints;
+        for (uint256 r; r < c.rules.length; ++r) {
+            Input[] memory inputs = c.rules[r].inputs;
+            for (uint256 j; j < inputs.length; ++j) {
+                if (inputs[j].asset < c.assets.length && c.assets[inputs[j].asset].token == asset) {
                     return true;
                 }
             }

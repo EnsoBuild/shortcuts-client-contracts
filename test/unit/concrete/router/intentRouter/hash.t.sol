@@ -5,13 +5,15 @@ import {
     Asset,
     Constraints,
     Consume,
+    Fee,
     Handoff,
-    InputSet,
+    Input,
     Intent,
     Lifetime,
     Param,
     Pattern,
     Predicate,
+    Refund,
     Request,
     Rule,
     Source,
@@ -29,10 +31,10 @@ import { Test } from "forge-std/Test.sol";
 /// an ephemeral tree commits to, for the same struct.
 contract IntentRouter_Hash_Unit_Concrete_Test is Test {
     address internal constant ROUTER = 0x7777777777777777777777777777777777777777;
-    bytes32 internal constant STRUCT_HASH = 0x0e2aa7a41fe6c9f8b4a00bfdff04f237417483f2044cb1c40164026281e7b6b3;
-    bytes32 internal constant DIGEST = 0x34b2bce713056612f143e0ace7c386af1bf0af23b92ef3bc89abf2d35acef20b;
+    bytes32 internal constant STRUCT_HASH = 0x6192f031d39f70a98eed0d2f8b103e79dbceff4b7554850af774388d8bf44670;
+    bytes32 internal constant DIGEST = 0x923aadfbf214b69d1df5c2fc971fb55a576a17e314dde2cb03eecd2edca64d3d;
     /// keccak256(keccak256(abi.encode(intent))), from viem's encodeAbiParameters.
-    bytes32 internal constant LEAF = 0x867dd45e00e77e429e2555c870933ae1102348819d1bd16d4cc5c035de4e97f5;
+    bytes32 internal constant LEAF = 0x04b1b843a14fc84c333c9f9b418bc31d7f233213b38b0e33045b223de7dac7c9;
 
     function test_WhenHashedAgainstTheReferenceEncoder() external {
         vm.chainId(31_337);
@@ -40,7 +42,7 @@ contract IntentRouter_Hash_Unit_Concrete_Test is Test {
         Intent memory intent = _intent();
 
         assertEq(IntentHash.hash(intent), STRUCT_HASH, "struct hash");
-        assertEq(IntentRouter(ROUTER).hash(intent), DIGEST, "digest");
+        assertEq(IntentRouter(payable(ROUTER)).hash(intent), DIGEST, "digest");
         assertEq(IntentHash.leaf(intent), LEAF, "ephemeral leaf");
     }
 
@@ -76,15 +78,8 @@ contract IntentRouter_Hash_Unit_Concrete_Test is Test {
             args: patternArgs,
             wildcards: 2
         });
-        uint16[] memory inputAssets = new uint16[](1);
-        uint256[] memory minimums = new uint256[](1);
-        minimums[0] = 100 ether;
-        uint16[] memory prices = new uint16[](1);
-        prices[0] = 65_535;
-        uint256[] memory refundFees = new uint256[](1);
-        refundFees[0] = 0.5 ether;
-        c.inputs =
-            InputSet({ assets: inputAssets, minimums: minimums, prices: prices, refundFees: refundFees, threshold: 1 });
+        c.refunds = new Refund[](1);
+        c.refunds[0] = Refund({ asset: 0, fee: 0.5 ether });
         c.terms = new Term[](4);
         c.terms[0] = Term({ op: 3, a: 1, b: 1, value: 0, data: "" });
         c.terms[1] = Term({ op: 7, a: 0, b: 0, value: 0, data: "" });
@@ -107,7 +102,12 @@ contract IntentRouter_Hash_Unit_Concrete_Test is Test {
         c.predicates = new Predicate[](2);
         c.predicates[0] = Predicate({ cmp: 0, lhs: 0, rhs: 2, enforce: 0, source: 65_535, group: 0 });
         c.predicates[1] = Predicate({ cmp: 5, lhs: 0, rhs: 0, enforce: 0, source: 65_535, group: 1 });
-        uint16[] memory ruleInputs = new uint16[](1);
+        Input[] memory ruleInputs = new Input[](2);
+        ruleInputs[0] = Input({ asset: 0, minimum: 100 ether, price: 65_535 });
+        ruleInputs[1] = Input({ asset: 1, minimum: 0, price: 0 });
+        Fee[] memory fees = new Fee[](2);
+        fees[0] = Fee({ asset: 0, amount: 1 });
+        fees[1] = Fee({ asset: 1, amount: 0 });
         uint16[] memory then = new uint16[](2);
         then[1] = 1;
         Param[] memory params = new Param[](1);
@@ -115,11 +115,12 @@ contract IntentRouter_Hash_Unit_Concrete_Test is Test {
         c.rules = new Rule[](1);
         c.rules[0] = Rule({
             inputs: ruleInputs,
+            threshold: 2,
             when: new uint16[](0),
             then: then,
-            feeAsset: 0,
-            fee: 1,
+            fees: fees,
             consume: 1,
+            routing: 1,
             route: hex"deadbeef",
             request: Request({ api: keccak256("enso.bundle.v1"), body: '{"a":"{$amount}"}', params: params })
         });

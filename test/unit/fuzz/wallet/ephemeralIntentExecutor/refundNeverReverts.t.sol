@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Execution } from "../../../../../src/interfaces/IEphemeralFactory.sol";
-import { Asset, Codes, Constraints, InputSet, Intent } from "../../../../../src/interfaces/IIntent.sol";
+import { Asset, Codes, Constraints, Intent, Refund } from "../../../../../src/interfaces/IIntent.sol";
 import { EphemeralIntentExecutor } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
 import {
     EphemeralIntentExecutor_Unit_Concrete_Test
@@ -43,32 +43,25 @@ contract EphemeralIntentExecutor_RefundNeverReverts_Unit_Fuzz_Test is EphemeralI
     }
 
     /// forge-config: default.fuzz.runs = 1000
-    function testFuzz_RefundNeverReverts_inputSet(
-        uint16 assetIndex,
+    function testFuzz_RefundNeverReverts_inputs(
+        uint16 inputAsset,
+        uint16 refundAsset,
         uint8 kind,
         address token,
         uint256 refundFee,
-        uint8 lengths
+        uint8 threshold
     )
         external
     {
         Intent memory intent = _swapIntent();
         Constraints memory c = intent.constraints;
-        // A committed input whose asset may be out of range, of any kind, at any address, with
-        // arrays of mismatched lengths.
+        // A committed rule input and refund entry whose assets may be out of range, of any kind,
+        // at any address, under any threshold.
         c.assets[0] = Asset({ kind: kind, chainId: block.chainid, token: token, id: 0 });
-        uint16[] memory assets = new uint16[](1);
-        assets[0] = assetIndex % 4;
-        c.inputs = InputSet({
-            assets: assets,
-            minimums: new uint256[](lengths % 3),
-            prices: new uint16[](lengths % 2),
-            refundFees: new uint256[](lengths % 2 == 0 ? 1 : 0),
-            threshold: 1
-        });
-        if (c.inputs.refundFees.length == 1) {
-            c.inputs.refundFees[0] = refundFee;
-        }
+        c.rules[0].inputs[0].asset = inputAsset % 4;
+        c.rules[0].threshold = threshold;
+        c.refunds = new Refund[](1);
+        c.refunds[0] = Refund({ asset: refundAsset % 4, fee: refundFee });
         _refundAndCheck(intent, new Token[](0));
     }
 

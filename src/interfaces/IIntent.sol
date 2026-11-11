@@ -25,7 +25,7 @@ struct Constraints {
     Source[] sources;
     View[] views;
     Pattern[] patterns;
-    InputSet inputs;
+    Refund[] refunds; // what a refund returns for a fee; rule inputs are always returned, fee-free when unlisted
     Term[] terms;
     Handoff[] handoffs;
     Consume[] consumes;
@@ -46,12 +46,24 @@ struct Asset {
     uint256 id; // ERC721/ERC1155 id; unused otherwise
 }
 
-struct InputSet {
-    uint16[] assets; // allowlist of asset indices
-    uint256[] minimums; // per asset: below this the asset counts as absent; the EXACT amount
-    uint16[] prices; // per asset: ORACLE source for CONSUMED_VALUE; Codes.NONE for none
-    uint256[] refundFees; // per asset: fixed fee, in that asset, for refunding it
-    uint8 threshold; // k-of-n: 1 = ANY, assets.length = ALL; 0 with no assets = no inputs
+/// One input a rule consumes.
+struct Input {
+    uint16 asset;
+    uint256 minimum; // below this the input counts as absent; the amount consumed under EXACT
+    uint16 price; // ORACLE source for CONSUMED_VALUE; Codes.NONE for none
+}
+
+/// A fee candidate: an amount in one asset. A rule with inputs names only its inputs, and pays the
+/// first that is present; a rule without inputs names at most one, paid from the holder.
+struct Fee {
+    uint16 asset;
+    uint16 amount; // term index; pre-state only
+}
+
+/// A refundable asset and the fixed fee, in that asset, for refunding it.
+struct Refund {
+    uint16 asset;
+    uint256 fee;
 }
 
 struct View {
@@ -87,14 +99,15 @@ struct Predicate {
 }
 
 struct Rule {
-    uint16[] inputs; // InputSet positions this rule consumes
-    uint16[] when; // predicate indices: the guard; empty = active iff any input is present (always, if none)
+    Input[] inputs; // what this rule consumes
+    uint8 threshold; // k-of-n over inputs: 1 = ANY, inputs.length = ALL; 0 with no inputs
+    uint16[] when; // predicate indices: the guard, on top of the threshold; empty = the threshold alone
     uint16[] then; // predicate indices that must hold when the rule is active
-    uint16 feeAsset; // asset the keeper's fee is paid in; Codes.NONE for no fee
-    uint16 fee; // term index: the keeper's fee; Codes.NONE for no fee
+    Fee[] fees; // the keeper's fee: paid in the first candidate that is a present input; empty = none
     uint8 consume; // Codes.EXACT | Codes.DRAIN
-    bytes route; // committed shortcut data for the router; empty = the keeper supplies this rule's bytes
-    Request request; // what the keeper builds this rule's route from, when route is empty
+    uint8 routing; // Codes.ROUTE_NONE | ROUTE_COMMITTED | ROUTE_KEEPER
+    bytes route; // committed shortcut data for the router; ROUTE_COMMITTED only
+    Request request; // what the keeper builds this rule's route from; ROUTE_KEEPER only
 }
 
 struct Request {
@@ -205,6 +218,11 @@ library Codes {
     // Rule.consume
     uint8 internal constant EXACT = 0;
     uint8 internal constant DRAIN = 1;
+
+    // Rule.routing
+    uint8 internal constant ROUTE_NONE = 0; // no route: inputs go only to fees and handoffs; keeper bytes ignored
+    uint8 internal constant ROUTE_COMMITTED = 1; // Rule.route runs; keeper bytes ignored
+    uint8 internal constant ROUTE_KEEPER = 2; // the keeper's bytes run; the custody test applies
 
     // Param.kind
     uint8 internal constant PARAM_ACCOUNT = 0;
