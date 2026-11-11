@@ -75,6 +75,7 @@ contract EphemeralIntentExecutor_Route_Test is EphemeralIntentExecutor_Unit_Conc
         Constraints memory c =
             _swap(address(s_router), address(s_tokenIn), address(s_tokenOut), DEPOSIT, 2e18, 0, 0, Codes.DRAIN);
         c.rules[0].then = new uint16[](0); // no outcome predicate: the committed bytes are the constraint
+        c.rules[0].routing = Codes.ROUTE_COMMITTED;
         c.rules[0].route = hex"beef";
         Intent memory intent = _intent(c, s_user, s_keeper);
         bytes32 root = _root(intent);

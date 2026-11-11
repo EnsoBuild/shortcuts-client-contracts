@@ -46,7 +46,7 @@ contract EphemeralIntentExecutor_Terms_Test is EphemeralIntentExecutor_Unit_Conc
         Constraints memory c = _base();
         c.sources = new Source[](1);
         c.sources[0] = Source({ kind: Codes.ORACLE, target: address(s_oracle), config: abi.encode(uint32(1 hours)) });
-        c.inputs.prices[0] = 0;
+        c.rules[0].inputs[0].price = 0;
         c.terms = new Term[](3);
         c.terms[0] = _term(Codes.OP_DELTA, 1, Codes.OWNER, 0);
         c.terms[1] = _term(Codes.OP_CONSUMED_VALUE, 1, 0, 0);

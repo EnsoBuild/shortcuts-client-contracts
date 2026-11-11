@@ -6,13 +6,15 @@ import {
     Codes,
     Constraints,
     Consume,
+    Fee,
     Handoff,
-    InputSet,
+    Input,
     Intent,
     Lifetime,
     Param,
     Pattern,
     Predicate,
+    Refund,
     Request,
     Rule,
     Source,
@@ -36,13 +38,7 @@ abstract contract IntentFixtures is Test {
         c.sources = new Source[](0);
         c.views = new View[](0);
         c.patterns = new Pattern[](0);
-        c.inputs = InputSet({
-            assets: new uint16[](0),
-            minimums: new uint256[](0),
-            prices: new uint16[](0),
-            refundFees: new uint256[](0),
-            threshold: 0
-        });
+        c.refunds = new Refund[](0);
         c.terms = new Term[](0);
         c.handoffs = new Handoff[](0);
         c.consumes = new Consume[](0);
@@ -80,8 +76,9 @@ abstract contract IntentFixtures is Test {
         return Predicate({ cmp: cmp, lhs: lhs, rhs: rhs, enforce: Codes.ONCHAIN, source: NONE, group: 0 });
     }
 
+    /// A keeper-routed rule that runs when any one of its inputs is present.
     function _rule(
-        uint16[] memory inputs,
+        Input[] memory inputs,
         uint16[] memory then,
         uint16 feeAsset,
         uint16 fee,
@@ -93,11 +90,12 @@ abstract contract IntentFixtures is Test {
     {
         return Rule({
             inputs: inputs,
+            threshold: inputs.length > 0 ? 1 : 0,
             when: new uint16[](0),
             then: then,
-            feeAsset: feeAsset,
-            fee: fee,
+            fees: fee == NONE ? new Fee[](0) : _fee(feeAsset, fee),
             consume: consume,
+            routing: Codes.ROUTE_KEEPER,
             route: "",
             request: Request({ api: bytes32(0), body: "", params: new Param[](0) })
         });
@@ -114,15 +112,37 @@ abstract contract IntentFixtures is Test {
         list[1] = b;
     }
 
-    function _inputs(uint16 asset, uint256 minimum, uint256 refundFee) internal pure returns (InputSet memory) {
-        uint256[] memory minimums = new uint256[](1);
-        minimums[0] = minimum;
-        uint256[] memory refundFees = new uint256[](1);
-        refundFees[0] = refundFee;
-        uint16[] memory prices = new uint16[](1);
-        prices[0] = NONE;
-        return
-            InputSet({ assets: _one(asset), minimums: minimums, prices: prices, refundFees: refundFees, threshold: 1 });
+    /// One unpriced input.
+    function _input(uint16 asset, uint256 minimum) internal pure returns (Input[] memory list) {
+        list = new Input[](1);
+        list[0] = Input({ asset: asset, minimum: minimum, price: NONE });
+    }
+
+    /// Two unpriced inputs.
+    function _inputs(
+        uint16 a,
+        uint256 minimumA,
+        uint16 b,
+        uint256 minimumB
+    )
+        internal
+        pure
+        returns (Input[] memory list)
+    {
+        list = new Input[](2);
+        list[0] = Input({ asset: a, minimum: minimumA, price: NONE });
+        list[1] = Input({ asset: b, minimum: minimumB, price: NONE });
+    }
+
+    /// One fee candidate: `amount` is a term index.
+    function _fee(uint16 asset, uint16 amount) internal pure returns (Fee[] memory list) {
+        list = new Fee[](1);
+        list[0] = Fee({ asset: asset, amount: amount });
+    }
+
+    function _refund(uint16 asset, uint256 fee) internal pure returns (Refund[] memory list) {
+        list = new Refund[](1);
+        list[0] = Refund({ asset: asset, fee: fee });
     }
 
     /// Swap `tokenIn` to `tokenOut` through a keeper route, delivered to the owner, with a floor of
@@ -146,7 +166,7 @@ abstract contract IntentFixtures is Test {
         c.assets = new Asset[](2);
         c.assets[0] = _erc20(tokenIn);
         c.assets[1] = _erc20(tokenOut);
-        c.inputs = _inputs(0, minimum, refundFee);
+        c.refunds = _refund(0, refundFee);
         c.terms = new Term[](5);
         c.terms[0] = _term(Codes.OP_DELTA, 1, Codes.OWNER, 0);
         c.terms[1] = _term(Codes.OP_CONSUMED, 0, 0, 0);
@@ -156,7 +176,9 @@ abstract contract IntentFixtures is Test {
         c.predicates = new Predicate[](1);
         c.predicates[0] = _pred(Codes.CMP_GTE, 0, 3);
         c.rules = new Rule[](1);
-        c.rules[0] = fee > 0 ? _rule(_one(0), _one(0), 0, 4, consume) : _rule(_one(0), _one(0), NONE, NONE, consume);
+        c.rules[0] = fee > 0
+            ? _rule(_input(0, minimum), _one(0), 0, 4, consume)
+            : _rule(_input(0, minimum), _one(0), NONE, NONE, consume);
     }
 
     /// Hand `token` to a guardian for delivery on `chainId`: minimum = consumed − fee, deadline =
@@ -182,7 +204,6 @@ abstract contract IntentFixtures is Test {
         c.assets[1] = Asset({ kind: Codes.ERC20, chainId: chainId, token: token, id: 0 });
         c.sources = new Source[](1);
         c.sources[0] = Source({ kind: Codes.GUARDIAN, target: guardian, config: abi.encode(level) });
-        c.inputs = _inputs(0, minimum, 0);
         c.terms = new Term[](6);
         c.terms[0] = _term(Codes.OP_CONSUMED, 0, 0, 0);
         c.terms[1] = _term(Codes.OP_CONST, 0, 0, fee);
@@ -205,6 +226,7 @@ abstract contract IntentFixtures is Test {
         c.predicates = new Predicate[](1);
         c.predicates[0] = _pred(Codes.CMP_ACCEPTED, 0, 0);
         c.rules = new Rule[](1);
-        c.rules[0] = _rule(_one(0), _one(0), 0, 1, Codes.DRAIN);
+        c.rules[0] = _rule(_input(0, minimum), _one(0), 0, 1, Codes.DRAIN);
+        c.rules[0].routing = Codes.ROUTE_NONE; // straight to the guardian; keeper bytes ignored
     }
 }
