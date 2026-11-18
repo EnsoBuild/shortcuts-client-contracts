@@ -130,6 +130,55 @@ contract EnsoWalletV2Factory_DeployAndExecute_Unit_Concrete_Test is EnsoWalletV2
         assertEq(weth.balanceOf(s_account1), value);
     }
 
+    function test_executeShortcutWithTwoERC721Ids() external {
+        uint256 largeId = (uint256(1) << 128) + 7;
+        s_erc721.mint(s_user, 0);
+        s_erc721.mint(s_user, largeId);
+        address expectedWallet = s_walletFactory.getAddress(s_user);
+        Token[] memory tokensIn = new Token[](2);
+        tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(s_erc721), uint256(0)) });
+        tokensIn[1] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(s_erc721), largeId) });
+        bytes32[] memory commands = new bytes32[](2);
+        bytes[] memory state = new bytes[](4);
+        state[0] = abi.encode(expectedWallet);
+        state[1] = abi.encode(s_account1);
+        state[2] = abi.encode(uint256(0));
+        state[3] = abi.encode(largeId);
+        commands[0] =
+            WeirollPlanner.buildCommand(s_erc721.transferFrom.selector, 0x01, 0x000102ffffff, 0xff, address(s_erc721));
+        commands[1] =
+            WeirollPlanner.buildCommand(s_erc721.transferFrom.selector, 0x01, 0x000103ffffff, 0xff, address(s_erc721));
+        vm.startPrank(s_user);
+        s_erc721.approve(address(s_walletFactory), 0);
+        s_erc721.approve(address(s_walletFactory), largeId);
+        (address wallet,) = s_walletFactory.deployAndExecute(
+            tokensIn, _buildExecuteShortcutsCalldata(commands, state), new address[](0), false
+        );
+        vm.stopPrank();
+        assertEq(wallet, expectedWallet);
+        assertEq(s_erc721.ownerOf(0), s_account1);
+        assertEq(s_erc721.ownerOf(largeId), s_account1);
+        assertEq(s_erc721.balanceOf(wallet), 0);
+    }
+
+    function test_revert_secondERC721FundingRollsBackFirst() external {
+        s_erc721.mint(s_user, 7);
+        s_erc721.mint(s_user, 8);
+        Token[] memory tokensIn = new Token[](2);
+        tokensIn[0] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(s_erc721), uint256(7)) });
+        tokensIn[1] = Token({ tokenType: TokenType.ERC721, data: abi.encode(address(s_erc721), uint256(8)) });
+        address wallet = s_walletFactory.getAddress(s_user);
+        bytes memory executeData = _buildExecuteShortcutsCalldata(new bytes32[](0), new bytes[](0));
+        vm.startPrank(s_user);
+        s_erc721.approve(address(s_walletFactory), 7);
+        vm.expectRevert();
+        s_walletFactory.deployAndExecute(tokensIn, executeData, new address[](0), false);
+        vm.stopPrank();
+        assertEq(s_erc721.ownerOf(7), s_user);
+        assertEq(s_erc721.ownerOf(8), s_user);
+        assertEq(wallet.code.length, 0);
+    }
+
     function test_executeShortcutWithExecutors() external {
         Token[] memory tokensIn = new Token[](0);
 
