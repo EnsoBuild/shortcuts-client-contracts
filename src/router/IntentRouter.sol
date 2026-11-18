@@ -67,16 +67,16 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
         if (block.timestamp > intent.deadline) {
             revert Expired();
         }
-        Intent memory signed = intent;
-        bytes32 digest = _hashTypedDataV4(IntentHash.hash(signed));
+        // The intent stays in calldata: the hash reads it in place, and the evaluator decodes it once.
+        bytes32 digest = _hashTypedDataV4(IntentHash.hash(intent));
         if (!_isValidSignature(intent.owner, digest, signature)) {
             revert InvalidSignature();
         }
         // A standing intent pulling from a wallet needs a schedule or a count: otherwise a keeper
         // could repeat it within one block until the owner's allowance runs out.
-        Lifetime memory lifetime = signed.constraints.lifetime;
+        Lifetime calldata lifetime = intent.constraints.lifetime;
         if (lifetime.kind == Codes.STANDING && lifetime.interval == 0 && lifetime.count == 0) {
-            Rule[] memory rules = signed.constraints.rules;
+            Rule[] calldata rules = intent.constraints.rules;
             for (uint256 r; r < rules.length; ++r) {
                 if (rules[r].inputs.length > 0) {
                     // forge-lint: disable-next-line(require-revert-in-loop)
@@ -85,7 +85,7 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
             }
         }
         // Written first; any revert below undoes it.
-        _useRecord(signed);
+        _useRecord(intent);
 
         Run memory run = Run({
             id: digest,
@@ -100,7 +100,7 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
             contexts: contexts
         });
         // Attestation, trace patterns, malformed structure and unchecked keeper routes revert.
-        uint8 status = IntentEvaluator.evaluate(signed, run);
+        uint8 status = IntentEvaluator.evaluate(intent, run);
         if (status != IntentEvaluator.OK) {
             revert Rejected(status);
         }
@@ -129,7 +129,7 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
         return _hashTypedDataV4(IntentHash.hash(intent));
     }
 
-    function _useRecord(Intent memory intent) private {
+    function _useRecord(Intent calldata intent) private {
         (uint8 verdict, uint256 updated) =
             IntentRecord.next(intent.constraints.lifetime, intent.start, records[intent.owner][intent.nonce]);
         if (verdict == IntentRecord.EXHAUSTED) {

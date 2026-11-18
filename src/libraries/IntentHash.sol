@@ -114,8 +114,8 @@ library IntentHash {
     bytes32 internal constant TERM_TYPEHASH = keccak256(bytes(TERM));
     bytes32 internal constant VIEW_TYPEHASH = keccak256(bytes(VIEW));
 
-    /// @notice EIP-712 hashStruct(intent).
-    function hash(Intent memory intent) public pure returns (bytes32) {
+    /// @notice EIP-712 hashStruct(intent), read in place from calldata: nothing is decoded.
+    function hash(Intent calldata intent) public pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 INTENT_TYPEHASH,
@@ -138,7 +138,7 @@ library IntentHash {
         return keccak256(bytes.concat(keccak256(abi.encode(intent))));
     }
 
-    function _constraints(Constraints memory c) private pure returns (bytes32) {
+    function _constraints(Constraints calldata c) private pure returns (bytes32) {
         // Two encodes: a single abi.encode of every field exceeds the stack.
         bytes memory head = abi.encode(
             CONSTRAINTS_TYPEHASH,
@@ -163,41 +163,41 @@ library IntentHash {
         return keccak256(bytes.concat(head, tail));
     }
 
-    function _lifetime(Lifetime memory l) private pure returns (bytes32) {
+    function _lifetime(Lifetime calldata l) private pure returns (bytes32) {
         return keccak256(abi.encode(LIFETIME_TYPEHASH, l.kind, l.interval, l.count));
     }
 
-    function _assets(Asset[] memory items) private pure returns (bytes32) {
+    function _assets(Asset[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Asset memory a = items[i];
+            Asset calldata a = items[i];
             hashes[i] = keccak256(abi.encode(ASSET_TYPEHASH, a.kind, a.chainId, a.token, a.id));
         }
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _sources(Source[] memory items) private pure returns (bytes32) {
+    function _sources(Source[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Source memory s = items[i];
+            Source calldata s = items[i];
             hashes[i] = keccak256(abi.encode(SOURCE_TYPEHASH, s.kind, s.target, keccak256(s.config)));
         }
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _views(View[] memory items) private pure returns (bytes32) {
+    function _views(View[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            View memory v = items[i];
+            View calldata v = items[i];
             hashes[i] = keccak256(abi.encode(VIEW_TYPEHASH, v.target, v.selector, keccak256(v.args), v.word));
         }
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _patterns(Pattern[] memory items) private pure returns (bytes32) {
+    function _patterns(Pattern[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Pattern memory p = items[i];
+            Pattern calldata p = items[i];
             hashes[i] = keccak256(
                 abi.encode(PATTERN_TYPEHASH, p.kind, p.target, p.sig, keccak256(abi.encodePacked(p.args)), p.wildcards)
             );
@@ -205,7 +205,7 @@ library IntentHash {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _refunds(Refund[] memory items) private pure returns (bytes32) {
+    function _refunds(Refund[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
             hashes[i] = keccak256(abi.encode(REFUND_TYPEHASH, items[i].asset, items[i].fee));
@@ -213,19 +213,19 @@ library IntentHash {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _terms(Term[] memory items) private pure returns (bytes32) {
+    function _terms(Term[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Term memory t = items[i];
+            Term calldata t = items[i];
             hashes[i] = keccak256(abi.encode(TERM_TYPEHASH, t.op, t.a, t.b, t.value, keccak256(t.data)));
         }
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _handoffs(Handoff[] memory items) private pure returns (bytes32) {
+    function _handoffs(Handoff[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Handoff memory h = items[i];
+            Handoff calldata h = items[i];
             hashes[i] = keccak256(
                 abi.encode(
                     HANDOFF_TYPEHASH,
@@ -244,28 +244,28 @@ library IntentHash {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _consumes(Consume[] memory items) private pure returns (bytes32) {
+    function _consumes(Consume[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Consume memory c = items[i];
+            Consume calldata c = items[i];
             hashes[i] = keccak256(abi.encode(CONSUME_TYPEHASH, c.source, c.key, c.amount, c.cap, c.period));
         }
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _predicates(Predicate[] memory items) private pure returns (bytes32) {
+    function _predicates(Predicate[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Predicate memory p = items[i];
+            Predicate calldata p = items[i];
             hashes[i] = keccak256(abi.encode(PREDICATE_TYPEHASH, p.cmp, p.lhs, p.rhs, p.enforce, p.source, p.group));
         }
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _rules(Rule[] memory items) private pure returns (bytes32) {
+    function _rules(Rule[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Rule memory r = items[i];
+            Rule calldata r = items[i];
             hashes[i] = keccak256(
                 abi.encode(
                     RULE_TYPEHASH,
@@ -284,7 +284,7 @@ library IntentHash {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _fees(Fee[] memory items) private pure returns (bytes32) {
+    function _fees(Fee[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
             hashes[i] = keccak256(abi.encode(FEE_TYPEHASH, items[i].asset, items[i].amount));
@@ -292,19 +292,19 @@ library IntentHash {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _inputs(Input[] memory items) private pure returns (bytes32) {
+    function _inputs(Input[] calldata items) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](items.length);
         for (uint256 i; i < items.length; ++i) {
-            Input memory input = items[i];
+            Input calldata input = items[i];
             hashes[i] = keccak256(abi.encode(INPUT_TYPEHASH, input.asset, input.minimum, input.price));
         }
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function _request(Request memory q) private pure returns (bytes32) {
+    function _request(Request calldata q) private pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](q.params.length);
         for (uint256 i; i < q.params.length; ++i) {
-            Param memory p = q.params[i];
+            Param calldata p = q.params[i];
             hashes[i] = keccak256(abi.encode(PARAM_TYPEHASH, p.name, p.kind, p.index));
         }
         return

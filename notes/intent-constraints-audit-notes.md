@@ -73,8 +73,18 @@ The ephemeral note's §1 severity model still governs the executor:
 
 ## 2. Architecture
 
-An intent is one `Intent` per chain. The two contracts hold its funds
-differently:
+Each `Intent` covers one chain. The router executes one signed `Intent`. An
+ephemeral tree may hold several leaves for the same chain, plus an optional
+default leaf (`chainId 0`). The executor runs whichever leaf the caller proves
+for the current chain, and the caller chooses which. A chain's leaves share the
+address's execution record and its counter key, both of which are keyed by the
+root. So:
+
+- a `ONCE` lifetime is used up by whichever leaf executes first;
+- `MATCH_FIRST` order holds only within a leaf;
+- two leaves consuming the same asset let the keeper choose which one takes it.
+
+The two contracts hold an intent's funds differently:
 
 |                            | Ephemeral (`EphemeralFactory` + executor)         | `IntentRouter`                           |
 | -------------------------- | ------------------------------------------------- | ---------------------------------------- |
@@ -88,7 +98,13 @@ differently:
 
 `IntentEvaluator` holds all constraint semantics. It is an external library, run
 by `delegatecall`, so every approval, transfer and call is made as the calling
-contract. Both contracts call `evaluate(intent, run)`. The `Run` struct supplies
+contract. Both contracts call `evaluate(intent, run)`. It takes the intent as
+calldata and decodes it into memory once:
+
+- the router passes its own calldata;
+- the executor passes the copy it decoded from the factory's context.
+
+The library receives the same ABI bytes either way. The `Run` struct supplies
 what differs between them:
 
 - `holder` is the intent address or the owner.
@@ -106,8 +122,9 @@ what differs between them:
 Every non-OK status means nothing has moved. Liveness failures revert
 (`NotKeeper`, `TooEarly`, `NotYet`, and anything execution raises).
 
-`IntentHash.hash` is the EIP-712 struct hash. `IntentHash.leaf` is internal, so
-proof verification depends on no deployed library.
+`IntentHash.hash` is the EIP-712 struct hash. It reads the intent in place from
+calldata and decodes nothing. `IntentHash.leaf` is internal, so proof
+verification depends on no deployed library.
 
 ---
 
@@ -385,7 +402,8 @@ caller.
 
 1. Keeper gate, `chainId == block.chainid`, then `start` and `deadline`.
 2. Signature over the EIP-712 digest under `IntentRouter`/`2`: ECDSA first (EOAs
-   and EIP-7702 accounts), then ERC-1271.
+   and EIP-7702 accounts), then ERC-1271. The intent stays in calldata
+   throughout: the router keeps no memory copy of it.
 3. A `STANDING` intent with neither interval nor count is rejected `MALFORMED`
    if any rule has inputs. Otherwise a keeper could repeat it in one block until
    the allowance runs out.

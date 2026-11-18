@@ -401,8 +401,10 @@ library IntentEvaluator {
     ///         bound isn't positive), or EXHAUSTED. Liveness failures revert: NotKeeper, TooEarly,
     ///         NotYet, and anything execution itself raises.
     /// @dev The static check runs before the keeper gate, so a refused intent's refund is open to
-    ///      anyone; the runtime custody test runs after it.
-    function evaluate(Intent memory intent, Run memory run) public returns (uint8 status) {
+    ///      anyone; the runtime custody test runs after it. The intent is read from calldata and
+    ///      decoded into memory once, here.
+    function evaluate(Intent calldata signed, Run memory run) public returns (uint8 status) {
+        Intent memory intent = signed;
         status = check(intent);
         if (status != OK) {
             return status;
