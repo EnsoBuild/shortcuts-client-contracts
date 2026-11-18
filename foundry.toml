@@ -56,7 +56,6 @@ ignore = [
     'src/solvers/BebopSolver.sol',
     'src/solvers/MinimalWallet.sol',
     'src/utils/Withdrawable.sol',
-    'src/wallet/EphemeralIntentExecutor.sol',
     'src/AbstractEnsoShortcuts.sol',
     'src/AbstractMultiSend.sol',
     'src/EnsoShortcuts.sol',

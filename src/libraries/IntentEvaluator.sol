@@ -46,6 +46,9 @@ struct Run {
 /// @dev This version executes no attestation: intents with attested predicates or sources, or trace
 ///      patterns, are reported UNSUPPORTED. Rules that leave the keeper's route unchecked are
 ///      reported CUSTODIAL. Callers refuse both.
+// Evaluating constraints is loops of external reads and calls over committed lists, and any revert
+// aborts the whole execution with nothing partially applied.
+// forge-lint: disable-next-item(calls-loop, require-revert-in-loop)
 library IntentEvaluator {
     using SafeERC20 for IERC20;
 
@@ -290,7 +293,7 @@ library IntentEvaluator {
         pure
         returns (uint8)
     {
-        uint256 covered;
+        uint256 covered = 0;
         for (uint256 r; r < c.rules.length; ++r) {
             Rule memory rule = c.rules[r];
             if (rule.consume > Codes.DRAIN) {
@@ -300,7 +303,7 @@ library IntentEvaluator {
             if (status != OK) {
                 return status;
             }
-            uint256 mine;
+            uint256 mine = 0;
             for (uint256 j; j < rule.inputs.length; ++j) {
                 uint256 bit = uint256(1) << rule.inputs[j].asset;
                 // An asset appears once per rule, and under ALL matching in only one rule, so what
@@ -368,8 +371,8 @@ library IntentEvaluator {
     /// handoff, or a lower bound on post-state against a pre-state value. The value's sign is
     /// checked at execution.
     function _bounded(Constraints memory c, Rule memory rule, bool[] memory post) private pure returns (bool) {
-        uint256 seen;
-        uint256 bounded;
+        uint256 seen = 0;
+        uint256 bounded = 0;
         for (uint256 j; j < rule.then.length; ++j) {
             Predicate memory p = c.predicates[rule.then[j]];
             uint256 bit = uint256(1) << p.group;
@@ -430,6 +433,9 @@ library IntentEvaluator {
             return CUSTODIAL;
         }
         if (recorded) {
+            // ALLOWED: the verdict above is from this call, only this executor writes its record, and
+            // the factory is not reentrant.
+            // forge-lint: disable-next-line(unused-return)
             IEphemeralFactory(run.records).record(intent.constraints.lifetime, intent.start);
         }
     }
@@ -467,9 +473,9 @@ library IntentEvaluator {
             revert NoRouter();
         }
         Token[] memory tokens = new Token[](c.assets.length);
-        uint256 count;
-        uint256 value;
-        uint256 seen;
+        uint256 count = 0;
+        uint256 value = 0;
+        uint256 seen = 0;
         for (uint256 r; r < c.rules.length; ++r) {
             Input[] memory inputs = c.rules[r].inputs;
             for (uint256 j; j < inputs.length; ++j) {
@@ -494,6 +500,7 @@ library IntentEvaluator {
         assembly ("memory-safe") {
             mstore(tokens, count)
         }
+        // forge-lint: disable-next-line(unused-return)
         IEnsoRouter(router).routeMulti{ value: value }(tokens, data);
         for (uint256 i; i < count; ++i) {
             _revokeToken(tokens[i], router);
@@ -538,7 +545,7 @@ library IntentEvaluator {
 
     /// Pre-state: rule input holdings, DELTA baselines, and the frame's baselines.
     function _snapshot(Constraints memory c, Run memory run, State memory s) private view {
-        uint256 read;
+        uint256 read = 0;
         for (uint256 r; r < c.rules.length; ++r) {
             Input[] memory inputs = c.rules[r].inputs;
             for (uint256 j; j < inputs.length; ++j) {
@@ -566,10 +573,10 @@ library IntentEvaluator {
     }
 
     function _selectRules(Constraints memory c, Run memory run, State memory s) private view {
-        bool any;
+        bool any = false;
         for (uint256 r; r < c.rules.length; ++r) {
             Rule memory rule = c.rules[r];
-            uint256 present;
+            uint256 present = 0;
             for (uint256 j; j < rule.inputs.length; ++j) {
                 if (_present(rule.inputs[j], s)) {
                     ++present;
@@ -670,8 +677,8 @@ library IntentEvaluator {
                 continue;
             }
             Rule memory rule = c.rules[r];
-            uint256 seen;
-            uint256 bounded;
+            uint256 seen = 0;
+            uint256 bounded = 0;
             for (uint256 j; j < rule.then.length; ++j) {
                 Predicate memory p = c.predicates[rule.then[j]];
                 uint256 bit = uint256(1) << p.group;
@@ -710,9 +717,12 @@ library IntentEvaluator {
                 int256 fee = _eval(c, run, s, candidate.amount, r);
                 if (fee > 0 && run.caller != address(0)) {
                     // a non-positive fee is skipped, never inverted
+                    // casting to 'uint256' is safe because fee > 0
+                    // forge-lint: disable-next-line(unsafe-typecast)
+                    uint256 amount = uint256(fee);
                     s.feeAsset[r] = candidate.asset;
-                    s.fees[r] = uint256(fee);
-                    _send(c.assets[candidate.asset], run, run.caller, uint256(fee));
+                    s.fees[r] = amount;
+                    _send(c.assets[candidate.asset], run, run.caller, amount);
                 }
                 break;
             }
@@ -741,9 +751,12 @@ library IntentEvaluator {
                     _grantToken(tokens[i], router, s);
                 }
             }
+            // Route return data is unused: outcomes are measured on balances and views.
             if (tokens.length == 1) {
+                // forge-lint: disable-next-line(unused-return)
                 IEnsoRouter(router).routeSingle{ value: value }(tokens[0], data);
             } else {
+                // forge-lint: disable-next-line(unused-return)
                 IEnsoRouter(router).routeMulti{ value: value }(tokens, data);
             }
             for (uint256 i; i < tokens.length; ++i) {
@@ -767,7 +780,7 @@ library IntentEvaluator {
     {
         Rule memory rule = c.rules[r];
         tokens = new Token[](rule.inputs.length);
-        uint256 count;
+        uint256 count = 0;
         for (uint256 j; j < rule.inputs.length; ++j) {
             uint16 assetIndex = rule.inputs[j].asset;
             if (!s.present[assetIndex]) {
@@ -795,7 +808,7 @@ library IntentEvaluator {
     }
 
     function _handoffs(Constraints memory c, Run memory run, State memory s) private {
-        bool nativeInputs;
+        bool nativeInputs = false;
         for (uint256 r; r < c.rules.length; ++r) {
             Input[] memory inputs = c.rules[r].inputs;
             for (uint256 j; j < inputs.length; ++j) {
@@ -851,7 +864,7 @@ library IntentEvaluator {
             refund: h.refund,
             token: c.assets[h.asset].token,
             minAmount: _nonNegative(_eval(c, run, s, h.minAmount, r)),
-            deadline: uint64(_nonNegative(_eval(c, run, s, h.deadline, r)))
+            deadline: _deadline(_nonNegative(_eval(c, run, s, h.deadline, r)))
         });
         // Native forwarded beyond a native input is the keeper's messaging-fee money.
         uint256 value = input.kind == Codes.NATIVE ? amount : (nativeInputs ? 0 : address(this).balance);
@@ -859,9 +872,12 @@ library IntentEvaluator {
         if (input.kind != Codes.NATIVE) {
             _grantToken(token, address(guardian), s);
         }
+        // The receipt is the guardian's own record (its Accepted event); acceptance is tracked here.
+        // forge-lint: disable-start(unused-return)
         guardian.accept{ value: value }(
             run.id, token, amount, obligation, index < run.contexts.length ? run.contexts[index] : bytes("")
         );
+        // forge-lint: disable-end(unused-return)
         if (input.kind != Codes.NATIVE) {
             _revokeToken(token, address(guardian));
         }
@@ -882,13 +898,12 @@ library IntentEvaluator {
         returns (bool direct, uint256 amount)
     {
         Rule memory rule = c.rules[r];
-        if (_ruleData(rule, run, r).length > 0) {
-            return (false, 0);
-        }
-        direct = s.present[assetIndex] && _isRuleInput(rule, assetIndex);
-        amount = direct ? s.consumed[assetIndex] : 0;
-        if (direct && s.feeAsset[r] == assetIndex) {
-            amount = amount > s.fees[r] ? amount - s.fees[r] : 0;
+        direct = _ruleData(rule, run, r).length == 0 && s.present[assetIndex] && _isRuleInput(rule, assetIndex);
+        if (direct) {
+            amount = s.consumed[assetIndex];
+            if (s.feeAsset[r] == assetIndex) {
+                amount = amount > s.fees[r] ? amount - s.fees[r] : 0;
+            }
         }
     }
 
@@ -914,8 +929,8 @@ library IntentEvaluator {
                 continue;
             }
             // The lowest group whose comparisons and handoffs hold; its counter writes then apply.
-            uint256 seen;
-            uint256 failed;
+            uint256 seen = 0;
+            uint256 failed = 0;
             for (uint256 j; j < rule.then.length; ++j) {
                 Predicate memory p = c.predicates[rule.then[j]];
                 uint256 bit = uint256(1) << p.group;
@@ -930,6 +945,8 @@ library IntentEvaluator {
             }
             uint256 passing = seen & ~failed;
             if (passing == 0) {
+                // casting to 'uint16' only labels the error; nothing reads it on-chain
+                // forge-lint: disable-next-line(unsafe-typecast)
                 revert PredicateFailed(uint16(r));
             }
             uint256 chosen = passing & (~passing + 1); // lowest set bit
@@ -945,7 +962,8 @@ library IntentEvaluator {
     function _consume(Constraints memory c, Run memory run, State memory s, uint16 index, uint256 r) private {
         Consume memory k = c.consumes[index];
         uint256 amount = _nonNegative(_eval(c, run, s, k.amount, r));
-        // Reverts with CapExceeded when the window's cap would be passed.
+        // Reverts with CapExceeded when the window's cap would be passed; the usage isn't needed.
+        // forge-lint: disable-next-line(unused-return)
         IIntentCounter(c.sources[k.source].target).consume(run.record, k.key, amount, k.cap, k.period);
     }
 
@@ -975,6 +993,8 @@ library IntentEvaluator {
             }
             uint256 balance = _balanceOf(a, run.holder);
             if (balance + permitted[i] < s.framePre[i]) {
+                // casting to 'uint16' is safe because check() caps assets at 256
+                // forge-lint: disable-next-line(unsafe-typecast)
                 revert FrameViolation(uint16(i));
             }
         }
@@ -1001,8 +1021,8 @@ library IntentEvaluator {
         view
         returns (bool)
     {
-        uint256 seen;
-        uint256 failed;
+        uint256 seen = 0;
+        uint256 failed = 0;
         for (uint256 j; j < list.length; ++j) {
             Predicate memory p = c.predicates[list[j]];
             uint256 bit = uint256(1) << p.group;
@@ -1139,7 +1159,9 @@ library IntentEvaluator {
         if (source.kind == Codes.ORACLE) {
             return _oracle(c, run, t.a, c.assets[t.b].token, c.assets[t.value].token);
         }
-        // COUNTER: usage so far, as written by this contract.
+        // COUNTER: usage so far, as written by this contract. check() requires 32 bytes of key; the
+        // period is committed, and one that doesn't fit uint64 names no Consume's period.
+        // forge-lint: disable-next-line(unsafe-typecast)
         return IIntentCounter(source.target).used(address(this), run.record, bytes32(t.data), uint64(t.value));
     }
 
@@ -1314,13 +1336,25 @@ library IntentEvaluator {
     }
 
     function _signed(uint256 value) private pure returns (int256) {
+        // forge-lint: disable-next-line(unsafe-typecast)
         if (value > uint256(type(int256).max)) {
             revert Overflow();
         }
+        // casting to 'int256' is safe because of the bound above
+        // forge-lint: disable-next-line(unsafe-typecast)
         return int256(value);
     }
 
     function _nonNegative(int256 value) private pure returns (uint256) {
+        // casting to 'uint256' is safe because value > 0
+        // forge-lint: disable-next-line(unsafe-typecast)
         return value > 0 ? uint256(value) : 0;
+    }
+
+    /// A deadline beyond uint64 means no practical deadline: clamped, never truncated.
+    function _deadline(uint256 value) private pure returns (uint64) {
+        // casting to 'uint64' is safe because of the clamp
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return value > type(uint64).max ? type(uint64).max : uint64(value);
     }
 }

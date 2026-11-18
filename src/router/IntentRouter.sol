@@ -79,6 +79,7 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
             Rule[] memory rules = signed.constraints.rules;
             for (uint256 r; r < rules.length; ++r) {
                 if (rules[r].inputs.length > 0) {
+                    // forge-lint: disable-next-line(require-revert-in-loop)
                     revert Rejected(IntentEvaluator.MALFORMED);
                 }
             }

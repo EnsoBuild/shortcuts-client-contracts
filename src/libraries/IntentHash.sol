@@ -52,6 +52,8 @@ library IntentHash {
     string internal constant VIEW = "View(address target,bytes4 selector,bytes args,uint8 word)";
 
     // Referenced types follow the primary type in alphabetical order (EIP-712 encodeType).
+    // Constant type strings, concatenated as encodeType defines: no collision is possible.
+    // forge-lint: disable-start(encode-packed-collision)
     bytes32 internal constant INTENT_TYPEHASH = keccak256(
         abi.encodePacked(
             INTENT,
@@ -93,6 +95,7 @@ library IntentHash {
             VIEW
         )
     );
+    // forge-lint: disable-end(encode-packed-collision)
     bytes32 internal constant ASSET_TYPEHASH = keccak256(bytes(ASSET));
     bytes32 internal constant CONSUME_TYPEHASH = keccak256(bytes(CONSUME));
     bytes32 internal constant FEE_TYPEHASH = keccak256(bytes(FEE));
@@ -103,7 +106,9 @@ library IntentHash {
     bytes32 internal constant PATTERN_TYPEHASH = keccak256(bytes(PATTERN));
     bytes32 internal constant PREDICATE_TYPEHASH = keccak256(bytes(PREDICATE));
     bytes32 internal constant REFUND_TYPEHASH = keccak256(bytes(REFUND));
+    // forge-lint: disable-next-line(encode-packed-collision)
     bytes32 internal constant REQUEST_TYPEHASH = keccak256(abi.encodePacked(REQUEST, PARAM));
+    // forge-lint: disable-next-line(encode-packed-collision)
     bytes32 internal constant RULE_TYPEHASH = keccak256(abi.encodePacked(RULE, FEE, INPUT, PARAM, REQUEST));
     bytes32 internal constant SOURCE_TYPEHASH = keccak256(bytes(SOURCE));
     bytes32 internal constant TERM_TYPEHASH = keccak256(bytes(TERM));

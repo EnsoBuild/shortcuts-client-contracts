@@ -30,7 +30,10 @@ library IntentRecord {
         view
         returns (uint8 verdict, uint256 updated)
     {
+        // Unpacking: the record is only ever written by _pack.
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint64 window = uint64(record);
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint32 count = uint32(record >> 64);
         // The terminal check comes first: an unscheduled, uncounted lifetime reads neither field.
         if (window == type(uint64).max) {
@@ -44,8 +47,9 @@ library IntentRecord {
         }
         if (lifetime.interval > 0) {
             // Windows are anchored at start, never at the previous execution, so a late execution
-            // doesn't push later windows back and the keeper can't choose when one opens.
-            // forge-lint: disable-next-line(block-timestamp)
+            // doesn't push later windows back and the keeper can't choose when one opens. The window
+            // index is at most the seconds since start, far inside uint64.
+            // forge-lint: disable-next-line(block-timestamp, unsafe-typecast)
             uint64 current = uint64((block.timestamp - start) / lifetime.interval) + 1;
             if (window >= current) {
                 return (WAIT, record);

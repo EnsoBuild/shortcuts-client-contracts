@@ -51,6 +51,8 @@ contract BridgeGuardian is IIntentGuardian {
     error RefundToCaller();
     error Unsupported();
 
+    /// Zero addresses are valid: a zero messenger or spoke pool means that bridge isn't on this chain.
+    // forge-lint: disable-next-item(missing-zero-check)
     constructor(
         ITokenMessengerV2 tokenMessenger_,
         address usdc_,
@@ -113,8 +115,8 @@ contract BridgeGuardian is IIntentGuardian {
         receipt = keccak256(abi.encode(block.chainid, address(this), ++s_accepted));
         s_status[receipt] = Status.PENDING;
         // The executing keeper isn't visible here (msg.sender is the intent); tx.origin is recorded
-        // for reconciliation only.
-        // forge-lint: disable-next-line(tx-origin)
+        // for reconciliation only. The calls above go only to this token and the configured bridges.
+        // forge-lint: disable-next-line(tx-origin, reentrancy-events)
         emit Accepted(receipt, intentHash, tx.origin, obligation);
     }
 

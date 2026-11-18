@@ -106,7 +106,7 @@ contract EphemeralFactory is IEphemeralFactory, EIP712, ReentrancyGuardTransient
     }
 
     function _initCode(bytes32 root) private pure returns (bytes memory) {
-        return abi.encodePacked(type(EphemeralIntentExecutor).creationCode, abi.encode(root));
+        return bytes.concat(type(EphemeralIntentExecutor).creationCode, abi.encode(root));
     }
 
     function _setContext(bytes memory data, address sender) private {

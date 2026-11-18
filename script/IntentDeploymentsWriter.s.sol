@@ -42,6 +42,8 @@ contract IntentDeploymentsWriter is BridgeConfig {
                 console2.log("skipped (no fork):", rpcs[i].key);
                 continue;
             }
+            // Reading the chain id after switching forks is the point.
+            // forge-lint: disable-next-line(environment-read-across-mutation)
             if (block.chainid == ChainId.ZKSYNC || factory.code.length == 0) {
                 console2.log("skipped (no factory):", rpcs[i].key);
                 continue;

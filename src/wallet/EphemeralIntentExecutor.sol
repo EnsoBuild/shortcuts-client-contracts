@@ -158,7 +158,7 @@ contract EphemeralIntentExecutor {
         }
         if (a.kind == Codes.NATIVE) {
             if (address(this).balance >= amount) {
-                // forge-lint: disable-next-line(arbitrary-send-eth)
+                // forge-lint: disable-next-line(arbitrary-send-eth, calls-loop)
                 (bool success,) = to.call{ value: amount }("");
                 (success); // best-effort
             }
