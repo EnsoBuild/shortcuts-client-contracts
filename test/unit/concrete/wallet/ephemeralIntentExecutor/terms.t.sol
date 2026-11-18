@@ -102,6 +102,36 @@ contract EphemeralIntentExecutor_Terms_Test is EphemeralIntentExecutor_Unit_Conc
         assertEq(s_tokenOut.balanceOf(s_user), 200 ether, "delivered");
     }
 
+    /// A pre-state view the committed route moves is compared at its pre-state value, not re-read
+    /// after the route: the stranger's balance must not change, and the route changes it.
+    function test_PreView_IsFixedBeforeTheRoute() external {
+        Constraints memory c = _base();
+        c.rules[0].routing = Codes.ROUTE_COMMITTED;
+        c.rules[0].route = hex"beef";
+        c.views = new View[](1);
+        c.views[0] = View({
+            target: address(s_tokenOut), selector: IERC20.balanceOf.selector, args: abi.encode(s_stranger), word: 0
+        });
+        Term[] memory terms = new Term[](7);
+        for (uint256 i; i < c.terms.length; ++i) {
+            terms[i] = c.terms[i];
+        }
+        terms[5] = _term(Codes.OP_POST_VIEW, 0, 0, 0);
+        terms[6] = _term(Codes.OP_PRE_VIEW, 0, 0, 0);
+        c.terms = terms;
+        Predicate[] memory predicates = new Predicate[](2);
+        predicates[0] = c.predicates[0];
+        predicates[1] = _pred(Codes.CMP_EQ, 5, 6);
+        c.predicates = predicates;
+        c.rules[0].then = _two(0, 1);
+        Intent memory intent = _intent(c, s_user, s_keeper);
+
+        bytes32 root = _deliver(intent, 200 ether);
+        s_router.addOut(address(s_tokenOut), 1 ether, s_stranger);
+        vm.expectRevert(abi.encodeWithSelector(IntentEvaluator.PredicateFailed.selector, uint16(0)));
+        _run(s_keeper, root, _execution(intent));
+    }
+
     /// A lifetime budget of 150 TIN through the counter: the second 100 TIN execution exceeds it.
     function test_Counter_CapsAcrossExecutions() external {
         Constraints memory c = _base();

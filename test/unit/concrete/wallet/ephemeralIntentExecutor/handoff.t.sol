@@ -2,11 +2,23 @@
 pragma solidity ^0.8.28;
 
 import { Execution } from "../../../../../src/interfaces/IEphemeralFactory.sol";
-import { Codes, Constraints, Intent } from "../../../../../src/interfaces/IIntent.sol";
+import {
+    Asset,
+    Codes,
+    Constraints,
+    Handoff,
+    Intent,
+    Predicate,
+    Rule,
+    Source,
+    Term,
+    View
+} from "../../../../../src/interfaces/IIntent.sol";
 import { Level, Obligation } from "../../../../../src/interfaces/IIntentGuardian.sol";
 import { IntentEvaluator } from "../../../../../src/libraries/IntentEvaluator.sol";
 import { MockGuardian } from "../../../../mocks/MockGuardian.sol";
 import { EphemeralIntentExecutor_Unit_Concrete_Test } from "./EphemeralIntentExecutor.t.sol";
+import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
 contract EphemeralIntentExecutor_Handoff_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
     uint256 internal constant DEPOSIT = 100 ether;
@@ -93,5 +105,55 @@ contract EphemeralIntentExecutor_Handoff_Test is EphemeralIntentExecutor_Unit_Co
         _run(s_keeper, root, _execution(intent));
         assertEq(s_guardian.lastAmount(), 10 ether - FEE, "the minimum, less the fee");
         assertEq(s_tokenIn.balanceOf(at), DEPOSIT - 10 ether, "the rest stays");
+    }
+
+    /// After a keeper route, the handoff's minimum reads a view the route moves: it is fixed before
+    /// the route runs. Assets: 0 tokenIn, 1 tokenOut here, 2 tokenOut there.
+    ///   terms: 0 CONST 200, 1 PRE_VIEW(stranger's tokenOut), 2 SUB(0, 1), 3 NOW, 4 CONST window, 5 ADD(3, 4)
+    function test_Minimum_IsFixedBeforeTheRoute() external {
+        Constraints memory c = _constraints(address(s_router));
+        c.assets = new Asset[](3);
+        c.assets[0] = _erc20(address(s_tokenIn));
+        c.assets[1] = _erc20(address(s_tokenOut));
+        c.assets[2] = Asset({ kind: Codes.ERC20, chainId: DESTINATION, token: address(s_tokenOut), id: 0 });
+        c.sources = new Source[](1);
+        c.sources[0] =
+            Source({ kind: Codes.GUARDIAN, target: address(s_guardian), config: abi.encode(uint8(Level.FORWARD)) });
+        c.views = new View[](1);
+        c.views[0] = View({
+            target: address(s_tokenOut), selector: IERC20.balanceOf.selector, args: abi.encode(s_stranger), word: 0
+        });
+        c.terms = new Term[](6);
+        c.terms[0] = _term(Codes.OP_CONST, 0, 0, 200 ether);
+        c.terms[1] = _term(Codes.OP_PRE_VIEW, 0, 0, 0);
+        c.terms[2] = _term(Codes.OP_SUB, 0, 1, 0);
+        c.terms[3] = _term(Codes.OP_NOW, 0, 0, 0);
+        c.terms[4] = _term(Codes.OP_CONST, 0, 0, 6 hours);
+        c.terms[5] = _term(Codes.OP_ADD, 3, 4, 0);
+        c.handoffs = new Handoff[](1);
+        c.handoffs[0] = Handoff({
+            source: 0,
+            chainId: DESTINATION,
+            method: keccak256("cctp"),
+            recipient: s_user,
+            refund: s_user,
+            input: 1,
+            asset: 2,
+            minAmount: 2,
+            deadline: 5
+        });
+        c.predicates = new Predicate[](1);
+        c.predicates[0] = _pred(Codes.CMP_ACCEPTED, 0, 0);
+        c.rules = new Rule[](1);
+        c.rules[0] = _rule(_input(0, DEPOSIT), _one(0), NONE, NONE, Codes.DRAIN);
+        Intent memory intent = _intent(c, s_user, s_keeper);
+        bytes32 root = _root(intent);
+        address holder = _fund(root, DEPOSIT);
+        s_router.addOut(address(s_tokenOut), 200 ether, holder);
+        s_router.addOut(address(s_tokenOut), 150 ether, s_stranger);
+
+        _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
+        assertEq(s_guardian.lastAmount(), 200 ether, "the route's output handed over");
+        assertEq(s_guardian.lastObligation().minAmount, 200 ether, "200 less the stranger's pre-state holding");
     }
 }

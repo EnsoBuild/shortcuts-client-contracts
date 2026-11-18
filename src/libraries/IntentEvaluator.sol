@@ -443,6 +443,7 @@ library IntentEvaluator {
 
         _snapshot(c, run, s);
         _selectRules(c, run, s);
+        _freeze(c, run, s);
         if (!_positive(c, run, s)) {
             return false;
         }
@@ -610,6 +611,54 @@ library IntentEvaluator {
     function _present(Input memory input, State memory s) private pure returns (bool) {
         uint256 held = s.held[input.asset];
         return held >= input.minimum && (input.minimum > 0 || held > 0);
+    }
+
+    /// Fixes every pre-state value the active rules use before anything moves: the fee each pays,
+    /// its handoffs' minimums and deadlines, its counter amounts and the pre-state sides of its
+    /// outcome comparisons. Terms are memoized at their first evaluation, so a pre-state term first
+    /// read after the routes would read post-execution state instead.
+    function _freeze(Constraints memory c, Run memory run, State memory s) private view {
+        for (uint256 r; r < c.rules.length; ++r) {
+            if (!s.active[r]) {
+                continue;
+            }
+            Rule memory rule = c.rules[r];
+            // The candidate _payFees will evaluate.
+            for (uint256 j; j < rule.fees.length; ++j) {
+                if (rule.inputs.length == 0 || s.present[rule.fees[j].asset]) {
+                    _prime(c, run, s, rule.fees[j].amount, r);
+                    break;
+                }
+            }
+            for (uint256 j; j < rule.then.length; ++j) {
+                Predicate memory p = c.predicates[rule.then[j]];
+                if (p.cmp == Codes.CMP_ACCEPTED) {
+                    _prime(c, run, s, c.handoffs[p.lhs].minAmount, r);
+                    _prime(c, run, s, c.handoffs[p.lhs].deadline, r);
+                } else if (p.cmp == Codes.CMP_CONSUMED_WITHIN) {
+                    _prime(c, run, s, c.consumes[p.lhs].amount, r);
+                } else {
+                    _prime(c, run, s, p.lhs, r);
+                    _prime(c, run, s, p.rhs, r);
+                }
+            }
+        }
+    }
+
+    /// Evaluates the pre-state part of term `index`: all of it when it reads no post-state,
+    /// otherwise each operand that doesn't.
+    function _prime(Constraints memory c, Run memory run, State memory s, uint16 index, uint256 r) private view {
+        if (!s.post[index]) {
+            _eval(c, run, s, index, r);
+            return;
+        }
+        Term memory t = c.terms[index];
+        if (t.op >= Codes.OP_ADD && t.op <= Codes.OP_MUL_BPS) {
+            _prime(c, run, s, t.a, r);
+            if (t.op != Codes.OP_MUL_BPS) {
+                _prime(c, run, s, t.b, r);
+            }
+        }
     }
 
     /// Runtime half of the custody test: every OR group of a keeper-routed active rule's outcome
