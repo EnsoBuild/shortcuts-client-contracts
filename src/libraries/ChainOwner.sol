@@ -95,6 +95,9 @@ library ChainOwner {
         if (chainId == ChainId.ARC) {
             return TODO_OWNER; // TODO(ENSO-469): replace with multisig once available on Arc
         }
+        if (chainId == ChainId.ELYSIUM) {
+            return TODO_OWNER; // TODO(ENSO-469): replace with multisig once available on Arc
+        }
         revert UnconfiguredChain(chainId);
     }
 }

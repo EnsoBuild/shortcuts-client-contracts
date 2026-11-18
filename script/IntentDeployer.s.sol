@@ -31,6 +31,7 @@ contract IntentDeployer is KeeperWalletDeployment {
         } else if (
             chainId == ChainId.PLASMA || chainId == ChainId.MONAD || chainId == ChainId.MEGAETH
                 || chainId == ChainId.ROBINHOOD || chainId == ChainId.ETHERLINK || chainId == ChainId.TEMPO
+                || chainId == ChainId.ELYSIUM
         ) {
             router = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;
         } else if (chainId == ChainId.SEI) {
