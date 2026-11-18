@@ -2,19 +2,16 @@
 pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../src/factory/EphemeralFactory.sol";
-import { ChainId } from "../src/libraries/ChainOwner.sol";
-import { Script } from "forge-std/Script.sol";
+import { IntentDeployment } from "./IntentDeployment.sol";
 
 /// Salted CREATE2 with no constructor arguments: one factory address, and so one address per
-/// intent tree, on every chain. The factory links IntentHash and IntentEvaluator, which must be
-/// deployed deterministically first so their linked addresses are identical everywhere too.
-contract EphemeralDeployer is Script {
-    function run() public returns (EphemeralFactory factory) {
-        if (block.chainid == ChainId.ZKSYNC) {
-            revert("unsupported chain"); // zkSync's CREATE2 derivation differs
-        }
-        vm.startBroadcast();
-        factory = new EphemeralFactory{ salt: "EphemeralFactory" }();
-        vm.stopBroadcast();
+/// intent tree, on every chain. The executor creation code the factory embeds links IntentEvaluator,
+/// which forge deploys at its CREATE2 address first; see IntentDeployment.
+contract EphemeralDeployer is IntentDeployment {
+    function run() public returns (EphemeralFactory factory, address evaluator) {
+        _requireSupported();
+        bytes memory creationCode = type(EphemeralFactory).creationCode;
+        evaluator = _requireLinked(creationCode, EVALUATOR);
+        factory = EphemeralFactory(_deploy(FACTORY_SALT, creationCode));
     }
 }

@@ -2,14 +2,17 @@
 pragma solidity ^0.8.28;
 
 import { IntentRouter } from "../src/router/IntentRouter.sol";
-import { Script } from "forge-std/Script.sol";
+import { IntentDeployment } from "./IntentDeployment.sol";
 
 /// Salted CREATE2. Routes run through the router each intent names, so the IntentRouter deploys no
-/// EnsoShortcuts of its own. Links IntentHash and IntentEvaluator; see EphemeralDeployer.
-contract IntentRouterDeployer is Script {
-    function run() public returns (IntentRouter router) {
-        vm.startBroadcast();
-        router = new IntentRouter{ salt: "IntentRouter" }();
-        vm.stopBroadcast();
+/// EnsoShortcuts of its own. Links IntentHash and IntentEvaluator at their CREATE2 addresses, the
+/// same IntentEvaluator the ephemeral factory links; see IntentDeployment.
+contract IntentRouterDeployer is IntentDeployment {
+    function run() public returns (IntentRouter router, address evaluator, address hash) {
+        _requireSupported();
+        bytes memory creationCode = type(IntentRouter).creationCode;
+        evaluator = _requireLinked(creationCode, EVALUATOR);
+        hash = _requireLinked(creationCode, HASH);
+        router = IntentRouter(payable(_deploy(ROUTER_SALT, creationCode)));
     }
 }
