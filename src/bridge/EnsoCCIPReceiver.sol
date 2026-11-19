@@ -70,6 +70,8 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
         ) = _validateMessage(_message);
 
         if (errorCode != ErrorCode.NO_ERROR) {
+            // No external call precedes these events: _validateMessage and its decoder are internal.
+            // forge-lint: disable-next-line(reentrancy-events)
             emit MessageValidationFailed(_message.messageId, errorCode, errorData);
 
             RefundKind refundKind = _getRefundPolicy(errorCode);
@@ -85,6 +87,7 @@ contract EnsoCCIPReceiver is IEnsoCCIPReceiver, CCIPReceiver, Ownable2Step, Paus
             if (refundKind == RefundKind.TO_ESCROW) {
                 s_executedMessage[_message.messageId] = true;
                 // Quarantine-in-place: funds remain in this contract; ops can recover via `recoverTokens`.
+                // forge-lint: disable-next-line(reentrancy-events)
                 emit MessageQuarantined(_message.messageId, errorCode, token, amount, receiver);
                 return;
             }
