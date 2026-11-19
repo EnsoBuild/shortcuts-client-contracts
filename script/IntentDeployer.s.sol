@@ -3,40 +3,58 @@ pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../src/factory/EphemeralFactory.sol";
 import { IntentEmitter } from "../src/helpers/IntentEmitter.sol";
-import { ChainId, ChainOwner } from "../src/libraries/ChainOwner.sol";
+import { ChainOwner } from "../src/libraries/ChainOwner.sol";
+import { IntentRouter } from "../src/router/IntentRouter.sol";
 import { KeeperWallet } from "../src/wallet/KeeperWallet.sol";
+import { IntentDeployment } from "./IntentDeployment.sol";
 import { KeeperWalletDeployment } from "./KeeperWalletDeployer.s.sol";
 
-contract IntentDeployer is KeeperWalletDeployment {
-    function run() public returns (EphemeralFactory factory, IntentEmitter emitter, KeeperWallet wallet) {
-        address router = getRouter(block.chainid);
-        require(router.code.length > 0, "router not deployed");
-        address owner = ChainOwner.ownerFor(block.chainid);
+/// Deploys the intent stack on one chain: the ephemeral factory, the intent router, the intent
+/// emitter and the keeper wallet. Every contract goes through the standard CREATE2 deployer (see
+/// IntentDeployment), so the script can be re-run on a chain that is partly deployed. The keeper
+/// wallet's address also commits to the deployer, its initial owner.
+contract IntentDeployer is IntentDeployment, KeeperWalletDeployment {
+    bytes32 internal constant EMITTER_SALT = "IntentEmitter";
+    bytes32 internal constant WALLET_SALT = "KeeperWallet";
 
-        vm.startBroadcast();
-        factory = new EphemeralFactory{ salt: "EphemeralFactory" }(router);
-        emitter = new IntentEmitter{ salt: "IntentEmitter" }();
-        wallet = _deployKeeperWallet(owner);
+    function run()
+        public
+        returns (EphemeralFactory factory, IntentRouter router, IntentEmitter emitter, KeeperWallet wallet)
+    {
+        _requireSupported();
 
-        vm.stopBroadcast();
+        bytes memory factoryCode = type(EphemeralFactory).creationCode;
+        bytes memory routerCode = type(IntentRouter).creationCode;
+        _requireLinked(factoryCode, EVALUATOR);
+        _requireLinked(routerCode, EVALUATOR);
+        _requireLinked(routerCode, HASH);
+
+        factory = EphemeralFactory(_deploy(FACTORY_SALT, factoryCode));
+        router = IntentRouter(payable(_deploy(ROUTER_SALT, routerCode)));
+        emitter = IntentEmitter(_deploy(EMITTER_SALT, type(IntentEmitter).creationCode));
+        wallet = _deployWallet(ChainOwner.ownerFor(block.chainid));
     }
 
-    function getRouter(uint256 chainId) internal pure returns (address router) {
-        if (chainId == ChainId.ZKSYNC) {
-            revert("unsupported chain");
-        } else if (chainId == ChainId.KATANA || chainId == ChainId.PLUME) {
-            router = 0x3067BDBa0e6628497d527bEF511c22DA8b32cA3F;
-        } else if (chainId == ChainId.LINEA) {
-            router = 0xA146d46823f3F594B785200102Be5385CAfCE9B5;
-        } else if (
-            chainId == ChainId.PLASMA || chainId == ChainId.MONAD || chainId == ChainId.MEGAETH
-                || chainId == ChainId.ROBINHOOD || chainId == ChainId.ETHERLINK || chainId == ChainId.TEMPO
-        ) {
-            router = 0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7;
-        } else if (chainId == ChainId.SEI) {
-            router = 0x300b3D30aaBf46b05983284f0297D966E92bbeB2;
-        } else {
-            router = 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf; // default
+    /// The deployer owns the wallet at first so it can authorize the executors, then hands it to the
+    /// chain owner, who completes the two-step transfer with acceptOwnership(). A wallet already at
+    /// the address is left as it is.
+    function _deployWallet(address owner) private returns (KeeperWallet wallet) {
+        // forge-lint: disable-next-line(unused-return)
+        (, address deployer,) = vm.readCallers();
+        bytes memory code = abi.encodePacked(type(KeeperWallet).creationCode, abi.encode(deployer));
+        bool existed = _predicted(WALLET_SALT, code).code.length != 0;
+        wallet = KeeperWallet(payable(_deploy(WALLET_SALT, code)));
+        if (existed) {
+            return wallet;
         }
+
+        address[] memory executors = _executors();
+        vm.startBroadcast();
+        for (uint256 i = 0; i < executors.length; ++i) {
+            // forge-lint: disable-next-line(calls-loop)
+            wallet.setExecutor(executors[i], true);
+        }
+        wallet.transferOwnership(owner);
+        vm.stopBroadcast();
     }
 }
