@@ -190,14 +190,33 @@ contract EphemeralIntentExecutor_Pair_Test is EphemeralIntentExecutor_Unit_Concr
         assertEq(IntentEvaluator.check(_intent(c, s_user, s_keeper)), IntentEvaluator.MALFORMED, "status");
     }
 
+    /// A rule without inputs runs no route and pays one fee candidate, from the holder. Without a
+    /// record it could run again at once, so it needs one.
     function test_Fee_RuleWithoutInputs_TakesOneCandidate() external view {
         Constraints memory c = _eitherConstraints();
         c.rules[0].inputs = new Input[](0);
         c.rules[0].threshold = 0;
+        c.rules[0].routing = Codes.ROUTE_NONE;
+        c.lifetime.count = 3;
         c.rules[0].fees[1].asset = 2;
         assertEq(IntentEvaluator.check(_intent(c, s_user, s_keeper)), IntentEvaluator.MALFORMED, "two candidates");
         c.rules[0].fees = _fee(2, 2); // any asset, paid from the holder
         assertEq(IntentEvaluator.check(_intent(c, s_user, s_keeper)), IntentEvaluator.OK, "one");
+        c.lifetime.count = 0;
+        assertEq(IntentEvaluator.check(_intent(c, s_user, s_keeper)), IntentEvaluator.CUSTODIAL, "no record");
+    }
+
+    /// A route runs as the router, never as the owner: a rule without inputs has nothing to route.
+    function test_RouteWithoutInputs_IsMalformed() external view {
+        Constraints memory c = _eitherConstraints();
+        c.rules[0].inputs = new Input[](0);
+        c.rules[0].threshold = 0;
+        c.rules[0].fees = _fee(2, 2);
+        c.lifetime.count = 3;
+        c.rules[0].routing = Codes.ROUTE_KEEPER;
+        assertEq(IntentEvaluator.check(_intent(c, s_user, s_keeper)), IntentEvaluator.MALFORMED, "keeper route");
+        c.rules[0].routing = Codes.ROUTE_COMMITTED;
+        assertEq(IntentEvaluator.check(_intent(c, s_user, s_keeper)), IntentEvaluator.MALFORMED, "committed route");
     }
 
     /// A one-shot rule that can run on part of its inputs must drain: otherwise a keeper could take

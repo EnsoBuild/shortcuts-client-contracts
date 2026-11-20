@@ -24,7 +24,7 @@ contract IntentDeployer is IntentDeployment, KeeperWalletDeployment {
         _requireSupported();
 
         bytes memory factoryCode = type(EphemeralFactory).creationCode;
-        bytes memory routerCode = type(IntentRouter).creationCode;
+        bytes memory routerCode = _routerCode();
         _requireLinked(factoryCode, EVALUATOR);
         _requireLinked(routerCode, EVALUATOR);
         _requireLinked(routerCode, HASH);

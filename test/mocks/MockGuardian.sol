@@ -9,6 +9,8 @@ import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 contract MockGuardian is IIntentGuardian {
     Level public level;
     bytes32 public lastIntentHash;
+    address public lastOwner;
+    address public lastKeeper;
     uint256 public lastAmount;
     uint256 public lastValue;
     bytes public lastContext;
@@ -27,6 +29,8 @@ contract MockGuardian is IIntentGuardian {
 
     function accept(
         bytes32 intentHash,
+        address owner,
+        address keeper,
         Token calldata token,
         uint256 amount,
         Obligation calldata obligation,
@@ -42,12 +46,14 @@ contract MockGuardian is IIntentGuardian {
         }
         ++accepts;
         lastIntentHash = intentHash;
+        lastOwner = owner;
+        lastKeeper = keeper;
         lastAmount = amount;
         lastValue = msg.value;
         lastContext = context;
         s_last = obligation;
         receipt = keccak256(abi.encode(intentHash, accepts));
-        emit Accepted(receipt, intentHash, tx.origin, obligation);
+        emit Accepted(receipt, intentHash, msg.sender, owner, keeper, amount, obligation);
     }
 
     function lastObligation() external view returns (Obligation memory) {

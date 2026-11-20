@@ -10,7 +10,7 @@ struct Execution {
     bytes32[] proof; // Merkle proof of the leaf against the root
     address router; // used only when the leaf's constraints name no router
     bytes[] routes; // keeper bytes per rule; the owner route arm runs routes[0]
-    bytes[] contexts; // guardian context per handoff
+    bytes[] contexts; // guardian context per handoff; first word: its share of msg.value
     Token[] sweep; // extra assets for the refund arms, and non-inputs to return after execution
 }
 
@@ -18,7 +18,18 @@ interface IEphemeralFactory {
     /// The executed leaf is in the transaction's calldata; the event carries the identifiers only.
     event Executed(address indexed executor, bytes32 indexed root);
 
-    function executeIntent(bytes32 root, Execution calldata execution) external returns (address executor);
+    error Locked();
+
+    function executeIntent(bytes32 root, Execution calldata execution) external payable returns (address executor);
+
+    /// @notice Take the intent lock for the rest of the caller's run. One intent executes at a
+    ///         time in a transaction, through this factory or the IntentRouter, so a route can't run
+    ///         another intent inside its own. Permissionless: a lock taken in a transaction blocks
+    ///         only that transaction.
+    function enter() external;
+
+    /// @notice Release the lock, when the caller holds it.
+    function exit() external;
 
     function getAddress(bytes32 root) external view returns (address);
 

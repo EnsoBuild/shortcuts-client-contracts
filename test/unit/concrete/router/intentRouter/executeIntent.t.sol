@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import { Token } from "../../../../../src/interfaces/IEnsoRouter.sol";
+import { Execution, IEphemeralFactory } from "../../../../../src/interfaces/IEphemeralFactory.sol";
 import { Codes, Constraints, Intent, Lifetime } from "../../../../../src/interfaces/IIntent.sol";
 import { Level, Obligation } from "../../../../../src/interfaces/IIntentGuardian.sol";
 import { IntentEvaluator } from "../../../../../src/libraries/IntentEvaluator.sol";
@@ -8,7 +10,45 @@ import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
 import { MockGuardian } from "../../../../mocks/MockGuardian.sol";
 import { IntentRouter_Unit_Concrete_Test } from "./IntentRouter.t.sol";
 
+/// A router whose route runs an intent address of the ephemeral factory, as a keeper route could to
+/// collect a refund the owner is owed.
+contract NestingRouter {
+    IEphemeralFactory internal immutable i_factory;
+
+    constructor(IEphemeralFactory factory) {
+        i_factory = factory;
+    }
+
+    function routeSingle(Token calldata, bytes calldata) external payable returns (bytes memory) {
+        Execution memory e;
+        i_factory.executeIntent(bytes32(0), e);
+        return "";
+    }
+}
+
 contract IntentRouter_ExecuteIntent_Test is IntentRouter_Unit_Concrete_Test {
+    /// The router and the factory share one intent lock: a route can't run another intent.
+    function test_RouteRunningAnIntentAddress_Reverts() external {
+        NestingRouter nesting = new NestingRouter(s_factory);
+        Intent memory intent = _swapIntent(Codes.EXACT);
+        intent.constraints.router = address(nesting);
+        bytes memory signature = _sign(intent);
+
+        vm.expectRevert(IEphemeralFactory.Locked.selector);
+        _exec(s_keeper, intent, signature);
+    }
+
+    /// The keeper's call value must all go to handoffs.
+    function test_UnspentCallValue_Reverts() external {
+        Intent memory intent = _swapIntent(Codes.EXACT);
+        bytes memory signature = _sign(intent);
+        s_router.addOut(address(s_tokenOut), 200 ether, s_owner);
+
+        vm.prank(s_keeper);
+        vm.expectRevert(IntentEvaluator.WrongValue.selector);
+        s_intentRouter.executeIntent{ value: 1 }(intent, signature, address(0), _routes(hex"c0ffee"), new bytes[](0));
+    }
+
     function test_Exact_PullsTheSignedAmountAndDelivers() external {
         Intent memory intent = _swapIntent(Codes.EXACT);
         bytes memory signature = _sign(intent);
@@ -88,7 +128,7 @@ contract IntentRouter_ExecuteIntent_Test is IntentRouter_Unit_Concrete_Test {
         _exec(s_keeper, intent, signature);
     }
 
-    function test_SpendCapOnly_RevertsCustodial() external {
+    function test_SpendCapOnly_RevertsUnbounded() external {
         Intent memory intent = _swapIntent(Codes.EXACT);
         intent.constraints.terms[2] = _term(Codes.OP_CONST, 0, 0, 0);
         intent.constraints.terms[3] = _term(Codes.OP_SUB, 2, 1, 0);
@@ -96,7 +136,7 @@ contract IntentRouter_ExecuteIntent_Test is IntentRouter_Unit_Concrete_Test {
 
         // Statically bounded, but the floor is negative at execution.
         assertEq(IntentEvaluator.check(intent), IntentEvaluator.OK, "passes the static check");
-        vm.expectRevert(abi.encodeWithSelector(IntentRouter.Rejected.selector, IntentEvaluator.CUSTODIAL));
+        vm.expectRevert(abi.encodeWithSelector(IntentRouter.Rejected.selector, IntentEvaluator.UNBOUNDED));
         _exec(s_keeper, intent, signature);
     }
 
@@ -144,11 +184,15 @@ contract IntentRouter_ExecuteIntent_Test is IntentRouter_Unit_Concrete_Test {
         Intent memory intent = _intent(c, s_owner, s_keeper);
         bytes memory signature = _sign(intent);
 
+        bytes[] memory contexts = new bytes[](1);
+        contexts[0] = abi.encode(uint256(0.01 ether));
         vm.prank(s_keeper);
-        s_intentRouter.executeIntent{ value: 0.01 ether }(intent, signature, address(0), new bytes[](0), new bytes[](0));
+        s_intentRouter.executeIntent{ value: 0.01 ether }(intent, signature, address(0), new bytes[](0), contexts);
 
         assertEq(guardian.lastAmount(), AMOUNT - FEE, "exact, less the fee");
         assertEq(guardian.lastValue(), 0.01 ether, "messaging fee forwarded");
+        assertEq(guardian.lastOwner(), s_owner, "owner");
+        assertEq(guardian.lastKeeper(), s_keeper, "keeper");
         Obligation memory o = guardian.lastObligation();
         assertEq(o.minAmount, AMOUNT - FEE, "minimum");
         assertEq(o.chainId, 10, "destination");

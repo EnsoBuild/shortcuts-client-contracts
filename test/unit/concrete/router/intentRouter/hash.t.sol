@@ -38,7 +38,8 @@ contract IntentRouter_Hash_Unit_Concrete_Test is Test {
 
     function test_WhenHashedAgainstTheReferenceEncoder() external {
         vm.chainId(31_337);
-        deployCodeTo("IntentRouter.sol:IntentRouter", ROUTER);
+        // The factory argument isn't part of the EIP-712 domain.
+        deployCodeTo("IntentRouter.sol:IntentRouter", abi.encode(address(0)), ROUTER);
         Intent memory intent = _intent();
 
         assertEq(IntentHash.hash(intent), STRUCT_HASH, "struct hash");

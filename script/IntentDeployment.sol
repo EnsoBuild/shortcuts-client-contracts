@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import { EphemeralFactory } from "../src/factory/EphemeralFactory.sol";
 import { ChainId } from "../src/libraries/ChainOwner.sol";
+import { IntentRouter } from "../src/router/IntentRouter.sol";
 import { Script } from "forge-std/Script.sol";
 
 /// Deterministic deployment for the intent contracts.
@@ -54,6 +56,16 @@ abstract contract IntentDeployment is Script {
             require(ok, "CREATE2 deployment failed");
         }
         require(deployed.code.length != 0, "not deployed at the CREATE2 address");
+    }
+
+    /// The ephemeral factory's address: it takes no constructor arguments.
+    function _factory() internal pure returns (address) {
+        return _predicted(FACTORY_SALT, type(EphemeralFactory).creationCode);
+    }
+
+    /// The IntentRouter's init code: it takes the factory, whose intent lock it shares.
+    function _routerCode() internal pure returns (bytes memory) {
+        return abi.encodePacked(type(IntentRouter).creationCode, abi.encode(_factory()));
     }
 
     /// Where `_deploy` puts `creationCode`. CREATE2 commits to the init code, so code found here is

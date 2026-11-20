@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import { IEphemeralFactory } from "../interfaces/IEphemeralFactory.sol";
 import { Codes, Intent, Lifetime, Rule } from "../interfaces/IIntent.sol";
 import { IIntentRouter } from "../interfaces/IIntentRouter.sol";
 import { IntentEvaluator, Run } from "../libraries/IntentEvaluator.sol";
 import { IntentHash } from "../libraries/IntentHash.sol";
 import { IntentRecord } from "../libraries/IntentRecord.sol";
 import { ERC1155Holder } from "openzeppelin-contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 import { ECDSA } from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 import { EIP712 } from "openzeppelin-contracts/utils/cryptography/EIP712.sol";
 import { SignatureChecker } from "openzeppelin-contracts/utils/cryptography/SignatureChecker.sol";
@@ -16,7 +16,10 @@ import { SignatureChecker } from "openzeppelin-contracts/utils/cryptography/Sign
 /// @notice Executes EIP-712 signed version 2 intents. Users approve this contract; the intent's
 ///         keeper submits it with its route bytes; tokens only ever move from the intent's owner,
 ///         and only as the signed constraints allow.
-contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC1155Holder {
+contract IntentRouter is IIntentRouter, EIP712, ERC1155Holder {
+    /// @notice Holds the intent lock shared by every intent execution on this chain.
+    IEphemeralFactory public immutable factory;
+
     /// @notice Execution records per (owner, nonce): see IntentRecord. Intents an owner signs with
     ///         the same nonce share a record, and so form a cancellation group.
     mapping(address owner => mapping(uint256 nonce => uint256 record)) public records;
@@ -30,10 +33,13 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
     error Exhausted();
     error NotYet();
 
-    constructor() EIP712("IntentRouter", "2") { }
+    /// @param factory_ The EphemeralFactory of this chain, whose intent lock both contracts share
+    // forge-lint: disable-next-item(missing-zero-check)
+    constructor(IEphemeralFactory factory_) EIP712("IntentRouter", "2") {
+        factory = factory_;
+    }
 
-    /// Unused messaging-fee native returned by a guardian; sent back to the keeper at the end of the
-    /// execution that forwarded it.
+    /// Native a route or guardian sends here; returned to the keeper at the end of the execution.
     receive() external payable { }
 
     /// @inheritdoc IIntentRouter
@@ -46,8 +52,8 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
     )
         external
         payable
-        nonReentrant
     {
+        factory.enter();
         // forge-lint: disable-next-item(block-timestamp)
         if (
             intent.keeper != address(0) && msg.sender != intent.keeper
@@ -73,12 +79,13 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
             revert InvalidSignature();
         }
         // A standing intent pulling from a wallet needs a schedule or a count: otherwise a keeper
-        // could repeat it within one block until the owner's allowance runs out.
+        // could repeat it within one block until the owner's allowance runs out. A rule without
+        // inputs still pulls its fee.
         Lifetime calldata lifetime = intent.constraints.lifetime;
         if (lifetime.kind == Codes.STANDING && lifetime.interval == 0 && lifetime.count == 0) {
             Rule[] calldata rules = intent.constraints.rules;
             for (uint256 r; r < rules.length; ++r) {
-                if (rules[r].inputs.length > 0) {
+                if (rules[r].inputs.length > 0 || rules[r].fees.length > 0) {
                     // forge-lint: disable-next-line(require-revert-in-loop)
                     revert Rejected(IntentEvaluator.MALFORMED);
                 }
@@ -97,15 +104,17 @@ contract IntentRouter is IIntentRouter, EIP712, ReentrancyGuardTransient, ERC115
             records: address(0),
             router: router,
             routes: routes,
-            contexts: contexts
+            contexts: contexts,
+            value: msg.value
         });
         // Attestation, trace patterns, malformed structure and unchecked keeper routes revert.
         uint8 status = IntentEvaluator.evaluate(intent, run);
         if (status != IntentEvaluator.OK) {
             revert Rejected(status);
         }
-        // Messaging-fee native the guardians didn't need goes back to the keeper who sent it; the
-        // router holds nothing between transactions.
+        factory.exit();
+        // The keeper's call value all went to guardians; anything else here goes back to the keeper.
+        // The router holds nothing between transactions.
         if (address(this).balance > 0) {
             // forge-lint: disable-next-line(arbitrary-send-eth)
             (bool ok,) = msg.sender.call{ value: address(this).balance }("");

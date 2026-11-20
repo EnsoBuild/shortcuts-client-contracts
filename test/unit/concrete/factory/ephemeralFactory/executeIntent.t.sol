@@ -7,7 +7,6 @@ import { Execution, IEphemeralFactory } from "../../../../../src/interfaces/IEph
 import { Codes, Intent, Lifetime } from "../../../../../src/interfaces/IIntent.sol";
 import { IntentRecord } from "../../../../../src/libraries/IntentRecord.sol";
 import { EphemeralFactory_Unit_Concrete_Test } from "./EphemeralFactory.t.sol";
-import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 
 /// A router whose route re-enters the factory.
 contract ReenteringRouter {
@@ -31,6 +30,30 @@ contract ReenteringRouter {
         assembly ("memory-safe") {
             revert(add(ret, 0x20), mload(ret))
         }
+    }
+}
+
+contract LockCaller {
+    function enter(IEphemeralFactory factory) external {
+        factory.enter();
+    }
+
+    function exit(IEphemeralFactory factory) external {
+        factory.exit();
+    }
+}
+
+contract LockSequence {
+    function run(IEphemeralFactory factory, LockCaller holder, LockCaller other) external {
+        holder.enter(factory);
+        other.exit(factory); // not the holder: no effect
+        try other.enter(factory) {
+            revert("entered a held lock");
+        } catch (bytes memory reason) {
+            require(bytes4(reason) == IEphemeralFactory.Locked.selector, "wrong error");
+        }
+        holder.exit(factory);
+        other.enter(factory);
     }
 }
 
@@ -76,8 +99,15 @@ contract EphemeralFactory_ExecuteIntent_Test is EphemeralFactory_Unit_Concrete_T
         bytes memory encoded = abi.encode(e);
         router.arm(root, encoded);
 
-        vm.expectRevert(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector);
+        vm.expectRevert(IEphemeralFactory.Locked.selector);
         _run(s_keeper, root, e);
+    }
+
+    /// The intent lock is permissionless: whoever takes it blocks every intent execution for the
+    /// rest of its own transaction, and only the holder releases it.
+    function test_Lock_OnlyTheHolderReleases() external {
+        // One transaction: two callers in turn.
+        new LockSequence().run(s_factory, new LockCaller(), new LockCaller());
     }
 
     function test_Records_AreKeyedByTheWriter() external {

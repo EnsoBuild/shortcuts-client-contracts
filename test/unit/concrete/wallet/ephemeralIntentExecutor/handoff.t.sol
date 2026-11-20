@@ -71,9 +71,11 @@ contract EphemeralIntentExecutor_Handoff_Test is EphemeralIntentExecutor_Unit_Co
 
         Execution memory e = _execution(intent);
         e.contexts = new bytes[](1);
-        e.contexts[0] = abi.encode(uint256(7), uint32(1000));
+        e.contexts[0] = abi.encode(uint256(0), uint256(7), uint32(1000));
         _run(s_keeper, root, e);
-        assertEq(s_guardian.lastContext(), abi.encode(uint256(7), uint32(1000)), "context");
+        assertEq(s_guardian.lastContext(), abi.encode(uint256(0), uint256(7), uint32(1000)), "context");
+        assertEq(s_guardian.lastOwner(), s_user, "owner");
+        assertEq(s_guardian.lastKeeper(), s_keeper, "keeper");
     }
 
     function test_WrongLevel_Reverts() external {
@@ -86,14 +88,62 @@ contract EphemeralIntentExecutor_Handoff_Test is EphemeralIntentExecutor_Unit_Co
         _run(s_keeper, root, _execution(intent));
     }
 
-    function test_ForwardsTheKeepersNativeForMessagingFees() external {
+    /// The keeper's call value goes to the guardian as the context's first word says; the owner's
+    /// native at the address stays.
+    function test_ForwardsTheKeepersCallValueForMessagingFees() external {
         Intent memory intent = _bridgeIntent();
         bytes32 root = _root(intent);
         address at = _fund(root, DEPOSIT);
-        vm.deal(at, 0.01 ether); // the keeper funds the address in the same batch
+        vm.deal(at, 1 ether); // the owner's
 
-        _run(s_keeper, root, _execution(intent));
-        assertEq(s_guardian.lastValue(), 0.01 ether, "native forwarded as call value");
+        Execution memory e = _withFee(_execution(intent), 0.01 ether);
+        vm.prank(s_keeper);
+        s_factory.executeIntent{ value: 0.01 ether }(root, e);
+
+        assertEq(s_guardian.lastValue(), 0.01 ether, "the keeper's value forwarded");
+        assertEq(s_user.balance, 1 ether, "the owner's native untouched");
+    }
+
+    function test_OwnersNative_IsNeverForwarded() external {
+        Intent memory intent = _bridgeIntent();
+        bytes32 root = _root(intent);
+        address at = _fund(root, DEPOSIT);
+        vm.deal(at, 1 ether);
+
+        vm.expectRevert(IntentEvaluator.WrongValue.selector);
+        _run(s_keeper, root, _withFee(_execution(intent), 0.01 ether));
+    }
+
+    function test_UnspentCallValue_Reverts() external {
+        Intent memory intent = _bridgeIntent();
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
+        vm.deal(s_keeper, 1 ether);
+
+        Execution memory e = _withFee(_execution(intent), 0.01 ether);
+        vm.prank(s_keeper);
+        vm.expectRevert(IntentEvaluator.WrongValue.selector);
+        s_factory.executeIntent{ value: 0.02 ether }(root, e);
+    }
+
+    /// A refused intent hands the keeper's call value back before the refund.
+    function test_Refund_ReturnsTheCallValue() external {
+        Intent memory intent = _bridgeIntent();
+        intent.deadline = uint64(block.timestamp - 1);
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
+        vm.deal(s_keeper, 1 ether);
+
+        vm.prank(s_keeper);
+        s_factory.executeIntent{ value: 0.01 ether }(root, _execution(intent));
+        assertEq(s_keeper.balance, 1 ether, "returned");
+        assertEq(s_user.balance, 0, "none to the owner");
+    }
+
+    function _withFee(Execution memory e, uint256 fee) internal pure returns (Execution memory) {
+        e.contexts = new bytes[](1);
+        e.contexts[0] = abi.encode(fee);
+        return e;
     }
 
     function test_Exact_HandsOnlyTheMinimum() external {

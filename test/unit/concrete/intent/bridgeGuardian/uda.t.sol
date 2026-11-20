@@ -18,6 +18,8 @@ import {
 import { Level } from "../../../../../src/interfaces/IIntentGuardian.sol";
 import { IAcrossSpokePool } from "../../../../../src/interfaces/bridges/IAcrossSpokePool.sol";
 import { ITokenMessengerV2 } from "../../../../../src/interfaces/bridges/ITokenMessengerV2.sol";
+import { IntentEvaluator } from "../../../../../src/libraries/IntentEvaluator.sol";
+import { MockBlockingERC20 } from "../../../../mocks/MockBlockingERC20.sol";
 import { MockAcrossSpokePool, MockTokenMessengerV2 } from "../../../../mocks/MockBridges.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
 import {
@@ -32,6 +34,7 @@ contract BridgeGuardian_Uda_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
     uint256 internal constant FEE = 1e6;
 
     MockERC20 internal s_usdc;
+    MockBlockingERC20 internal s_blockableUsdc; // s_usdc, with its blocklist
     MockERC20 internal s_usdt;
     address internal s_usdcArbitrum = makeAddr("USDC on Arbitrum");
     address internal s_usdtArbitrum = makeAddr("USDT on Arbitrum");
@@ -41,17 +44,23 @@ contract BridgeGuardian_Uda_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
 
     function setUp() public override {
         super.setUp();
-        s_usdc = new MockERC20("USD Coin", "USDC");
+        s_blockableUsdc = new MockBlockingERC20("USD Coin", "USDC");
+        s_usdc = s_blockableUsdc;
         s_usdt = new MockERC20("Tether", "USDT");
         s_messenger = new MockTokenMessengerV2();
         s_spokePool = new MockAcrossSpokePool();
         BridgeGuardian.CctpDestination[] memory destinations = new BridgeGuardian.CctpDestination[](1);
         destinations[0] = BridgeGuardian.CctpDestination({ chainId: ARBITRUM, domain: 3, usdc: s_usdcArbitrum });
+        BridgeGuardian.AcrossRoute[] memory routes = new BridgeGuardian.AcrossRoute[](1);
+        routes[0] = BridgeGuardian.AcrossRoute({
+            input: address(s_usdt), chainId: ARBITRUM, output: s_usdtArbitrum, decimals: 0
+        });
         s_guardian = new BridgeGuardian(
             ITokenMessengerV2(address(s_messenger)),
             address(s_usdc),
             destinations,
-            IAcrossSpokePool(address(s_spokePool))
+            IAcrossSpokePool(address(s_spokePool)),
+            routes
         );
     }
 
@@ -125,10 +134,9 @@ contract BridgeGuardian_Uda_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
     function _execution(Intent memory intent, uint256 outputAmount) internal view returns (Execution memory e) {
         e = _execution(intent);
         e.contexts = new bytes[](2);
-        e.contexts[0] = abi.encode(keccak256("cctp"), abi.encode(uint256(0.05e6), uint32(1000)));
-        e.contexts[1] = abi.encode(
-            keccak256("across"), abi.encode(outputAmount, address(0), uint32(block.timestamp + 2 hours), uint32(0))
-        );
+        e.contexts[0] = abi.encode(uint256(0), keccak256("cctp"), abi.encode(uint256(0.05e6), uint32(1000)));
+        e.contexts[1] =
+            abi.encode(uint256(0), keccak256("across"), abi.encode(outputAmount, uint32(block.timestamp + 2 hours)));
     }
 
     function test_Usdc_BridgesThroughCctp() external {
@@ -234,9 +242,85 @@ contract BridgeGuardian_Uda_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
         s_usdc.mint(at, 5e6); // the next deposit tops it up
         // The floor scales with the deposit (10 × 99.9% − 1 = 8.99), so the keeper sizes its fee cap
         // to fit: 0.01 here, where 0.05 would be refused.
-        e.contexts[0] = abi.encode(keccak256("cctp"), abi.encode(uint256(0.01e6), uint32(1000)));
+        e.contexts[0] = abi.encode(uint256(0), keccak256("cctp"), abi.encode(uint256(0.01e6), uint32(1000)));
         _run(s_keeper, root, e);
         (uint256 amount,,,,,,) = s_messenger.last();
         assertEq(amount, 10e6 - FEE, "both deposits together");
+    }
+
+    // Shared outcomes under ALL matching
+
+    /// A handoff is accepted once per execution: a second rule naming it would pass on the first
+    /// rule's acceptance with nothing of its own handed over.
+    function test_TwoRulesNamingOneHandoff_IsMalformed() external view {
+        Intent memory intent = _uda();
+        intent.constraints.rules[1].then = _one(0);
+        assertEq(IntentEvaluator.check(intent), IntentEvaluator.MALFORMED, "status");
+    }
+
+    /// Post-state is measured once, after every rule: a second rule comparing the same balance
+    /// change would pass on what the first rule delivered.
+    function test_TwoRulesComparingOneBalanceChange_IsMalformed() external view {
+        Intent memory intent = _uda();
+        Constraints memory c = intent.constraints;
+        Term[] memory terms = new Term[](14);
+        for (uint256 i; i < 12; ++i) {
+            terms[i] = c.terms[i];
+        }
+        terms[12] = _term(Codes.OP_DELTA, 0, Codes.OWNER, 0);
+        terms[13] = _term(Codes.OP_CONST, 0, 0, 0);
+        c.terms = terms;
+        Predicate[] memory predicates = new Predicate[](3);
+        predicates[0] = c.predicates[0];
+        predicates[1] = c.predicates[1];
+        predicates[2] = _pred(Codes.CMP_GTE, 12, 13);
+        c.predicates = predicates;
+        c.rules[0].then = _two(0, 2);
+        assertEq(IntentEvaluator.check(intent), IntentEvaluator.OK, "one rule");
+        c.rules[1].then = _two(1, 2);
+        assertEq(IntentEvaluator.check(intent), IntentEvaluator.MALFORMED, "two rules");
+    }
+
+    // Handoff minimums
+
+    /// A guardian bound to deliver nothing bounds nothing: the handoff doesn't run.
+    function test_HandoffMinimumOfZero_Reverts() external {
+        Intent memory intent = _uda();
+        Constraints memory c = intent.constraints;
+        Term[] memory terms = new Term[](13);
+        for (uint256 i; i < 12; ++i) {
+            terms[i] = c.terms[i];
+        }
+        terms[12] = _term(Codes.OP_CONST, 0, 0, 0);
+        c.terms = terms;
+        c.handoffs[0].minAmount = 12;
+        bytes32 root = _root(intent);
+        s_usdc.mint(s_factory.getAddress(root), DEPOSIT);
+
+        Execution memory e = _execution(intent, 0);
+        vm.expectRevert(IntentEvaluator.NotExecutable.selector);
+        _run(s_keeper, root, e);
+    }
+
+    // Refunds
+
+    /// The refund fee follows the refund it rewards: while the owner can't receive, a caller earns
+    /// nothing, so repeating the refund can't drain the address.
+    function test_Refund_OwnerBlocked_PaysNoFee() external {
+        Intent memory intent = _uda();
+        bytes32 root = _root(intent);
+        address at = s_factory.getAddress(root);
+        s_usdc.mint(at, DEPOSIT);
+        s_blockableUsdc.setBlocked(s_user, true);
+        vm.warp(uint256(intent.deadline) + 1);
+
+        _run(s_stranger, root, _execution(intent));
+        assertEq(s_usdc.balanceOf(s_stranger), 0, "no fee");
+        assertEq(s_usdc.balanceOf(at), DEPOSIT, "the deposit stays");
+
+        s_blockableUsdc.setBlocked(s_user, false);
+        _run(s_stranger, root, _execution(intent));
+        assertEq(s_usdc.balanceOf(s_stranger), 10e6, "one refund fee");
+        assertEq(s_usdc.balanceOf(s_user), DEPOSIT - 10e6, "the rest to the owner");
     }
 }

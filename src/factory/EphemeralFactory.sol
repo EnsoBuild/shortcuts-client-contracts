@@ -5,7 +5,6 @@ import { Execution, IEphemeralFactory } from "../interfaces/IEphemeralFactory.so
 import { Lifetime } from "../interfaces/IIntent.sol";
 import { IntentRecord } from "../libraries/IntentRecord.sol";
 import { EphemeralIntentExecutor } from "../wallet/EphemeralIntentExecutor.sol";
-import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 import { EIP712 } from "openzeppelin-contracts/utils/cryptography/EIP712.sol";
 
 /// @title EphemeralFactory
@@ -13,7 +12,7 @@ import { EIP712 } from "openzeppelin-contracts/utils/cryptography/EIP712.sol";
 ///         per-chain intents. No constructor arguments, so a salted CREATE2 deployment, and every
 ///         intent address, is the same on every chain. Its only immutables are EIP-712's cached
 ///         domain, derived from the deployment itself.
-contract EphemeralFactory is IEphemeralFactory, EIP712, ReentrancyGuardTransient {
+contract EphemeralFactory is IEphemeralFactory, EIP712 {
     error NonCanonicalEncoding();
 
     // Transient context for the executor's constructor (EIP-1153, cleared at end of transaction).
@@ -21,6 +20,8 @@ contract EphemeralFactory is IEphemeralFactory, EIP712, ReentrancyGuardTransient
     // SENDER_SLOT holds the caller, CONTEXT_SLOT holds the length, data words follow it.
     uint256 private constant SENDER_SLOT = 0;
     uint256 private constant CONTEXT_SLOT = 1;
+    /// The intent lock's holder, shared with the IntentRouter through enter and exit.
+    bytes32 private constant LOCK_SLOT = keccak256("enso.intent.lock");
 
     /// @notice Execution records per executor. An executor's address is unique to its root, and
     ///         only that executor can write its own entry, so no other authorization is needed.
@@ -29,13 +30,11 @@ contract EphemeralFactory is IEphemeralFactory, EIP712, ReentrancyGuardTransient
     constructor() EIP712("EphemeralFactory", "2") { }
 
     /// @notice Deploy and run the executor for `root` with one of its leaves. Permissionless: a wrong
-    ///         root derives an unfunded address, so the derivation authorizes. Not reentrant: a route
-    ///         may not execute another intent mid-flight.
-    function executeIntent(bytes32 root, Execution calldata execution)
-        external
-        nonReentrant
-        returns (address executor)
-    {
+    ///         root derives an unfunded address, so the derivation authorizes. Holds the intent
+    ///         lock: a route may not execute another intent mid-flight. The call value is the
+    ///         keeper's messaging fees, forwarded to the executor.
+    function executeIntent(bytes32 root, Execution calldata execution) external payable returns (address executor) {
+        _enter(address(this));
         // The executor decodes the execution itself; the factory passes its calldata through as the
         // abi.encode(execution) the executor expects, so it carries no codec for the nested types.
         (execution);
@@ -47,7 +46,7 @@ contract EphemeralFactory is IEphemeralFactory, EIP712, ReentrancyGuardTransient
         // would embed a second.
         bytes memory initCode = _initCode(root);
         assembly ("memory-safe") {
-            executor := create2(0, add(initCode, 0x20), mload(initCode), 0)
+            executor := create2(callvalue(), add(initCode, 0x20), mload(initCode), 0)
         }
         if (executor == address(0)) {
             // Bubble the constructor's revert reason.
@@ -56,8 +55,19 @@ contract EphemeralFactory is IEphemeralFactory, EIP712, ReentrancyGuardTransient
                 revert(0, returndatasize())
             }
         }
+        _exit(address(this));
         // forge-lint: disable-next-line(reentrancy-events)
         emit Executed(executor, root);
+    }
+
+    /// @inheritdoc IEphemeralFactory
+    function enter() external {
+        _enter(msg.sender);
+    }
+
+    /// @inheritdoc IEphemeralFactory
+    function exit() external {
+        _exit(msg.sender);
     }
 
     /// @notice Address at which the intent tree with `root` executes.
@@ -107,6 +117,27 @@ contract EphemeralFactory is IEphemeralFactory, EIP712, ReentrancyGuardTransient
 
     function _initCode(bytes32 root) private pure returns (bytes memory) {
         return bytes.concat(type(EphemeralIntentExecutor).creationCode, abi.encode(root));
+    }
+
+    function _enter(address holder) private {
+        bytes32 slot = LOCK_SLOT;
+        address current;
+        assembly ("memory-safe") {
+            current := tload(slot)
+        }
+        if (current != address(0)) {
+            revert Locked();
+        }
+        assembly ("memory-safe") {
+            tstore(slot, holder)
+        }
+    }
+
+    function _exit(address holder) private {
+        bytes32 slot = LOCK_SLOT;
+        assembly ("memory-safe") {
+            if eq(tload(slot), holder) { tstore(slot, 0) }
+        }
     }
 
     function _setContext(bytes memory data, address sender) private {

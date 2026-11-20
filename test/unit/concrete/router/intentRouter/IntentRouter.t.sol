@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
+import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
 import { Codes, Constraints, Intent, Lifetime } from "../../../../../src/interfaces/IIntent.sol";
 import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
 import { MockConstraintRouter } from "../../../../mocks/MockConstraintRouter.sol";
@@ -16,6 +17,7 @@ abstract contract IntentRouter_Unit_Concrete_Test is IntentFixtures {
     address payable internal s_keeper;
     address payable internal s_stranger;
 
+    EphemeralFactory internal s_factory;
     IntentRouter internal s_intentRouter;
     MockConstraintRouter internal s_router;
     MockERC20 internal s_tokenIn;
@@ -30,7 +32,8 @@ abstract contract IntentRouter_Unit_Concrete_Test is IntentFixtures {
         s_stranger = payable(vm.addr(3));
         vm.label(s_stranger, "Stranger");
 
-        s_intentRouter = new IntentRouter();
+        s_factory = new EphemeralFactory();
+        s_intentRouter = new IntentRouter(s_factory);
         vm.label(address(s_intentRouter), "IntentRouter");
         s_router = new MockConstraintRouter();
         vm.label(address(s_router), "Router");

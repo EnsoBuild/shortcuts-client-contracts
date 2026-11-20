@@ -5,7 +5,6 @@ import { EphemeralFactory } from "../src/factory/EphemeralFactory.sol";
 import { IntentCounter } from "../src/intent/IntentCounter.sol";
 import { IIntentGuardian, Level } from "../src/interfaces/IIntentGuardian.sol";
 import { ChainId } from "../src/libraries/DataTypes.sol";
-import { IntentRouter } from "../src/router/IntentRouter.sol";
 import { EphemeralIntentExecutor } from "../src/wallet/EphemeralIntentExecutor.sol";
 import { BridgeConfig } from "./BridgeConfig.sol";
 import { Vm } from "forge-std/Vm.sol";
@@ -75,7 +74,7 @@ contract IntentDeploymentsWriter is BridgeConfig {
         vm.serializeAddress(key, "ensoRouter", ensoRouter);
         vm.serializeAddress(key, "evaluator", evaluator);
 
-        address router = _predicted(ROUTER_SALT, type(IntentRouter).creationCode);
+        address router = _predicted(ROUTER_SALT, _routerCode());
         if (router.code.length != 0) {
             vm.serializeAddress(key, "intentRouter", router);
         }

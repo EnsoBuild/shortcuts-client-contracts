@@ -11,6 +11,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
+// Native leaves through the constructor's selfdestruct, and the caller's value through _returnValue.
+// forge-lint: disable-next-item(locked-ether)
 contract EphemeralIntentExecutor {
     error InvalidProof();
 
@@ -18,7 +20,9 @@ contract EphemeralIntentExecutor {
     /// a selfdestruct in the creating transaction deletes the account (EIP-6780), so the address
     /// stays reusable and the code-deposit cost is never paid.
     /// @param root Merkle root over the intent tree's leaves; the address commits to it alone
-    constructor(bytes32 root) {
+    /// @dev The call value is the caller's: messaging fees for the execute arm's handoffs, all spent
+    ///      there. Every other arm hands it back before the refund, so it never reaches the owner.
+    constructor(bytes32 root) payable {
         // Read once, before any external interaction: the factory's transient context is only
         // guaranteed for this construction.
         IEphemeralFactory factory = IEphemeralFactory(msg.sender);
@@ -51,6 +55,7 @@ contract EphemeralIntentExecutor {
             }
         } else if (intent.constraints.rules.length == 0 || block.timestamp > intent.deadline) {
             // Refund-only chains, and expired intents.
+            _returnValue(caller);
             _refund(intent, e.sweep, caller, beneficiary, true);
         } else {
             // The intent's identity: distinct per factory deployment and chain, keyed by the leaf.
@@ -84,14 +89,18 @@ contract EphemeralIntentExecutor {
             records: address(factory),
             router: e.router,
             routes: e.routes,
-            contexts: e.contexts
+            contexts: e.contexts,
+            value: msg.value
         });
         // Intents this version won't run (attestation, trace patterns, malformed structure, rules
         // that would leave the keeper's route unchecked, or a used-up record) come back with
         // nothing moved, and are refunded at once. The static refusals come before the keeper
-        // gate, so their refund is open to anyone.
-        if (IntentEvaluator.evaluate(intent, run) != IntentEvaluator.OK) {
-            _refund(intent, e.sweep, caller, beneficiary, true);
+        // gate, so their refund is open to anyone. A run-time refusal depends on what is at the
+        // address, which a caller can steer with a deposit, so that refund pays no fee.
+        uint8 status = IntentEvaluator.evaluate(intent, run);
+        if (status != IntentEvaluator.OK) {
+            _returnValue(caller);
+            _refund(intent, e.sweep, caller, beneficiary, status != IntentEvaluator.UNBOUNDED);
             return;
         }
         // Tokens outside the input set always go back to the owner.
@@ -102,9 +111,9 @@ contract EphemeralIntentExecutor {
         }
     }
 
-    /// Brick zone: every call here is tolerant. Fees first, best-effort, so permissionless refunds
-    /// are self-incentivizing; then the refund assets, every rule input and the caller's list to
-    /// the beneficiary.
+    /// Brick zone: every call here is tolerant. Fees best-effort, so permissionless refunds are
+    /// self-incentivizing; the refund assets, every rule input and the caller's list go to the
+    /// beneficiary.
     function _refund(Intent memory intent, Token[] memory sweep, address caller, address to, bool withFee) private {
         Constraints memory c = intent.constraints;
         Asset[] memory assets = c.assets;
@@ -115,7 +124,7 @@ contract EphemeralIntentExecutor {
                 continue; // malformed entry: skipped, never indexed
             }
             if (paid) {
-                _tryPay(assets[refund.asset], caller, refund.fee);
+                _tryPay(assets[refund.asset], caller, to, refund.fee);
             }
             _sweep(assets[refund.asset], to);
         }
@@ -151,8 +160,21 @@ contract EphemeralIntentExecutor {
         return false;
     }
 
-    /// Best-effort fee in kind: skipped when held below the amount or the transfer fails.
-    function _tryPay(Asset memory a, address to, uint256 amount) private {
+    /// Best-effort return of the caller's call value: on failure it stays and rides the selfdestruct
+    /// to the owner.
+    function _returnValue(address caller) private {
+        if (msg.value > 0) {
+            // forge-lint: disable-next-line(arbitrary-send-eth)
+            (bool success,) = caller.call{ value: msg.value }("");
+            (success); // best-effort
+        }
+    }
+
+    /// Best-effort fee in kind: skipped when held below the amount or a transfer fails. A token fee
+    /// follows the refund it rewards: the rest goes to `owner` first and the fee is paid only when
+    /// that transfer succeeded, so a refund the owner can't receive is never worth repeating.
+    /// Native needs no such order: the rest rides the selfdestruct, which can't fail.
+    function _tryPay(Asset memory a, address to, address owner, uint256 amount) private {
         if (amount == 0) {
             return;
         }
@@ -163,7 +185,8 @@ contract EphemeralIntentExecutor {
                 (success); // best-effort
             }
         } else if (a.kind == Codes.ERC20 || a.kind == Codes.POSITION) {
-            if (_tryBalance(a.token) >= amount) {
+            uint256 held = _tryBalance(a.token);
+            if (held >= amount && (held == amount || _tryTransfer(a.token, owner, held - amount))) {
                 _tryTransfer(a.token, to, amount);
             }
         }

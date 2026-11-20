@@ -9,7 +9,8 @@ interface IIntentRouter {
 
     /// @param router Used only when the intent's constraints name no router
     /// @param routes Keeper bytes per rule, used only by rules without a committed route
-    /// @param contexts Guardian context per handoff
+    /// @param contexts Guardian context per handoff. Its first word is the call value the handoff
+    ///        forwards from msg.value, the keeper's messaging fee; the values add up to msg.value.
     function executeIntent(
         Intent calldata intent,
         bytes calldata signature,

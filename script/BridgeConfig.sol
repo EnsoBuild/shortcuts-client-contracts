@@ -22,6 +22,10 @@ interface IAcrossChain {
     function chainId() external view returns (uint256);
 }
 
+interface ITokenDecimals {
+    function decimals() external view returns (uint8);
+}
+
 /// BridgeGuardian's per-chain configuration: CCTP V2 and Across. The guardian has no admin, so this
 /// table is fixed into each deployment: a new chain or bridge address means a new guardian, and new
 /// leaves naming it. The constructor arguments differ per chain, and so does the guardian's address.
@@ -30,9 +34,12 @@ interface IAcrossChain {
 /// and a non-zero burn limit for the listed USDC; Across: the spoke pool's chainId and the 12-argument
 /// bytes32 `deposit` in its implementation). `_checkLocal` checks the local ones again.
 /// Sources: Circle's CCTP V2 contract and USDC address pages; the Across contracts npm package
-/// (5.1.0), dist/broadcast/deployed-addresses.json.
+/// (5.1.0), dist/broadcast/deployed-addresses.json; the Across available-routes list for the tokens.
 abstract contract BridgeConfig is IntentDeployment {
     bytes32 internal constant GUARDIAN_SALT = "BridgeGuardian";
+
+    uint8 private constant USDC = 0;
+    uint8 private constant USDT = 1;
 
     /// CCTP V2 TokenMessengerV2: the same address on every CCTP V2 chain listed below.
     address internal constant TOKEN_MESSENGER = 0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
@@ -42,16 +49,28 @@ abstract contract BridgeConfig is IntentDeployment {
         address usdc;
         BridgeGuardian.CctpDestination[] destinations;
         address spokePool;
+        BridgeGuardian.AcrossRoute[] routes;
+    }
+
+    /// A token Across carries between the chains below. Tokens of one family are delivered for
+    /// each other.
+    struct AcrossToken {
+        uint256 chainId;
+        uint8 family;
+        address token;
+        uint8 decimals;
     }
 
     /// This chain's guardian configuration. Both bridges are zero where neither runs here.
     function _guardianConfig() internal view returns (GuardianConfig memory config) {
         (config.tokenMessenger, config.usdc, config.destinations) = _cctp();
         config.spokePool = _spokePool(block.chainid);
+        config.routes = _acrossRoutes();
     }
 
     function _guardianCreationCode(GuardianConfig memory config) internal pure returns (bytes memory) {
-        bytes memory args = abi.encode(config.tokenMessenger, config.usdc, config.destinations, config.spokePool);
+        bytes memory args =
+            abi.encode(config.tokenMessenger, config.usdc, config.destinations, config.spokePool, config.routes);
         return abi.encodePacked(type(BridgeGuardian).creationCode, args);
     }
 
@@ -148,6 +167,60 @@ abstract contract BridgeConfig is IntentDeployment {
         }
     }
 
+    /// This chain's Across routes: each local token to its family's token on every other chain.
+    function _acrossRoutes() internal view returns (BridgeGuardian.AcrossRoute[] memory routes) {
+        AcrossToken[] memory all = _acrossTokens();
+        routes = new BridgeGuardian.AcrossRoute[](all.length);
+        uint256 n;
+        for (uint256 i; i < all.length; ++i) {
+            if (all[i].chainId != block.chainid) {
+                continue;
+            }
+            for (uint256 j; j < all.length; ++j) {
+                if (all[j].family == all[i].family && all[j].chainId != block.chainid) {
+                    routes[n++] = BridgeGuardian.AcrossRoute({
+                        input: all[i].token,
+                        chainId: all[j].chainId,
+                        output: all[j].token,
+                        // forge-lint: disable-next-line(unsafe-typecast)
+                        decimals: int8(all[j].decimals) - int8(all[i].decimals)
+                    });
+                }
+            }
+        }
+        assembly ("memory-safe") {
+            mstore(routes, n)
+        }
+    }
+
+    /// Stablecoins with an Across route between every pair of the chains listed: native USDC on the
+    /// CCTP chains that have a spoke pool (Plasma has no USDC route), and USDT or USDT0.
+    function _acrossTokens() internal pure returns (AcrossToken[] memory t) {
+        BridgeGuardian.CctpDestination[] memory cctp = _cctpChains();
+        t = new AcrossToken[](27);
+        uint256 n;
+        for (uint256 i; i < cctp.length; ++i) {
+            if (cctp[i].chainId != ChainId.PLASMA && _spokePool(cctp[i].chainId) != address(0)) {
+                t[n++] = _t(cctp[i].chainId, USDC, cctp[i].usdc, 6);
+            }
+        }
+        t[n++] = _t(ChainId.ETHEREUM, USDT, 0xdAC17F958D2ee523a2206206994597C13D831ec7, 6);
+        t[n++] = _t(ChainId.OPTIMISM, USDT, 0x94b008aA00579c1307B0EF2c499aD98a8ce58e58, 6);
+        t[n++] = _t(ChainId.BINANCE, USDT, 0x55d398326f99059fF775485246999027B3197955, 18);
+        t[n++] = _t(ChainId.UNICHAIN, USDT, 0x9151434b16b9763660705744891fA906F660EcC5, 6);
+        t[n++] = _t(ChainId.POLYGON, USDT, 0xc2132D05D31c914a87C6611C10748AEb04B58e8F, 6);
+        t[n++] = _t(ChainId.MONAD, USDT, 0xe7cd86e13AC4309349F30B3435a9d337750fC82D, 6);
+        t[n++] = _t(ChainId.HYPER, USDT, 0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb, 6);
+        t[n++] = _t(ChainId.MEGAETH, USDT, 0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb, 6);
+        t[n++] = _t(ChainId.BASE, USDT, 0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2, 6);
+        t[n++] = _t(ChainId.PLASMA, USDT, 0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb, 6);
+        t[n++] = _t(ChainId.ARBITRUM, USDT, 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9, 6);
+        t[n++] = _t(ChainId.AVALANCHE, USDT, 0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7, 6);
+        t[n++] = _t(ChainId.INK, USDT, 0x0200C29006150606B650577BBE7B6248F58470c1, 6);
+        t[n++] = _t(ChainId.LINEA, USDT, 0xA219439258ca9da29E9Cc4cE5596924745e12B93, 6);
+        require(n == t.length, "across token count");
+    }
+
     /// The guardian can't be reconfigured, so the local addresses are checked against the chain itself.
     function _checkLocal(GuardianConfig memory config) internal view {
         if (config.tokenMessenger != address(0)) {
@@ -164,6 +237,20 @@ abstract contract BridgeConfig is IntentDeployment {
         if (config.spokePool != address(0)) {
             require(IAcrossChain(config.spokePool).chainId() == block.chainid, "spoke pool chain mismatch");
         }
+        AcrossToken[] memory tokens = _acrossTokens();
+        for (uint256 i; i < tokens.length; ++i) {
+            if (tokens[i].chainId == block.chainid) {
+                require(ITokenDecimals(tokens[i].token).decimals() == tokens[i].decimals, "token decimals mismatch");
+            }
+        }
+    }
+
+    function _t(uint256 chainId, uint8 family, address token, uint8 decimals)
+        private
+        pure
+        returns (AcrossToken memory)
+    {
+        return AcrossToken({ chainId: chainId, family: family, token: token, decimals: decimals });
     }
 
     function _d(

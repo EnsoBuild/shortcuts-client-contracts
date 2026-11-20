@@ -103,7 +103,7 @@ contract BridgeGuardian_Fork_Test is Test {
     function _cctp(uint256 chainId, uint32 domain, address delivered, uint256 maxFee, uint32 finality) internal {
         address usdc = s_guardian.usdc();
         Obligation memory o = _obligation(chainId, s_guardian.CCTP(), delivered, AMOUNT - maxFee);
-        bytes memory context = abi.encode(s_guardian.CCTP(), abi.encode(maxFee, finality));
+        bytes memory context = abi.encode(uint256(0), s_guardian.CCTP(), abi.encode(maxFee, finality));
         _fund(usdc);
         uint256 supply = IERC20(usdc).totalSupply();
 
@@ -132,7 +132,7 @@ contract BridgeGuardian_Fork_Test is Test {
         uint256 output = AMOUNT - 1e6;
         uint32 fillDeadline = uint32(block.timestamp + 2 hours);
         Obligation memory o = _obligation(ARBITRUM, s_guardian.ACROSS(), delivered, output);
-        bytes memory context = abi.encode(s_guardian.ACROSS(), abi.encode(output, address(0), fillDeadline, uint32(0)));
+        bytes memory context = abi.encode(uint256(0), s_guardian.ACROSS(), abi.encode(output, fillDeadline));
         _fund(input);
         uint256 pooled = IERC20(input).balanceOf(spokePool);
         uint32 depositId = ISpokePoolDeposits(spokePool).numberOfDeposits();
@@ -173,7 +173,7 @@ contract BridgeGuardian_Fork_Test is Test {
     function _accept(address token, Obligation memory o, bytes memory context) internal returns (bytes32) {
         Token memory input = Token({ tokenType: TokenType.ERC20, data: abi.encode(token, AMOUNT) });
         vm.prank(s_intent);
-        return s_guardian.accept(keccak256("intent"), input, AMOUNT, o, context);
+        return s_guardian.accept(keccak256("intent"), s_user, address(this), input, AMOUNT, o, context);
     }
 
     function _assertNothingRests(address token, address bridge, bytes32 receipt) internal view {

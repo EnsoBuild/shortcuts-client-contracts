@@ -10,7 +10,9 @@ import { IntentDeployment } from "./IntentDeployment.sol";
 contract IntentRouterDeployer is IntentDeployment {
     function run() public returns (IntentRouter router, address evaluator, address hash) {
         _requireSupported();
-        bytes memory creationCode = type(IntentRouter).creationCode;
+        // The router shares the factory's intent lock, so the factory must be there first.
+        require(_factory().code.length != 0, "deploy the ephemeral factory first");
+        bytes memory creationCode = _routerCode();
         evaluator = _requireLinked(creationCode, EVALUATOR);
         hash = _requireLinked(creationCode, HASH);
         router = IntentRouter(payable(_deploy(ROUTER_SALT, creationCode)));

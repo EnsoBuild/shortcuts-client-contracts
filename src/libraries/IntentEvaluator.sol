@@ -37,7 +37,8 @@ struct Run {
     address records; // the ephemeral factory holding this executor's record; address(0) = caller keeps it
     address router; // keeper's router, used only when the constraints name none
     bytes[] routes; // keeper bytes per rule, used only by rules without a committed route
-    bytes[] contexts; // keeper context per handoff
+    bytes[] contexts; // keeper context per handoff; its first word is the handoff's share of `value`
+    uint256 value; // the keeper's call value: messaging fees, all forwarded to guardians
 }
 
 /// @title IntentEvaluator
@@ -57,6 +58,7 @@ library IntentEvaluator {
     uint8 internal constant UNSUPPORTED = 2;
     uint8 internal constant CUSTODIAL = 3;
     uint8 internal constant EXHAUSTED = 4; // used up or cancelled (ephemeral records)
+    uint8 internal constant UNBOUNDED = 5; // a keeper-routed rule's bound isn't positive at this pre-state
 
     error NotKeeper();
     error TooEarly();
@@ -72,6 +74,11 @@ library IntentEvaluator {
     error FrameViolation(uint16 asset);
     error ApprovalLeft(address token, address spender);
     error UnsupportedAsset(uint16 asset);
+    error WrongValue(); // the handoffs' context values don't add up to the keeper's call value
+
+    /// Transient: the keeper's call value not yet forwarded. It sits in the calling contract's
+    /// native balance but is never the holder's, so native reads of the calling contract leave it out.
+    bytes32 private constant RESERVED_SLOT = keccak256("enso.intent.evaluator.reserved");
 
     struct State {
         uint256[] held; // per asset: pre-state holding, read for rule inputs only
@@ -130,15 +137,15 @@ library IntentEvaluator {
                 return MALFORMED;
             }
         }
-        if (c.assets.length > 256) {
-            return MALFORMED; // asset sets are tracked as bitmasks
+        if (c.assets.length + c.views.length > 256 || c.handoffs.length > 256) {
+            return MALFORMED; // asset, view and handoff sets are tracked as bitmasks
         }
         for (uint256 i; i < c.refunds.length; ++i) {
             if (c.refunds[i].asset >= c.assets.length) {
                 return MALFORMED;
             }
         }
-        (bool[] memory post, bool[] memory consumed, uint8 termStatus) = _checkTerms(c);
+        (uint256[] memory post, bool[] memory consumed, uint8 termStatus) = _checkTerms(c);
         if (termStatus != OK) {
             return termStatus;
         }
@@ -178,15 +185,16 @@ library IntentEvaluator {
         return OK;
     }
 
-    /// @return post Per term: depends on post-state
+    /// @return post Per term: the post-state it depends on, as a set. Assets whose DELTA it reads
+    ///         count from bit 0, views it reads after execution from bit 255 down; zero is pre-state
     /// @return consumed Per term: depends on what the active rules consume
     function _checkTerms(Constraints memory c)
         private
         pure
-        returns (bool[] memory post, bool[] memory consumed, uint8)
+        returns (uint256[] memory post, bool[] memory consumed, uint8)
     {
         uint256 accountCount = c.accounts.length + 2;
-        post = new bool[](c.terms.length);
+        post = new uint256[](c.terms.length);
         consumed = new bool[](c.terms.length);
         for (uint256 i; i < c.terms.length; ++i) {
             Term memory t = c.terms[i];
@@ -195,12 +203,16 @@ library IntentEvaluator {
                 if (t.a >= c.assets.length || t.b >= accountCount) {
                     return (post, consumed, MALFORMED);
                 }
-                post[i] = op == Codes.OP_DELTA;
+                if (op == Codes.OP_DELTA) {
+                    post[i] = uint256(1) << t.a;
+                }
             } else if (op == Codes.OP_PRE_VIEW || op == Codes.OP_POST_VIEW) {
                 if (t.a >= c.views.length) {
                     return (post, consumed, MALFORMED);
                 }
-                post[i] = op == Codes.OP_POST_VIEW;
+                if (op == Codes.OP_POST_VIEW) {
+                    post[i] = (uint256(1) << 255) >> t.a;
+                }
             } else if (op == Codes.OP_SOURCE) {
                 if (t.a >= c.sources.length) {
                     return (post, consumed, MALFORMED);
@@ -224,7 +236,7 @@ library IntentEvaluator {
                 if (t.a >= i || (binary && t.b >= i)) {
                     return (post, consumed, MALFORMED);
                 }
-                post[i] = post[t.a] || (binary && post[t.b]);
+                post[i] = post[t.a] | (binary ? post[t.b] : 0);
                 consumed[i] = consumed[t.a] || (binary && consumed[t.b]);
             } else if (op > Codes.OP_MUL_BPS) {
                 return (post, consumed, MALFORMED);
@@ -268,7 +280,7 @@ library IntentEvaluator {
         return OK;
     }
 
-    function _checkHandoffs(Constraints memory c, bool[] memory post) private pure returns (uint8) {
+    function _checkHandoffs(Constraints memory c, uint256[] memory post) private pure returns (uint8) {
         for (uint256 i; i < c.handoffs.length; ++i) {
             Handoff memory h = c.handoffs[i];
             if (h.source >= c.sources.length || c.sources[h.source].kind != Codes.GUARDIAN) {
@@ -281,19 +293,25 @@ library IntentEvaluator {
                 return MALFORMED;
             }
             // Handoff terms are needed before accept runs: pre-state only.
-            if (post[h.minAmount] || post[h.deadline]) {
+            if (post[h.minAmount] | post[h.deadline] != 0) {
                 return MALFORMED;
             }
         }
         return OK;
     }
 
-    function _checkRules(Constraints memory c, bool[] memory post, bool[] memory consumed)
+    function _checkRules(
+        Constraints memory c,
+        uint256[] memory post,
+        bool[] memory consumed
+    )
         private
         pure
         returns (uint8)
     {
         uint256 covered = 0;
+        uint256 handed = 0;
+        uint256 measured = 0;
         for (uint256 r; r < c.rules.length; ++r) {
             Rule memory rule = c.rules[r];
             if (rule.consume > Codes.DRAIN) {
@@ -314,6 +332,10 @@ library IntentEvaluator {
                 mine |= bit;
             }
             covered |= mine;
+            // A route runs as the router, never as the owner: without inputs it has nothing to spend.
+            if (rule.routing != Codes.ROUTE_NONE && mine == 0) {
+                return MALFORMED;
+            }
             if (c.lifetime.kind == Codes.ONCE && rule.threshold < rule.inputs.length && rule.consume != Codes.DRAIN) {
                 return MALFORMED; // a keeper could take the profitable input and strand the rest
             }
@@ -324,7 +346,7 @@ library IntentEvaluator {
             }
             for (uint256 j; j < rule.fees.length; ++j) {
                 Fee memory fee = rule.fees[j];
-                if (fee.amount >= c.terms.length || fee.asset >= c.assets.length || post[fee.amount]) {
+                if (fee.amount >= c.terms.length || fee.asset >= c.assets.length || post[fee.amount] != 0) {
                     return MALFORMED;
                 }
                 if (rule.inputs.length > 0 && mine & (uint256(1) << fee.asset) == 0) {
@@ -349,14 +371,47 @@ library IntentEvaluator {
                 Predicate memory p = c.predicates[rule.when[j]];
                 // Guards read pre-state only, so the active rules are fixed before the keeper acts,
                 // and never what the rules consume, which depends on which rules are active.
-                if (p.cmp > Codes.CMP_EQ || post[p.lhs] || post[p.rhs] || consumed[p.lhs] || consumed[p.rhs]) {
+                if (p.cmp > Codes.CMP_EQ || post[p.lhs] | post[p.rhs] != 0 || consumed[p.lhs] || consumed[p.rhs]) {
                     return MALFORMED;
                 }
             }
+            uint256 hands = 0;
+            uint256 reads = 0;
+            uint256 moved = 0;
+            // A handoff is accepted once per execution, and post-state is measured once, after every
+            // route. Under ALL matching a second rule that names the same handoff, or compares the
+            // same balance change or view, would pass on what the first rule delivered.
             for (uint256 j; j < rule.then.length; ++j) {
                 if (rule.then[j] >= c.predicates.length) {
                     return MALFORMED;
                 }
+                Predicate memory p = c.predicates[rule.then[j]];
+                if (p.cmp == Codes.CMP_ACCEPTED) {
+                    uint256 bit = uint256(1) << p.lhs;
+                    if (handed & bit != 0) {
+                        return MALFORMED;
+                    }
+                    hands |= bit;
+                    moved |= uint256(1) << c.handoffs[p.lhs].input;
+                } else if (p.cmp <= Codes.CMP_EQ) {
+                    uint256 mask = post[p.lhs] | post[p.rhs];
+                    if (measured & mask != 0) {
+                        return MALFORMED;
+                    }
+                    reads |= mask;
+                }
+            }
+            if (c.matching == Codes.MATCH_ALL) {
+                handed |= hands;
+                measured |= reads;
+            }
+            // Without a record the leaf can run again at once, so a fee must leave with one of the
+            // rule's inputs: through a route, or through a handoff of that input.
+            if (
+                rule.fees.length > 0 && moved & mine == 0 && rule.routing == Codes.ROUTE_NONE
+                    && !IntentRecord.needed(c.lifetime)
+            ) {
+                return CUSTODIAL;
             }
             // Only a keeper route is the keeper's discretion; a rule with no route can only pay its
             // fee and hand off, both built from committed data.
@@ -370,7 +425,7 @@ library IntentEvaluator {
     /// Every OR group of a keeper-routed rule's outcome holds at least one candidate bound: a
     /// handoff, or a lower bound on post-state against a pre-state value. The value's sign is
     /// checked at execution.
-    function _bounded(Constraints memory c, Rule memory rule, bool[] memory post) private pure returns (bool) {
+    function _bounded(Constraints memory c, Rule memory rule, uint256[] memory post) private pure returns (bool) {
         uint256 seen = 0;
         uint256 bounded = 0;
         for (uint256 j; j < rule.then.length; ++j) {
@@ -384,11 +439,12 @@ library IntentEvaluator {
         return seen != 0 && seen == bounded;
     }
 
-    function _candidate(Predicate memory p, bool[] memory post) private pure returns (bool) {
+    function _candidate(Predicate memory p, uint256[] memory post) private pure returns (bool) {
         if (p.cmp == Codes.CMP_ACCEPTED) {
             return true;
         }
-        return (p.cmp == Codes.CMP_GTE || p.cmp == Codes.CMP_GT || p.cmp == Codes.CMP_EQ) && post[p.lhs] && !post[p.rhs];
+        return (p.cmp == Codes.CMP_GTE || p.cmp == Codes.CMP_GT || p.cmp == Codes.CMP_EQ) && post[p.lhs] != 0
+            && post[p.rhs] == 0;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -397,9 +453,9 @@ library IntentEvaluator {
 
     /// @notice Check, gate and execute in one call, so the intent crosses into the library once.
     /// @return status OK when executed. Any other status means nothing changed: MALFORMED,
-    ///         UNSUPPORTED or CUSTODIAL (statically, or at the pre-state when a keeper-routed rule's
-    ///         bound isn't positive), or EXHAUSTED. Liveness failures revert: NotKeeper, TooEarly,
-    ///         NotYet, and anything execution itself raises.
+    ///         UNSUPPORTED or CUSTODIAL (statically), UNBOUNDED (at the pre-state, when a
+    ///         keeper-routed rule's bound isn't positive), or EXHAUSTED. Liveness failures revert:
+    ///         NotKeeper, TooEarly, NotYet, and anything execution itself raises.
     /// @dev The static check runs before the keeper gate, so a refused intent's refund is open to
     ///      anyone; the runtime custody test runs after it. The intent is read from calldata and
     ///      decoded into memory once, here.
@@ -432,7 +488,7 @@ library IntentEvaluator {
             }
         }
         if (!_execute(intent, run)) {
-            return CUSTODIAL;
+            return UNBOUNDED;
         }
         if (recorded) {
             // ALLOWED: the verdict above is from this call, only this executor writes its record, and
@@ -443,21 +499,27 @@ library IntentEvaluator {
     }
 
     /// @return executed False when, at the pre-state, some keeper-routed rule has no positive outcome
-    ///         bound: nothing was changed, and the caller treats the intent as custodial
+    ///         bound: nothing was changed, and the caller reports the intent UNBOUNDED
     function _execute(Intent memory intent, Run memory run) private returns (bool executed) {
         Constraints memory c = intent.constraints;
         State memory s = _state(c);
         s.router = c.router != address(0) ? c.router : run.router;
 
+        _reserve(run.value);
         _snapshot(c, run, s);
         _selectRules(c, run, s);
         _freeze(c, run, s);
         if (!_positive(c, run, s)) {
+            _reserve(0);
             return false;
         }
         _payFees(c, run, s);
         _routes(c, run, s);
         _handoffs(c, run, s);
+        // Every wei the keeper sent went to a guardian: none is left for the holder to keep.
+        if (_reserved() != 0) {
+            revert WrongValue();
+        }
         s.postPhase = true;
         _outcomes(c, run, s);
         if (c.frame == Codes.FRAME_STRICT) {
@@ -685,11 +747,15 @@ library IntentEvaluator {
                 Predicate memory p = c.predicates[rule.then[j]];
                 uint256 bit = uint256(1) << p.group;
                 seen |= bit;
-                if (p.cmp == Codes.CMP_ACCEPTED) {
-                    bounded |= bit;
-                } else if ((p.cmp == Codes.CMP_GTE || p.cmp == Codes.CMP_EQ || p.cmp == Codes.CMP_GT) && s.post[p.lhs])
-                {
-                    int256 floor = _eval(c, run, s, p.rhs, r);
+                bool handoff = p.cmp == Codes.CMP_ACCEPTED;
+                if (
+                    handoff
+                        || ((p.cmp == Codes.CMP_GTE || p.cmp == Codes.CMP_EQ || p.cmp == Codes.CMP_GT)
+                            && s.post[p.lhs]
+                            && !s.post[p.rhs])
+                ) {
+                    // A handoff bounds what its guardian must deliver: its frozen minimum.
+                    int256 floor = _eval(c, run, s, handoff ? c.handoffs[p.lhs].minAmount : p.rhs, r);
                     if (floor > 0 || (p.cmp == Codes.CMP_GT && floor == 0)) {
                         bounded |= bit;
                     }
@@ -722,6 +788,9 @@ library IntentEvaluator {
                     // casting to 'uint256' is safe because fee > 0
                     // forge-lint: disable-next-line(unsafe-typecast)
                     uint256 amount = uint256(fee);
+                    if (rule.inputs.length > 0 && amount >= s.consumed[candidate.asset]) {
+                        revert NotExecutable(); // the fee would be all the rule moves
+                    }
                     s.feeAsset[r] = candidate.asset;
                     s.fees[r] = amount;
                     _send(c.assets[candidate.asset], run, run.caller, amount);
@@ -810,13 +879,6 @@ library IntentEvaluator {
     }
 
     function _handoffs(Constraints memory c, Run memory run, State memory s) private {
-        bool nativeInputs = false;
-        for (uint256 r; r < c.rules.length; ++r) {
-            Input[] memory inputs = c.rules[r].inputs;
-            for (uint256 j; j < inputs.length; ++j) {
-                nativeInputs = nativeInputs || c.assets[inputs[j].asset].kind == Codes.NATIVE;
-            }
-        }
         for (uint256 r; r < c.rules.length; ++r) {
             if (!s.active[r]) {
                 continue;
@@ -827,21 +889,12 @@ library IntentEvaluator {
                 if (p.cmp != Codes.CMP_ACCEPTED || s.accepted[p.lhs]) {
                     continue;
                 }
-                _handoff(c, run, s, p.lhs, r, nativeInputs);
+                _handoff(c, run, s, p.lhs, r);
             }
         }
     }
 
-    function _handoff(
-        Constraints memory c,
-        Run memory run,
-        State memory s,
-        uint16 index,
-        uint256 r,
-        bool nativeInputs
-    )
-        private
-    {
+    function _handoff(Constraints memory c, Run memory run, State memory s, uint16 index, uint256 r) private {
         Handoff memory h = c.handoffs[index];
         Source memory source = c.sources[h.source];
         IIntentGuardian guardian = IIntentGuardian(source.target);
@@ -868,17 +921,32 @@ library IntentEvaluator {
             minAmount: _nonNegative(_eval(c, run, s, h.minAmount, r)),
             deadline: _deadline(_nonNegative(_eval(c, run, s, h.deadline, r)))
         });
-        // Native forwarded beyond a native input is the keeper's messaging-fee money.
-        uint256 value = input.kind == Codes.NATIVE ? amount : (nativeInputs ? 0 : address(this).balance);
+        if (obligation.minAmount == 0) {
+            revert NotExecutable(); // the guardian would be bound to deliver nothing
+        }
+        // Call value is a native input's handed amount plus the keeper's messaging fee for this
+        // handoff, the context's first word, drawn from what the keeper sent. The holder's other
+        // native is never forwarded.
+        bytes memory context = index < run.contexts.length ? run.contexts[index] : bytes("");
+        uint256 fee = 0;
+        if (context.length >= 32) {
+            assembly ("memory-safe") {
+                fee := mload(add(context, 0x20))
+            }
+        }
+        uint256 reserved = _reserved();
+        if (fee > reserved) {
+            revert WrongValue();
+        }
+        _reserve(reserved - fee);
+        uint256 value = (input.kind == Codes.NATIVE ? amount : 0) + fee;
         Token memory token = _token(input, amount);
         if (input.kind != Codes.NATIVE) {
             _grantToken(token, address(guardian), s);
         }
         // The receipt is the guardian's own record (its Accepted event); acceptance is tracked here.
         // forge-lint: disable-start(unused-return)
-        guardian.accept{ value: value }(
-            run.id, token, amount, obligation, index < run.contexts.length ? run.contexts[index] : bytes("")
-        );
+        guardian.accept{ value: value }(run.id, run.owner, run.caller, token, amount, obligation, context);
         // forge-lint: disable-end(unused-return)
         if (input.kind != Codes.NATIVE) {
             _revokeToken(token, address(guardian));
@@ -1230,11 +1298,25 @@ library IntentEvaluator {
     function _balanceOf(Asset memory a, address account) private view returns (uint256) {
         uint8 kind = a.kind;
         if (kind == Codes.NATIVE) {
-            return account.balance;
+            return account == address(this) ? account.balance - _reserved() : account.balance;
         } else if (kind == Codes.ERC1155) {
             return IERC1155(a.token).balanceOf(account, a.id);
         }
         return IERC20(a.token).balanceOf(account);
+    }
+
+    function _reserve(uint256 amount) private {
+        bytes32 slot = RESERVED_SLOT;
+        assembly ("memory-safe") {
+            tstore(slot, amount)
+        }
+    }
+
+    function _reserved() private view returns (uint256 amount) {
+        bytes32 slot = RESERVED_SLOT;
+        assembly ("memory-safe") {
+            amount := tload(slot)
+        }
     }
 
     function _token(Asset memory a, uint256 amount) private pure returns (Token memory) {
