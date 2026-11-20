@@ -2,67 +2,119 @@
 pragma solidity ^0.8.28;
 
 import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.sol";
-import { Token, TokenType } from "../../../../../src/interfaces/IEnsoRouter.sol";
-import { Constrained, Intent, Mode } from "../../../../../src/wallet/EphemeralIntentExecutor.sol";
+import { Token } from "../../../../../src/interfaces/IEnsoRouter.sol";
+import { Execution, IEphemeralFactory } from "../../../../../src/interfaces/IEphemeralFactory.sol";
+import { Codes, Intent, Lifetime } from "../../../../../src/interfaces/IIntent.sol";
+import { IntentRecord } from "../../../../../src/libraries/IntentRecord.sol";
 import { EphemeralFactory_Unit_Concrete_Test } from "./EphemeralFactory.t.sol";
 
-contract EphemeralFactory_ExecuteIntent_Unit_Concrete_Test is EphemeralFactory_Unit_Concrete_Test {
-    function test_WhenTheIntentExecutes() external {
-        Intent memory intent = _intent();
-        address predicted = _fund(intent, 100 ether);
+/// A router whose route re-enters the factory.
+contract ReenteringRouter {
+    EphemeralFactory internal immutable i_factory;
+    bytes32 internal s_root;
+    bytes internal s_execution;
 
-        // it should emit IntentPublished with the canonical blob
+    constructor(EphemeralFactory factory) {
+        i_factory = factory;
+    }
+
+    function arm(bytes32 root, bytes calldata execution) external {
+        s_root = root;
+        s_execution = execution;
+    }
+
+    function routeSingle(Token calldata, bytes calldata) external payable returns (bytes memory) {
+        (bool ok, bytes memory ret) = address(i_factory)
+            .call(bytes.concat(IEphemeralFactory.executeIntent.selector, abi.encode(s_root), s_execution));
+        require(!ok, "re-entry succeeded");
+        assembly ("memory-safe") {
+            revert(add(ret, 0x20), mload(ret))
+        }
+    }
+}
+
+contract LockCaller {
+    function enter(IEphemeralFactory factory) external {
+        factory.enter();
+    }
+
+    function exit(IEphemeralFactory factory) external {
+        factory.exit();
+    }
+}
+
+contract LockSequence {
+    function run(IEphemeralFactory factory, LockCaller holder, LockCaller other) external {
+        holder.enter(factory);
+        other.exit(factory); // not the holder: no effect
+        try other.enter(factory) {
+            revert("entered a held lock");
+        } catch (bytes memory reason) {
+            require(bytes4(reason) == IEphemeralFactory.Locked.selector, "wrong error");
+        }
+        holder.exit(factory);
+        other.enter(factory);
+    }
+}
+
+contract EphemeralFactory_ExecuteIntent_Test is EphemeralFactory_Unit_Concrete_Test {
+    function test_EmitsExecuted() external {
+        Intent memory intent = _swapIntent();
+        bytes32 root = _root(intent);
+        address at = _fund(root, DEPOSIT);
+        s_router.addOut(address(s_tokenOut), 200 ether, s_user);
+
         vm.expectEmit(address(s_factory));
-        emit EphemeralFactory.IntentPublished(predicted, abi.encode(intent));
-
-        vm.prank(s_keeper);
-        address executor = s_factory.executeIntent(intent, "", new Token[](0));
-
-        // it should deploy at the predicted address
-        assertEq(executor, predicted);
-
-        // it should leave no code at the address
-        assertEq(predicted.code.length, 0);
+        emit IEphemeralFactory.Executed(at, root);
+        _run(s_keeper, root, _withRoute(_execution(intent), hex"c0ffee"));
     }
 
-    function test_WhenTheRouterReadsTheContext() external {
-        // ROUTE mode: the keeper-supplied route bytes are ignored by the executor but
-        // still ride the transient context, which is what the probe asserts on.
-        Intent memory intent = _intent();
-        _fund(intent, 100 ether);
-        s_router.setProbe(address(s_factory));
-
-        Token[] memory sweep = new Token[](1);
-        sweep[0] = Token({ tokenType: TokenType.ERC20, data: abi.encode(address(s_tokenIn), uint256(0)) });
+    function test_NonCanonicalEncoding_Reverts() external {
+        Intent memory intent = _swapIntent();
+        bytes32 root = _root(intent);
+        bytes memory data = abi.encodeCall(IEphemeralFactory.executeIntent, (root, _execution(intent)));
+        // Point the execution's offset somewhere other than directly after the head.
+        assembly ("memory-safe") {
+            mstore(add(data, 0x44), 0x60)
+        }
         vm.prank(s_keeper);
-        s_factory.executeIntent(intent, hex"beefcafe", sweep);
-
-        // it should expose route, sweep, keeper and router
-        assertEq(s_router.probedRoute(), hex"beefcafe");
-        assertEq(s_router.probedSweepLength(), 1);
-        (TokenType sweptType, bytes memory sweptData) = s_router.probedSweep(0);
-        assertEq(uint8(sweptType), uint8(TokenType.ERC20));
-        assertEq(sweptData, abi.encode(address(s_tokenIn), uint256(0)));
-        assertEq(s_router.probedKeeper(), s_keeper);
-        assertEq(s_router.probedRouter(), address(s_router));
+        (bool ok, bytes memory ret) = address(s_factory).call(data);
+        assertFalse(ok, "rejected");
+        assertEq(bytes4(ret), EphemeralFactory.NonCanonicalEncoding.selector, "reason");
     }
 
-    /// forge-config: default.isolate = true
-    function test_WhenExecutedTwiceWithTheSameIntent() external {
-        Intent memory intent = _intent();
-        address predicted = _fund(intent, 100 ether);
-        vm.warp(intent.deadline + 1); // refund branch: no router interaction needed
+    function test_ContextIsEmptyOutsideAConstruction() external view {
+        (bytes memory data, address sender,) = s_factory.context();
+        assertEq(data.length, 0, "no execution");
+        assertEq(sender, address(0), "no sender");
+    }
 
-        vm.prank(s_keeper);
-        s_factory.executeIntent(intent, "", new Token[](0));
-        assertEq(s_tokenIn.balanceOf(s_user), 100 ether);
-        assertEq(predicted.code.length, 0);
+    function test_ReentryReverts() external {
+        ReenteringRouter router = new ReenteringRouter(s_factory);
+        Intent memory intent = _swapIntent();
+        intent.constraints.router = address(router);
+        bytes32 root = _root(intent);
+        _fund(root, DEPOSIT);
+        Execution memory e = _withRoute(_execution(intent), hex"c0ffee");
+        bytes memory encoded = abi.encode(e);
+        router.arm(root, encoded);
 
-        // it should reuse the address
-        s_tokenIn.mint(predicted, 50 ether);
-        vm.prank(s_keeper);
-        address executor = s_factory.executeIntent(intent, "", new Token[](0));
-        assertEq(executor, predicted);
-        assertEq(s_tokenIn.balanceOf(s_user), 150 ether);
+        vm.expectRevert(IEphemeralFactory.Locked.selector);
+        _run(s_keeper, root, e);
+    }
+
+    /// The intent lock is permissionless: whoever takes it blocks every intent execution for the
+    /// rest of its own transaction, and only the holder releases it.
+    function test_Lock_OnlyTheHolderReleases() external {
+        // One transaction: two callers in turn.
+        new LockSequence().run(s_factory, new LockCaller(), new LockCaller());
+    }
+
+    function test_Records_AreKeyedByTheWriter() external {
+        Lifetime memory once = Lifetime({ kind: Codes.ONCE, interval: 0, count: 0 });
+        vm.prank(s_stranger);
+        assertEq(s_factory.record(once, uint64(block.timestamp)), IntentRecord.ALLOWED, "first write");
+        assertEq(s_factory.verdict(s_stranger, once, uint64(block.timestamp)), IntentRecord.EXHAUSTED, "used");
+        assertEq(s_factory.verdict(s_keeper, once, uint64(block.timestamp)), IntentRecord.ALLOWED, "others untouched");
     }
 }

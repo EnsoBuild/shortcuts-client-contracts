@@ -6,6 +6,7 @@ import { EnsoReceiver } from "../../../../../src/delegate/EnsoReceiver.sol";
 import { TokenBalanceHelper } from "../../../../utils/TokenBalanceHelper.sol";
 import { EnsoReceiver_Unit_Concrete_Test } from "./EnsoReceiver.t.sol";
 import { console2 } from "forge-std/Test.sol";
+import { ReentrancyGuardTransient } from "openzeppelin-contracts/utils/ReentrancyGuardTransient.sol";
 
 contract EnsoReceiver_ExecuteMultiSend_SenderIsEnsoReceiver_Unit_Concrete_Test is
     EnsoReceiver_Unit_Concrete_Test,
@@ -40,7 +41,10 @@ contract EnsoReceiver_ExecuteMultiSend_SenderIsEnsoReceiver_Unit_Concrete_Test i
 
         // it should revert
         vm.prank(address(s_ensoReceiver));
-        vm.expectRevert(bytes("ReentrancyGuardReentrantCall()"), address(s_ensoReceiver));
+        vm.expectRevert(
+            abi.encodeWithSelector(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector),
+            address(s_ensoReceiver)
+        );
         s_ensoReceiver.executeMultiSend(accountId, requestId, transactions);
     }
 
@@ -177,7 +181,10 @@ contract EnsoReceiver_ExecuteMultiSend_SenderIsOwner_Unit_Concrete_Test is
 
         // it should revert
         vm.prank(address(s_owner));
-        vm.expectRevert(bytes("ReentrancyGuardReentrantCall()"), address(s_ensoReceiver));
+        vm.expectRevert(
+            abi.encodeWithSelector(ReentrancyGuardTransient.ReentrancyGuardReentrantCall.selector),
+            address(s_ensoReceiver)
+        );
         s_ensoReceiver.executeMultiSend(accountId, requestId, transactions);
     }
 

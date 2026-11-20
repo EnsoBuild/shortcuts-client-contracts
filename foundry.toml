@@ -4,7 +4,11 @@ auto_detect_solc = false
 bytecode_hash = "none" # Disables the metadata
 cbor_metadata = false # Diasbles the metadata
 evm_version = "cancun"
-fs_permissions = [{ access = "read", path = "./broadcast" }, { access = "read", path = "./test/fixtures" }] # RoleMigration reads deployed addresses from broadcast logs
+fs_permissions = [
+    { access = "read", path = "./broadcast" }, # RoleMigration reads deployed addresses from broadcast logs
+    { access = "read", path = "./test/fixtures" },
+    { access = "write", path = "../enso-intent-sdk" }, # IntentDeploymentsWriter publishes deployments.json into the intent SDK
+]
 libs = ["lib", "dependencies"]
 optimizer = true
 optimizer-runs = 200
