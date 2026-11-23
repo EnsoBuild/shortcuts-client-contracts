@@ -2,12 +2,19 @@
 
 `notes/ephemeral-contract-audit-notes.md` and `notes/intent-v2-audit-notes.md`
 are frozen and never amended. The v2 note describes the tree at commit
-`1ace556`. This note covers every change since then: the constraint language,
-which replaces the v2 struct's `tokensIn` / `tokensOut` / `route` model; Merkle
-intent trees; bridge guardians; usage counters; execution records; and the
-deterministic deployers. Read the three notes together for the full picture.
-Where this note and an older one disagree, this note wins. §1 lists the places
-where the v2 note no longer matches the code.
+`1ace556`. This note covers every change since then:
+
+- the constraint language, which replaces the v2 struct's `tokensIn` /
+  `tokensOut` / `route` model;
+- Merkle intent trees;
+- bridge guardians and keeper-funded messaging fees;
+- an intent lock shared by the factory and the router;
+- usage counters and execution records;
+- the deterministic deployers.
+
+Read the three notes together for the full picture. Where this note and an older
+one disagree, this note wins. §1 lists the places where the v2 note no longer
+matches the code.
 
 Scope:
 
@@ -19,8 +26,9 @@ Scope:
 - `src/router/IntentRouter.sol`
 - `src/intent/BridgeGuardian.sol`, `src/intent/IntentCounter.sol`
 - `script/IntentDeployment.sol`, `BridgeConfig.sol`, `EphemeralDeployer.s.sol`,
-  `IntentRouterDeployer.s.sol`, `IntentCounterDeployer.s.sol`,
-  `BridgeGuardianDeployer.s.sol`, `IntentDeploymentsWriter.s.sol`
+  `IntentDeployer.s.sol`, `IntentRouterDeployer.s.sol`,
+  `IntentCounterDeployer.s.sol`, `BridgeGuardianDeployer.s.sol`,
+  `IntentDeploymentsWriter.s.sol`
 
 The ephemeral note's §1 severity model still governs the executor:
 
@@ -53,14 +61,18 @@ The ephemeral note's §1 severity model still governs the executor:
    - `_run` and the `tokensOut` floor are gone.
    - The keeper gate now lives in the evaluator (§3.1).
    - `context()` returns `(execution, sender, domain)`.
-   - The factory takes no constructor arguments and has no router.
-   - `nonReentrant` is unchanged.
+   - The factory takes no constructor arguments.
+   - `nonReentrant` is replaced by the shared intent lock (§4).
+   - `executeIntent` and the executor's constructor are payable, for the
+     keeper's messaging fees (§3.12).
 5. **§5 IntentRouter.**
    - The router no longer deploys its own `EnsoShortcuts`. It pulls inputs into
      itself and approves an EnsoRouter for each route.
+   - The router's constructor takes the chain's `EphemeralFactory`, whose lock
+     it shares. `nonReentrant` is gone.
    - The nonce bitmap is replaced by per-`(owner, nonce)` execution records with
      lifetimes. `cancel` takes an array.
-   - `executeIntent` is payable, for guardian messaging fees.
+   - `executeIntent` is payable, for the keeper's messaging fees.
    - `refundFee` no longer exists.
    - The signature path (ECDSA, then ERC-1271) is unchanged.
 6. **§6 deployment, §7 tests, §8 open items.** Superseded by §7, §10 and §11
@@ -110,13 +122,14 @@ what differs between them:
 - `holder` is the intent address or the owner.
 - `pull` is true for the router, which pulls inputs from the holder first.
 - `records` is set for ephemeral records.
+- `value` is the keeper's call value (§3.12).
 - The caller supplies `router`, `routes` and `contexts`.
 
 `evaluate` returns one of:
 
 - `OK`.
-- `MALFORMED`, `UNSUPPORTED` or `CUSTODIAL`: from the static check, or
-  `CUSTODIAL` from the runtime custody test.
+- `MALFORMED`, `UNSUPPORTED` or `CUSTODIAL`: from the static check.
+- `UNBOUNDED` (5): from the runtime custody test (§3.6).
 - `EXHAUSTED`: from the ephemeral records.
 
 Every non-OK status means nothing has moved. Liveness failures revert
@@ -171,9 +184,18 @@ approval would go to a router the keeper chooses.
   - `MATCH_ALL` activates every qualifying rule.
   - `MATCH_FIRST` stops at the first one.
   - No active rule reverts `NotExecutable`.
+- **Routes need inputs.** A rule with `routing != ROUTE_NONE` and no inputs is
+  `MALFORMED`. A route runs as the router or the intent address, never as the
+  owner, so it would have nothing to spend.
 - **Asset overlap.** An asset appears at most once per rule. Under `MATCH_ALL`,
   it appears in at most one rule. So active rules never share an input asset,
   and per-asset state is unambiguous.
+- **Outcome overlap.** Under `MATCH_ALL`, two rules may not name the same
+  handoff, and their `then` comparisons may not read the same asset's `DELTA` or
+  the same post-state view. Either gives `MALFORMED`. Otherwise one delivery
+  could satisfy two rules. The key is the asset, not the account, so two rules
+  that pay one asset to two accounts are also refused.
+- **Size.** `check` caps handoffs at 256, and assets plus views at 256.
 - **Consumption.** `EXACT` consumes the input's minimum. `DRAIN` consumes the
   whole pre-execution holding.
 - **Partial thresholds.** A `ONCE` intent whose threshold is below its input
@@ -243,19 +265,28 @@ The custody test applies to `ROUTE_KEEPER` rules only. It runs in two halves:
 
 - **Static (`_bounded`).** Every OR group of `then` must contain either a
   handoff acceptance or a lower bound (`GTE`, `GT` or `EQ`) with a post-state
-  left side and a pre-state right side.
+  left side and a pre-state right side. Failing gives `CUSTODIAL`.
 - **Runtime (`_positive`).** That right side must be positive. A `GT` bound may
-  also be zero. A spend cap (a negative floor) bounds nothing.
-- **Result.** Failing either half gives `CUSTODIAL`.
+  also be zero. A spend cap (a negative floor) bounds nothing. Comparisons whose
+  right side is post-state are skipped, as the static half skips them. A handoff
+  acceptance counts only when the handoff's frozen `minAmount` is above zero.
+  Failing gives `UNBOUNDED`.
 
 The test is structural. It checks that a bound exists, not what the bound
 measures.
 
+Separately from the custody test, any accepted handoff whose frozen `minAmount`
+is zero or below reverts `NotExecutable`.
+
 ### 3.7 Fees
 
 - **Rule with inputs.** It pays its first fee candidate whose asset is a present
-  input. The fee is therefore always inside what the rule consumes.
+  input. A fee at or above what the rule consumes of that asset reverts.
 - **Rule without inputs.** It has at most one candidate, paid from the holder.
+- **No record.** When the lifetime keeps no record, the leaf can run again at
+  once. A rule with a fee must then route its inputs or hand one of them off;
+  otherwise `check` gives `CUSTODIAL`. This includes every rule with a fee and
+  no inputs.
 - **Skipped fees.** A non-positive fee is skipped, never inverted. If no
   candidate is present, the keeper goes unpaid.
 - **Payee.** Fees go to `run.caller` and are paid before any route.
@@ -280,13 +311,14 @@ level committed in the source's config, or the call reverts `WrongLevel`.
 - `minAmount` and `deadline`, from the frozen terms, clamped at zero;
 - a `deadline` above `uint64` max is clamped to that maximum.
 
-The keeper supplies only `contexts[i]`, the method's own parameters.
+**Call.**
+`accept(intentHash, owner, keeper, token, amount, obligation, context)`, where
+`owner` is `run.owner`, `keeper` is `run.caller`, and `context` is `contexts[i]`
+from the keeper. The first word of the context is the handoff's messaging fee
+(§3.12); the rest holds the method's own parameters.
 
-**Native value sent with `accept`:**
-
-- the amount, when the input is native;
-- otherwise, the executing contract's whole native balance, unless some rule has
-  a native input. This is messaging-fee money.
+**Native value sent with `accept`:** the amount when the input is native, plus
+the handoff's fee share. Nothing else of the holder's native is forwarded.
 
 ### 3.9 Lifetimes and records
 
@@ -327,12 +359,50 @@ With `FRAME_STRICT`, after execution:
 
 Some limits apply:
 
-- At an ephemeral holder, native is exempt, because it also carries the keeper's
-  messaging-fee money.
+- At an ephemeral holder, native is exempt.
 - ERC721 frames count the whole collection, because outcome token ids may be
   newly minted.
 - ERC721 and ERC1155 approvals are not re-checked here. They are revoked
   explicitly.
+
+### 3.12 Messaging fees
+
+Some delivery methods (CCIP, LayerZero, Ethereum → Arbitrum) charge a native fee
+on top of the bridged amount. The keeper pays it as the call value of
+`executeIntent`, on either carrier.
+
+**Flow.**
+
+1. `Run.value` carries `msg.value` into `evaluate`.
+2. `_execute` writes it to the transient `RESERVED_SLOT` before the snapshot.
+3. `_handoff` reads the fee as the first word of `contexts[i]`. A context
+   shorter than 32 bytes means a fee of zero.
+   - A fee above the reserve reverts `WrongValue`.
+   - Otherwise the reserve drops by the fee, and `accept` is sent
+     `(native input ? amount : 0) + fee`.
+4. After the handoffs, a non-zero reserve reverts `WrongValue`. The shares must
+   add up to `msg.value` exactly.
+5. When `_positive` refuses (the run returns `UNBOUNDED`), the reserve is reset
+   to zero. The executor then hands the value back to the caller.
+
+**Separation.** `_balanceOf(NATIVE, address(this))` subtracts the reserve. The
+keeper's unspent value is therefore never counted as the holder's native: not
+for presence, consumption, deltas or the frame. A native input can share a
+handoff with a fee. On the router path the holder is the owner, so only the
+router's own native reads are affected.
+
+**Guardians.** A guardian returns unused fee value, and any later refund of it
+by the method, to `keeper`, never to `msg.sender`. The caller may be an intent
+address, whose native is the owner's.
+
+**Encoding.** The fee rides in the context rather than a separate `values`
+array. This costs fewer evaluator bytes and leaves `Execution` and the router's
+`executeIntent` arguments unchanged.
+
+**Native-token chains.** On chains whose native coin is also an ERC-20 at an
+address (Celo, Polygon's `0x…1010`, Arc's USDC), the keeper's value also shows
+as the holder's token balance, which the reserve doesn't cover. Keepers send no
+value there. With no value sent, a USDC handoff on Arc forwards none.
 
 ---
 
@@ -344,18 +414,37 @@ The executor's whole lifecycle runs in its constructor, which ends in
 ### Factory
 
 - **`executeIntent(root, execution)`.**
-  - It is `nonReentrant` and permissionless.
+  - It is payable and permissionless.
+  - It enters the shared intent lock (below) and exits it at the end.
   - It checks that the top-level ABI head offset is `0x40`, else it reverts
     `NonCanonicalEncoding`.
   - It stores the caller's own calldata encoding of `Execution`, plus
     `msg.sender`, in transient storage in 32-byte chunks.
-  - It then creates the executor with CREATE2. The init code is the executor's
-    creation code plus `abi.encode(root)`, with salt 0.
+  - It then creates the executor with CREATE2, forwarding `callvalue()`. The
+    init code is the executor's creation code plus `abi.encode(root)`, with
+    salt 0.
   - A constructor revert is bubbled up.
 - **`context()`** returns that data plus the factory's EIP-712 domain separator.
 - **`record()`** writes only the calling executor's own entry.
 
+**Shared intent lock.** The transient slot is `keccak256("enso.intent.lock")`,
+and it holds the holder's address.
+
+- **Entering.** `executeIntent` enters with the factory itself as holder. The
+  router calls `enter()`, which enters with `msg.sender` as holder.
+- **Taken.** Entering while the slot is set reverts `Locked`.
+- **Releasing.** `exit()` and the factory's own exit clear the slot only when
+  the caller is the holder. A route can't release a lock it doesn't hold.
+- **Permissionless.** Anyone can enter. A lock taken in a transaction blocks
+  only that transaction, so the only one it can grief is the caller's own.
+- **Effect.** One intent executes at a time in a transaction, across both
+  carriers. A route can't run another intent, ephemeral or router, inside its
+  own.
+
 ### Constructor
+
+The constructor is payable; its value is the keeper's messaging-fee money
+(§3.12).
 
 **Prologue (brick zone).** The constructor:
 
@@ -368,26 +457,32 @@ caller.
 
 **Branches:**
 
-| Caller | Condition                                                                                              | Action                                                                                                                        |
-| ------ | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| any    | proof invalid, or a leaf for another chain, or the default leaf (`chainId 0`) for anyone but the owner | revert `InvalidProof`                                                                                                         |
-| owner  | this chain's leaf and non-empty `routes[0]`                                                            | `ownerRoute`: liveness, the owner's own transaction                                                                           |
-| owner  | otherwise (including the default leaf)                                                                 | `_refund`, no fee                                                                                                             |
-| other  | no rules, or past `deadline`                                                                           | `_refund`, fee to the caller                                                                                                  |
-| other  | otherwise                                                                                              | `evaluate`; on a non-OK status `_refund` with fee; on OK, sweep each caller-listed asset that isn't a rule input to the owner |
+| Caller | Condition                                                                                              | Action                                                                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| any    | proof invalid, or a leaf for another chain, or the default leaf (`chainId 0`) for anyone but the owner | revert `InvalidProof`                                                                                                                                                               |
+| owner  | this chain's leaf and non-empty `routes[0]`                                                            | `ownerRoute`: liveness, the owner's own transaction                                                                                                                                 |
+| owner  | otherwise (including the default leaf)                                                                 | `_refund`, no fee                                                                                                                                                                   |
+| other  | no rules, or past `deadline`                                                                           | `_returnValue`, then `_refund`, fee to the caller                                                                                                                                   |
+| other  | otherwise                                                                                              | `evaluate`; on a non-OK status `_returnValue`, then `_refund` (fee to the caller except on `UNBOUNDED`); on OK, sweep each caller-listed asset that isn't a rule input to the owner |
 
 - **Beneficiary.** It is the owner. A zero owner is replaced by the caller and
   never matches the caller, so the owner arms stay unreachable.
 - **Native.** It rides the `selfdestruct` to the beneficiary.
+- **Returning the call value.** `_returnValue` sends `msg.value` back to the
+  caller, tolerantly. If that send fails, the value rides the `selfdestruct` to
+  the beneficiary.
 - **Refund (brick zone, tolerant).** The refund:
   1. pays each `refunds` entry's fee in kind, best-effort, unless the caller is
-     the owner;
+     the owner or the status is `UNBOUNDED`;
   2. sweeps that entry's asset;
   3. sweeps every rule input, fee-free;
   4. sweeps the caller's list.
 
   All transfers are raw calls that tolerate failure. Malformed indices are
-  skipped.
+  skipped. For a token entry, `_tryPay` sends `held − fee` to the owner first
+  and pays the fee only when that transfer succeeded, or when nothing is left
+  beyond the fee. An owner a token blocks therefore never pays out a fee on
+  every call. Native needs no such order: the rest rides the `selfdestruct`.
 
 - **Default leaf.** It makes deposits recoverable by the owner on any chain the
   tree doesn't cover. A tree without one leaves such deposits unrecoverable
@@ -397,20 +492,24 @@ caller.
 
 ## 5. IntentRouter
 
-`executeIntent(intent, signature, router, routes, contexts)` is payable and
-`nonReentrant`. It runs these steps:
+The constructor takes the chain's `EphemeralFactory`, stored as an immutable.
 
-1. Keeper gate, `chainId == block.chainid`, then `start` and `deadline`.
-2. Signature over the EIP-712 digest under `IntentRouter`/`2`: ECDSA first (EOAs
+`executeIntent(intent, signature, router, routes, contexts)` is payable. It runs
+these steps:
+
+1. `factory.enter()`: the shared intent lock (§4).
+2. Keeper gate, `chainId == block.chainid`, then `start` and `deadline`.
+3. Signature over the EIP-712 digest under `IntentRouter`/`2`: ECDSA first (EOAs
    and EIP-7702 accounts), then ERC-1271. The intent stays in calldata
    throughout: the router keeps no memory copy of it.
-3. A `STANDING` intent with neither interval nor count is rejected `MALFORMED`
-   if any rule has inputs. Otherwise a keeper could repeat it in one block until
-   the allowance runs out.
-4. The record is written (`Exhausted`, `NotYet`).
-5. `evaluate` runs with `holder = owner` and `pull = true`. A non-OK status
-   reverts `Rejected(status)`.
-6. Any native balance left (unused messaging fee) goes back to `msg.sender`.
+4. A `STANDING` intent with neither interval nor count is rejected `MALFORMED`
+   if any rule has inputs or fees. Otherwise a keeper could repeat it in one
+   block until the allowance runs out.
+5. The record is written (`Exhausted`, `NotYet`).
+6. `evaluate` runs with `holder = owner`, `pull = true` and `value = msg.value`.
+   A non-OK status reverts `Rejected(status)`.
+7. `factory.exit()`.
+8. Any native balance left goes back to `msg.sender`.
 
 Tokens move only from the owner:
 
@@ -435,30 +534,58 @@ EnsoRouter for exactly those amounts.
 
 ## 6. Guardians
 
-`IIntentGuardian.accept(intentHash, token, amount, obligation, context)` takes
-the asset from the caller against an obligation. It returns a receipt and emits
-`Accepted`. Its `level()` is FORWARD, BONDED or FRONTED. Only FORWARD exists.
+**Interface.**
+
+- `accept(intentHash, owner, keeper, token, amount, obligation, context)`,
+  payable. It takes the asset from the caller against the obligation and returns
+  a receipt.
+- `Accepted(receipt indexed, intentHash indexed, caller indexed, owner, keeper, amount, obligation)`.
+- `level()` is FORWARD, BONDED or FRONTED. Only FORWARD exists.
+- Anyone may call `accept`. A record counts only when `caller` is the intent
+  address or the router of `intentHash`.
+- `owner` is authenticated only when the caller is the IntentRouter. An intent
+  address's owner is a field of a leaf anyone can build. A guardian that acts on
+  the owner's account must accept calls from the IntentRouter alone.
 
 **`BridgeGuardian`** is FORWARD over CCTP V2 and Across.
 
 - **Structure.** It is non-upgradeable, has no admin, and its per-chain
   configuration is fixed at construction. Nothing rests in it.
-- **Context.** It is `(method, params)`. A committed method must match;
+- **Call value.** It charges no native fee and reverts `UnexpectedValue` for any
+  call value.
+- **Context.** `abi.encode(uint256 value, bytes32 method, bytes params)`.
+  `value` is always 0 here and is ignored. A committed method must match;
   otherwise the keeper chooses.
+- **Receipts.** A receipt is the running count of acceptances, so `accept`
+  writes no slot per receipt. `status` answers `PENDING` for 1 to the count and
+  `NONE` otherwise. A receipt is unique per guardian only.
+- **Zero amounts.** `amount == 0` reverts `ZeroAmount`, after the method's own
+  checks.
 - **CCTP.**
   - The input must be the local USDC.
   - The destination must be in the table, and the delivered token must be that
     destination's native USDC.
   - `amount − maxFee` must be at least `minAmount`.
   - `destinationCaller` is 0, so anyone may relay the attestation.
+- **Across routes.** Routes are a constructor table keyed by
+  `keccak256(abi.encode(input, chainId, output))`. Each holds a `(mul, div)`
+  scale for the decimals gap. An unknown key reverts `UnsupportedRoute`.
 - **Across.**
+  - Params are `(uint256 outputAmount, uint32 fillDeadline)`.
   - The depositor (who receives Across refunds) is `obligation.refund`. It must
-    be non-zero and must not be the caller, because a refund to the intent
-    address would trigger the rule again.
-  - `outputAmount` must be at least `minAmount`, and `fillDeadline` at most the
-    obligation's deadline.
-  - The keeper may name an exclusive relayer, including itself.
-- **Call value.** It goes back to the caller.
+    be non-zero and must not be the caller (`RefundToCaller`), because a refund
+    to the intent address would trigger the rule again.
+  - `minAmount` counts in input units, as for CCTP. The declared `outputAmount`
+    is scaled into input units, then it must be at least `minAmount`
+    (`BelowMinimum`) and must not exceed the handed amount (`AboveInput`).
+  - `fillDeadline` must not be after the obligation's deadline
+    (`DeadlineTooLate`), and must be at least 30 minutes ahead
+    (`DeadlineTooEarly`).
+  - Every deposit names no exclusive relayer and no exclusivity, so any relayer
+    may fill it from the first block.
+  - **The band.** The keeper chooses `outputAmount` between the floor and the
+    handed amount. The difference goes to whichever relayer fills it. A keeper
+    that also relays competes for it with every other relayer.
 - **Settlement.** `settle` reverts and receipts stay `PENDING`. FORWARD means
   delivery is the bridge's responsibility alone.
 
@@ -487,12 +614,23 @@ Addresses:
 | `IntentCounter`    | `"IntentCounter"`    | the same on every chain                                              |
 | `BridgeGuardian`   | `"BridgeGuardian"`   | per chain: the constructor arguments are this chain's `BridgeConfig` |
 
-`BridgeConfig` holds the CCTP table (domain and native USDC) and the Across
-SpokePools. `_checkLocal` checks them on-chain before deploying:
+The router's init code includes the factory's predicted address, so the router's
+address depends on the factory's. `IntentRouterDeployer` requires the factory to
+be deployed first.
+
+`BridgeConfig` holds the CCTP table (domain and native USDC), the Across
+SpokePools, and the Across tokens by family: native USDC on the CCTP chains that
+have a spoke pool (except Plasma), and USDT or USDT0. Each chain's guardian gets
+a route from each local token to its family's token on every other listed chain.
+Other Across assets (WETH, ETH, WBTC) have no routes and are refused. Before
+deploying, `_checkLocal` checks on-chain:
 
 - the messenger's local domain;
 - a non-zero burn limit for USDC;
-- the SpokePool's `chainId`.
+- the SpokePool's `chainId`;
+- each local Across token's `decimals()` against the table.
+
+After deploying, the deployer reads every route back from the guardian.
 
 `IntentDeploymentsWriter` forks every `rpc_endpoints` entry. It lists each chain
 where the factory is deployed, and writes `deployments.json` into the intent
@@ -508,12 +646,14 @@ anything is funded.
 
 ## 8. Decisions on record (not findings)
 
-- **Static refusals refund at once, open to anyone, fee paid.** `MALFORMED` and
-  `UNSUPPORTED` come before the keeper gate. Such a leaf can never run, so its
-  funds go back immediately.
-- **Runtime `CUSTODIAL` and `EXHAUSTED` refund with fee.** They come after the
-  keeper gate, so only an eligible caller triggers them. After a `ONCE`
-  executes, a later deposit is refunded rather than stranded.
+- **Static refusals refund at once, open to anyone, fee paid.** `MALFORMED`,
+  `UNSUPPORTED` and `CUSTODIAL` come before the keeper gate. Such a leaf can
+  never run, so its funds go back immediately.
+- **`EXHAUSTED` refunds with fee.** It comes after the keeper gate, so only an
+  eligible caller triggers it. After a `ONCE` executes, a later deposit is
+  refunded rather than stranded.
+- **`UNBOUNDED` refunds without the fee.** The refusal depends on what is at the
+  address, which a caller can steer with a deposit.
 - **The owner is an authority**, as in the v2 note's §2: they can refund or
   re-route at any block, and the keeper's only commitment point is inclusion.
   Owner routes are unvalidated.
@@ -523,20 +663,20 @@ anything is funded.
   executing contract. That can include any part of an `EXACT` input not
   consumed, or other deposits of that asset. The recipient is committed. Under
   `FRAME_STRICT`, a named asset dropping beyond what is permitted reverts.
-- **Ephemeral messaging fees.** On the ephemeral path, the keeper funds
-  messaging fees by sending native to the intent address. Native a guardian
-  doesn't use ends up with the owner at `selfdestruct`. On the router path it
-  goes back to the keeper.
+- **The keeper's messaging-fee value never reaches the owner.** It is either
+  forwarded to guardians in full or returned to the caller (§3.12).
 - **Every term an active rule references must be computable before execution**
   (§3.4). A reverting view or a division by zero in any group of an active rule
   fails the execution. This is liveness only.
 - **Counter windows are aligned to the epoch; lifetime windows to `start`.**
 - **`record()`'s return value is unused.** The verdict is read earlier in the
-  same call. Only the executor can write its own entry. `nonReentrant` prevents
-  a nested execution of the same root, and a second, sequential execution in the
-  same transaction reads the updated record.
-- **DRAIN on the router path consumes the owner's whole wallet balance** of the
-  asset, up to the allowance. The owner signs the `DRAIN` code.
+  same call. Only the executor can write its own entry. A root executes at most
+  once per transaction: the lock prevents a nested execution, and the executor's
+  address keeps its nonce until the end of the transaction (EIP-6780), so a
+  second, sequential `CREATE2` of the same root collides and reverts.
+- **`DRAIN` on the router path pulls the owner's whole wallet balance** of the
+  asset and never reads the allowance. A short allowance reverts the pull, which
+  is liveness only. The owner signs the `DRAIN` code.
 - **A zero `keeper` means anyone may execute.** The outcome bounds are then the
   owner's only protection. The SDK lints `keeper-zero`.
 
@@ -556,39 +696,53 @@ anything is funded.
    balance, or on a view the keeper's route can move. What the bound measures is
    the SDK lint's job. Review whether the test lets a keeper route through with
    a bound that protects nothing.
-4. **Steering a refund.** A caller who can move a pre-state input to the floor
+4. **Inflows a route triggers.** A `DELTA` outcome bound is the account's net
+   change over the execution, so it can't tell who paid. A keeper route can
+   trigger a payment the account is already owed, on either carrier: completing
+   a pending CCTP mint or an Across fill to the account, or any payout owed to
+   it. The lock (§4) removes the case of running another intent inside the
+   route. Under the router, a `DELTA` bound reads the owner's whole account. The
+   mitigation is an SDK lint rejecting a `DELTA`/`POST_VIEW` bound on an account
+   an outside party can credit (§11).
+5. **Steering a refund.** A caller who can move a pre-state input to the floor
    (a `PRE_VIEW` of a pool, a spot oracle) can make the runtime custody test
-   fail and collect the refund fee. The owner's cost is that fee plus a fresh
-   deposit.
-5. **The freeze step and memoization.**
+   fail. The result is `UNBOUNDED`, which pays no fee but still refunds: the
+   owner's cost is a fresh deposit. The same holds for a deposit that makes a
+   keeper-routed rule's bound non-positive.
+6. **The freeze step and memoization.**
    - `_freeze` must compute exactly what later steps read: the fee candidate it
      primes must be the one `_payFees` picks.
    - Scoped memos must stay per rule.
    - No post-state term may be cached before the post phase.
-6. **Approvals.**
+7. **Approvals.**
    - ERC20: `forceApprove` the exact amount, then revoke.
    - ERC721: approve the one token id, and revoke only if it is still held.
    - ERC1155: approval for all only with a committed router.
    - The frame's ERC20 approval check.
    - Whether any route shape can leave an approval in place that outlives the
      holder.
-7. **Native value in handoffs.** Forwarding the whole native balance when no
-   rule has a native input. At an ephemeral holder that balance can include the
-   owner's own native deposits. A committed guardian returns what it doesn't
-   use.
-8. **Factory transient context.** The chunked `tstore`/`tload`, the
-   canonical-offset check, and handing the executor the caller's raw encoding to
-   decode.
-9. **EIP-712.** The type strings, the alphabetical order of referenced types,
-   and nested arrays of structs and bytes. `hash.t.sol` pins a digest and a leaf
-   produced by viem for an intent that populates every field.
-10. **`IntentRecord` arithmetic.** Window anchoring, the terminal check order,
+8. **The messaging-fee reserve.** The keeper's value must never be spent as the
+   owner's, and the owner's must never be returned as the keeper's. Check every
+   native read in the evaluator, the executor's `_returnValue` ordering, and the
+   reset on the `UNBOUNDED` path.
+9. **Context first word.** Every guardian receives contexts whose first word the
+   evaluator has already read as the fee. A guardian that decodes the context
+   differently would misread its parameters.
+10. **Lock ownership.** The holder model assumes no route can make the factory
+    or the router call `exit()` on its behalf.
+11. **Factory transient context.** The chunked `tstore`/`tload`, the
+    canonical-offset check, and handing the executor the caller's raw encoding
+    to decode.
+12. **EIP-712.** The type strings, the alphabetical order of referenced types,
+    and nested arrays of structs and bytes. `hash.t.sol` pins a digest and a
+    leaf produced by viem for an intent that populates every field.
+13. **`IntentRecord` arithmetic.** Window anchoring, the terminal check order,
     and that `start ≤ now` is enforced before `block.timestamp - start`.
-11. **`BridgeGuardian` parameters the keeper controls.** CCTP `maxFee` and
-    finality; Across output, exclusive relayer, fill deadline and exclusivity.
-    None should let the keeper deliver below `minAmount`, change the recipient,
-    or redirect a refund.
-12. **Lint suppressions.** Each `forge-lint` disable states its reason. The
+14. **`BridgeGuardian` parameters the keeper controls.** CCTP `maxFee` and
+    finality; Across `outputAmount` and `fillDeadline`. None should let the
+    keeper deliver below `minAmount`, change the recipient, or redirect a
+    refund.
+15. **Lint suppressions.** Each `forge-lint` disable states its reason. The
     evaluator disables `calls-loop` and `require-revert-in-loop` library-wide:
     every loop runs over committed lists, and any revert aborts the whole
     execution. Check that each reason holds.
@@ -602,13 +756,16 @@ Unit tests:
 - **`test/unit/concrete/wallet/ephemeralIntentExecutor/`:**
   - `route.t.sol`: keeper and committed routes, floor, `EXACT`, the exclusivity
     handover, address reuse.
-  - `constrained.t.sol`: every `UNSUPPORTED` and `CUSTODIAL` refusal, statically
-    and at runtime.
+  - `constrained.t.sol`: every `UNSUPPORTED`, `CUSTODIAL` and `UNBOUNDED`
+    refusal, statically and at runtime; a routed rule without inputs; a
+    post-state comparison beside a bound.
   - `pair.t.sol`: thresholds, matching, fee candidates.
   - `terms.t.sol`: oracle value floor, staleness, post-view floor, counters, and
     a pre-state view fixed before a committed route.
-  - `handoff.t.sol`: amount, context, level, native forwarding, `EXACT`, and a
-    handoff minimum fixed before a keeper route.
+  - `handoff.t.sol`: amount, context, level, `EXACT`, a handoff minimum fixed
+    before a keeper route, and messaging fees: the fee forwarded from the
+    context word, the owner's native never forwarded, unspent value reverting,
+    and the value returned to the caller on refund.
   - `lifetime.t.sol`: once, scheduled, counted, unrecorded standing.
   - `owner.t.sol`: owner refund and route; a zero owner gets no owner arms.
   - `refund.t.sol`: deadline refunds, refund-only chains, the default leaf,
@@ -617,15 +774,26 @@ Unit tests:
   the refund arm never reverts for fuzzed inputs and sweep lists, and a bad
   proof only ever reverts `InvalidProof`.
 - **`test/unit/concrete/factory/ephemeralFactory/`:** domain, init code,
-  canonical encoding, empty context outside a construction, reentry, records
-  keyed by writer, address derivation.
+  canonical encoding, empty context outside a construction, reentry, only the
+  lock's holder releasing it, records keyed by writer, address derivation.
 - **`test/unit/concrete/router/intentRouter/`:** `EXACT` and `DRAIN` pulls,
-  lifetimes, the standing-unbounded rejection, attestation and custody refusals,
-  signatures, window and chain, keeper exclusivity, handoff with fee value,
-  cancel, and the golden-vector `hash`.
+  lifetimes, the standing-unbounded rejection (inputs or fees), attestation and
+  custody refusals, signatures, window and chain, keeper exclusivity, handoff
+  with fee value, unspent call value reverting, a route that executes an intent
+  address reverting `Locked`, cancel, and the golden-vector `hash`.
 - **`test/unit/concrete/intent/bridgeGuardian/`:** every CCTP and Across check
-  against mocks, plus `uda.t.sol`, a deposit-address template end to end (USDC
-  via CCTP, USDT via Across, both in one execution).
+  against mocks, including the route table, an unlisted route, input-unit
+  scaling, `AboveInput`, `DeadlineTooEarly`, no exclusive relayer, `ZeroAmount`,
+  `UnexpectedValue`, the `Accepted` fields and receipts counting up. Also
+  `uda.t.sol`, a deposit-address template end to end (USDC via CCTP, USDT via
+  Across, both in one execution). On that template it also covers two rules
+  naming one handoff or comparing one balance change (`MALFORMED`), a handoff
+  minimum of zero, and the refund order against an owner the token blocks
+  (`MockBlockingERC20`, a token with a blocklist as USDC and USDT have).
+
+Forge runs each top-level test call as its own transaction here, so transient
+storage doesn't persist between calls in a test. The lock test runs its sequence
+inside one call.
 
 Fork tests:
 
@@ -643,9 +811,24 @@ against the SDK's port, and compares `IntentRouter.hash` and
 
 ## 11. Open items
 
-- **SDK controls behind §9.1–9.3:** a bound on leaf size, a required default
-  leaf, and lint rules on what custody bounds measure.
+- **SDK controls behind §9.1–9.4:** a bound on leaf size, a required default
+  leaf, lint rules on what custody bounds measure, and a lint rejecting
+  `DELTA`/`POST_VIEW` bounds on accounts an outside party can credit.
+- **SDK interface.** The SDK must follow the current `Accepted` ABI and topic,
+  the context's leading value word, the two-field Across params, Across minimums
+  in input units, and the router and factory addresses.
+- **`IntentDeploymentsWriter`** doesn't yet write the Across route list to
+  `deployments.json`.
+- **Arc.** The Arc USDC row's `decimals()` is not confirmed on-chain.
 - **Tempo.** Deployment there is untested: anvil cannot estimate gas on a fork.
   Dry-run against the live RPC first.
 - **Codecs.** The backend and alpha-scanners codecs must move to this format
   before anything is funded or signed.
+- **Source comments to correct:**
+  - `IIntentRouter.sol` and `IntentEvaluator.sol` say keeper bytes serve "rules
+    without a committed route"; they serve `ROUTE_KEEPER` rules only.
+  - The executor's sweep comment says unconsumed tokens "always go back to the
+    owner"; only the caller's sweep list does.
+  - `IIntent.sol` states field rules that `check` doesn't enforce: `request`
+    only under `ROUTE_KEEPER`, a handoff `refund` that is never the intent
+    address, and `Asset.chainId == Handoff.chainId`.
