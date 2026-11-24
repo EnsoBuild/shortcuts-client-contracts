@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Execution, IEphemeralFactory } from "../interfaces/IEphemeralFactory.sol";
 import { Lifetime } from "../interfaces/IIntent.sol";
+import { IIntentLock } from "../interfaces/IIntentLock.sol";
 import { IntentRecord } from "../libraries/IntentRecord.sol";
 import { EphemeralIntentExecutor } from "../wallet/EphemeralIntentExecutor.sol";
 import { EIP712 } from "openzeppelin-contracts/utils/cryptography/EIP712.sol";
@@ -11,8 +12,9 @@ import { EIP712 } from "openzeppelin-contracts/utils/cryptography/EIP712.sol";
 /// @notice Deploys and runs ephemeral intent executors at addresses derived from a Merkle root of
 ///         per-chain intents. No constructor arguments, so a salted CREATE2 deployment, and every
 ///         intent address, is the same on every chain. Its only immutables are EIP-712's cached
-///         domain, derived from the deployment itself.
-contract EphemeralFactory is IEphemeralFactory, EIP712 {
+///         domain, derived from the deployment itself. Holds the intent lock it shares with the
+///         IntentRouter.
+contract EphemeralFactory is IEphemeralFactory, IIntentLock, EIP712 {
     error NonCanonicalEncoding();
 
     // Transient context for the executor's constructor (EIP-1153, cleared at end of transaction).
@@ -60,12 +62,12 @@ contract EphemeralFactory is IEphemeralFactory, EIP712 {
         emit Executed(executor, root);
     }
 
-    /// @inheritdoc IEphemeralFactory
+    /// @inheritdoc IIntentLock
     function enter() external {
         _enter(msg.sender);
     }
 
-    /// @inheritdoc IEphemeralFactory
+    /// @inheritdoc IIntentLock
     function exit() external {
         _exit(msg.sender);
     }

@@ -39,8 +39,12 @@ contract IntentDeployer is IntentDeployment, KeeperWalletDeployment {
     /// chain owner, who completes the two-step transfer with acceptOwnership(). A wallet already at
     /// the address is left as it is.
     function _deployWallet(address owner) private returns (KeeperWallet wallet) {
+        // Read the deployer inside a broadcast: outside one, readCallers gives the simulation sender,
+        // which is forge's default sender unless --sender is passed, not the account that signs.
+        vm.startBroadcast();
         // forge-lint: disable-next-line(unused-return)
         (, address deployer,) = vm.readCallers();
+        vm.stopBroadcast();
         bytes memory code = abi.encodePacked(type(KeeperWallet).creationCode, abi.encode(deployer));
         bool existed = _predicted(WALLET_SALT, code).code.length != 0;
         wallet = KeeperWallet(payable(_deploy(WALLET_SALT, code)));

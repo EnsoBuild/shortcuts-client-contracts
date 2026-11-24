@@ -18,9 +18,10 @@ matches the code.
 
 Scope:
 
-- `src/interfaces/IIntent.sol`, `IEphemeralFactory.sol`, `IIntentRouter.sol`,
-  `IIntentGuardian.sol`, `IIntentCounter.sol`, `IIntentOracle.sol`,
-  `bridges/ITokenMessengerV2.sol`, `bridges/IAcrossSpokePool.sol`
+- `src/interfaces/IIntent.sol`, `IEphemeralFactory.sol`, `IIntentLock.sol`,
+  `IIntentRouter.sol`, `IIntentGuardian.sol`, `IIntentCounter.sol`,
+  `IIntentOracle.sol`, `bridges/ITokenMessengerV2.sol`,
+  `bridges/IAcrossSpokePool.sol`
 - `src/libraries/IntentEvaluator.sol`, `IntentHash.sol`, `IntentRecord.sol`
 - `src/wallet/EphemeralIntentExecutor.sol`, `src/factory/EphemeralFactory.sol`
 - `src/router/IntentRouter.sol`
@@ -427,8 +428,9 @@ The executor's whole lifecycle runs in its constructor, which ends in
 - **`context()`** returns that data plus the factory's EIP-712 domain separator.
 - **`record()`** writes only the calling executor's own entry.
 
-**Shared intent lock.** The transient slot is `keccak256("enso.intent.lock")`,
-and it holds the holder's address.
+**Shared intent lock.** The factory implements `IIntentLock` (`enter`, `exit`,
+`Locked`). The router holds the factory as its `lock`. The transient slot is
+`keccak256("enso.intent.lock")`, and it holds the holder's address.
 
 - **Entering.** `executeIntent` enters with the factory itself as holder. The
   router calls `enter()`, which enters with `msg.sender` as holder.
@@ -497,7 +499,7 @@ The constructor takes the chain's `EphemeralFactory`, stored as an immutable.
 `executeIntent(intent, signature, router, routes, contexts)` is payable. It runs
 these steps:
 
-1. `factory.enter()`: the shared intent lock (§4).
+1. `lock.enter()`: the shared intent lock, held by the factory (§4).
 2. Keeper gate, `chainId == block.chainid`, then `start` and `deadline`.
 3. Signature over the EIP-712 digest under `IntentRouter`/`2`: ECDSA first (EOAs
    and EIP-7702 accounts), then ERC-1271. The intent stays in calldata
@@ -508,7 +510,7 @@ these steps:
 5. The record is written (`Exhausted`, `NotYet`).
 6. `evaluate` runs with `holder = owner`, `pull = true` and `value = msg.value`.
    A non-OK status reverts `Rejected(status)`.
-7. `factory.exit()`.
+7. `lock.exit()`.
 8. Any native balance left goes back to `msg.sender`.
 
 Tokens move only from the owner:

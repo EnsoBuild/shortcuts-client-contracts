@@ -18,18 +18,7 @@ interface IEphemeralFactory {
     /// The executed leaf is in the transaction's calldata; the event carries the identifiers only.
     event Executed(address indexed executor, bytes32 indexed root);
 
-    error Locked();
-
     function executeIntent(bytes32 root, Execution calldata execution) external payable returns (address executor);
-
-    /// @notice Take the intent lock for the rest of the caller's run. One intent executes at a
-    ///         time in a transaction, through this factory or the IntentRouter, so a route can't run
-    ///         another intent inside its own. Permissionless: a lock taken in a transaction blocks
-    ///         only that transaction.
-    function enter() external;
-
-    /// @notice Release the lock, when the caller holds it.
-    function exit() external;
 
     function getAddress(bytes32 root) external view returns (address);
 

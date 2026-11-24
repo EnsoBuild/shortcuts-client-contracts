@@ -5,6 +5,7 @@ import { Token } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Execution, IEphemeralFactory } from "../../../../../src/interfaces/IEphemeralFactory.sol";
 import { Codes, Constraints, Intent, Lifetime } from "../../../../../src/interfaces/IIntent.sol";
 import { Level, Obligation } from "../../../../../src/interfaces/IIntentGuardian.sol";
+import { IIntentLock } from "../../../../../src/interfaces/IIntentLock.sol";
 import { IntentEvaluator } from "../../../../../src/libraries/IntentEvaluator.sol";
 import { IntentRouter } from "../../../../../src/router/IntentRouter.sol";
 import { MockGuardian } from "../../../../mocks/MockGuardian.sol";
@@ -34,7 +35,7 @@ contract IntentRouter_ExecuteIntent_Test is IntentRouter_Unit_Concrete_Test {
         intent.constraints.router = address(nesting);
         bytes memory signature = _sign(intent);
 
-        vm.expectRevert(IEphemeralFactory.Locked.selector);
+        vm.expectRevert(IIntentLock.Locked.selector);
         _exec(s_keeper, intent, signature);
     }
 

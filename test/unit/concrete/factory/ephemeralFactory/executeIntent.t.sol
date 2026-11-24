@@ -5,6 +5,7 @@ import { EphemeralFactory } from "../../../../../src/factory/EphemeralFactory.so
 import { Token } from "../../../../../src/interfaces/IEnsoRouter.sol";
 import { Execution, IEphemeralFactory } from "../../../../../src/interfaces/IEphemeralFactory.sol";
 import { Codes, Intent, Lifetime } from "../../../../../src/interfaces/IIntent.sol";
+import { IIntentLock } from "../../../../../src/interfaces/IIntentLock.sol";
 import { IntentRecord } from "../../../../../src/libraries/IntentRecord.sol";
 import { EphemeralFactory_Unit_Concrete_Test } from "./EphemeralFactory.t.sol";
 
@@ -34,26 +35,26 @@ contract ReenteringRouter {
 }
 
 contract LockCaller {
-    function enter(IEphemeralFactory factory) external {
-        factory.enter();
+    function enter(IIntentLock lock) external {
+        lock.enter();
     }
 
-    function exit(IEphemeralFactory factory) external {
-        factory.exit();
+    function exit(IIntentLock lock) external {
+        lock.exit();
     }
 }
 
 contract LockSequence {
-    function run(IEphemeralFactory factory, LockCaller holder, LockCaller other) external {
-        holder.enter(factory);
-        other.exit(factory); // not the holder: no effect
-        try other.enter(factory) {
+    function run(IIntentLock lock, LockCaller holder, LockCaller other) external {
+        holder.enter(lock);
+        other.exit(lock); // not the holder: no effect
+        try other.enter(lock) {
             revert("entered a held lock");
         } catch (bytes memory reason) {
-            require(bytes4(reason) == IEphemeralFactory.Locked.selector, "wrong error");
+            require(bytes4(reason) == IIntentLock.Locked.selector, "wrong error");
         }
-        holder.exit(factory);
-        other.enter(factory);
+        holder.exit(lock);
+        other.enter(lock);
     }
 }
 
@@ -99,7 +100,7 @@ contract EphemeralFactory_ExecuteIntent_Test is EphemeralFactory_Unit_Concrete_T
         bytes memory encoded = abi.encode(e);
         router.arm(root, encoded);
 
-        vm.expectRevert(IEphemeralFactory.Locked.selector);
+        vm.expectRevert(IIntentLock.Locked.selector);
         _run(s_keeper, root, e);
     }
 

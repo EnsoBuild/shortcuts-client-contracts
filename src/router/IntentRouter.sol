@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.28;
 
-import { IEphemeralFactory } from "../interfaces/IEphemeralFactory.sol";
 import { Codes, Intent, Lifetime, Rule } from "../interfaces/IIntent.sol";
+import { IIntentLock } from "../interfaces/IIntentLock.sol";
 import { IIntentRouter } from "../interfaces/IIntentRouter.sol";
 import { IntentEvaluator, Run } from "../libraries/IntentEvaluator.sol";
 import { IntentHash } from "../libraries/IntentHash.sol";
@@ -17,8 +17,8 @@ import { SignatureChecker } from "openzeppelin-contracts/utils/cryptography/Sign
 ///         keeper submits it with its route bytes; tokens only ever move from the intent's owner,
 ///         and only as the signed constraints allow.
 contract IntentRouter is IIntentRouter, EIP712, ERC1155Holder {
-    /// @notice Holds the intent lock shared by every intent execution on this chain.
-    IEphemeralFactory public immutable factory;
+    /// @notice The intent lock shared by every intent execution on this chain: the EphemeralFactory.
+    IIntentLock public immutable lock;
 
     /// @notice Execution records per (owner, nonce): see IntentRecord. Intents an owner signs with
     ///         the same nonce share a record, and so form a cancellation group.
@@ -33,10 +33,10 @@ contract IntentRouter is IIntentRouter, EIP712, ERC1155Holder {
     error Exhausted();
     error NotYet();
 
-    /// @param factory_ The EphemeralFactory of this chain, whose intent lock both contracts share
+    /// @param lock_ The EphemeralFactory of this chain, which holds the intent lock
     // forge-lint: disable-next-item(missing-zero-check)
-    constructor(IEphemeralFactory factory_) EIP712("IntentRouter", "2") {
-        factory = factory_;
+    constructor(IIntentLock lock_) EIP712("IntentRouter", "2") {
+        lock = lock_;
     }
 
     /// Native a route or guardian sends here; returned to the keeper at the end of the execution.
@@ -53,7 +53,7 @@ contract IntentRouter is IIntentRouter, EIP712, ERC1155Holder {
         external
         payable
     {
-        factory.enter();
+        lock.enter();
         // forge-lint: disable-next-item(block-timestamp)
         if (
             intent.keeper != address(0) && msg.sender != intent.keeper
@@ -112,7 +112,7 @@ contract IntentRouter is IIntentRouter, EIP712, ERC1155Holder {
         if (status != IntentEvaluator.OK) {
             revert Rejected(status);
         }
-        factory.exit();
+        lock.exit();
         // The keeper's call value all went to guardians; anything else here goes back to the keeper.
         // The router holds nothing between transactions.
         if (address(this).balance > 0) {
