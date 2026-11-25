@@ -8,6 +8,9 @@ import { IAcrossSpokePool } from "../../../../../src/interfaces/bridges/IAcrossS
 import { ITokenMessengerV2 } from "../../../../../src/interfaces/bridges/ITokenMessengerV2.sol";
 import { MockAcrossSpokePool, MockTokenMessengerV2 } from "../../../../mocks/MockBridges.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
+import { Subsidies } from "../../../../utils/Subsidies.sol";
+import { SignatureVerification } from "@uniswap/permit2/src/libraries/SignatureVerification.sol";
+import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 import { Test } from "forge-std/Test.sol";
 
 contract BridgeGuardian_Unit_Concrete_Test is Test {
@@ -24,6 +27,11 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
     address internal s_usdtArbitrum = makeAddr("USDT on Arbitrum");
     address internal s_usdtBnb = makeAddr("USDT on BNB Chain");
     address internal s_usdtEthereum = makeAddr("USDT on Ethereum");
+
+    uint256 internal constant FEE = 0.5e6;
+
+    address internal s_payer;
+    uint256 internal s_payerKey;
 
     MockERC20 internal s_usdc;
     MockERC20 internal s_usdt;
@@ -64,6 +72,15 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
         s_usdt.approve(address(s_guardian), type(uint256).max);
         vm.stopPrank();
         vm.deal(s_intent, 1 ether);
+
+        new DeployPermit2().deployPermit2();
+        (s_payer, s_payerKey) = makeAddrAndKey("Payer");
+        s_usdt.mint(s_payer, 10 * FEE);
+        s_usdc.mint(s_payer, 10 * FEE);
+        vm.startPrank(s_payer);
+        s_usdt.approve(address(Subsidies.PERMIT2), type(uint256).max);
+        s_usdc.approve(address(Subsidies.PERMIT2), type(uint256).max);
+        vm.stopPrank();
     }
 
     function _token(address token) internal pure returns (Token memory) {
@@ -91,11 +108,75 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
     }
 
     function _cctpContext(uint256 maxFee) internal view returns (bytes memory) {
-        return abi.encode(uint256(0), s_guardian.CCTP(), abi.encode(maxFee, uint32(1000)));
+        BridgeGuardian.Subsidy memory none;
+        return _cctpContext(maxFee, none);
+    }
+
+    function _cctpContext(uint256 maxFee, BridgeGuardian.Subsidy memory subsidy) internal view returns (bytes memory) {
+        return abi.encode(uint256(0), s_guardian.CCTP(), abi.encode(maxFee, uint32(1000), subsidy));
+    }
+
+    /// The payer's Permit2 signature over `fee` and the fast burn it pays for.
+    function _burnSubsidy(
+        address caller,
+        Obligation memory o,
+        uint256 maxFee,
+        uint256 fee
+    )
+        internal
+        view
+        returns (BridgeGuardian.Subsidy memory)
+    {
+        Subsidies.Burn memory b = Subsidies.Burn({
+            caller: caller,
+            intentHash: keccak256("intent"),
+            obligation: o,
+            amount: AMOUNT,
+            maxFee: maxFee,
+            minFinalityThreshold: 1000
+        });
+        return Subsidies.sign(s_guardian, s_payerKey, address(s_usdc), fee, 0, b);
     }
 
     function _acrossContext(uint256 outputAmount, uint32 fillDeadline) internal view returns (bytes memory) {
-        return abi.encode(uint256(0), s_guardian.ACROSS(), abi.encode(outputAmount, fillDeadline));
+        BridgeGuardian.Subsidy memory none;
+        return _acrossContext(outputAmount, fillDeadline, none);
+    }
+
+    function _acrossContext(
+        uint256 outputAmount,
+        uint32 fillDeadline,
+        BridgeGuardian.Subsidy memory subsidy
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encode(uint256(0), s_guardian.ACROSS(), abi.encode(outputAmount, fillDeadline, subsidy));
+    }
+
+    /// The payer's Permit2 signature over `fee` and the deposit it pays for.
+    function _subsidy(
+        address caller,
+        Obligation memory o,
+        uint256 outputAmount,
+        uint32 fillDeadline,
+        uint256 fee,
+        uint256 nonce
+    )
+        internal
+        view
+        returns (BridgeGuardian.Subsidy memory subsidy)
+    {
+        Subsidies.Deposit memory d = Subsidies.Deposit({
+            caller: caller,
+            intentHash: keccak256("intent"),
+            obligation: o,
+            amount: AMOUNT,
+            outputAmount: outputAmount,
+            fillDeadline: fillDeadline
+        });
+        subsidy = Subsidies.sign(s_guardian, s_payerKey, address(s_usdt), fee, nonce, d);
     }
 
     function _accept(Token memory token, Obligation memory o, bytes memory context) internal returns (bytes32) {
@@ -295,6 +376,133 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
         }
         _accept(usdt, o, _acrossContext(99e6, uint32(block.timestamp + 30 minutes)));
         assertEq(s_spokePool.last().fillDeadline, uint32(block.timestamp + 30 minutes), "the window passes");
+    }
+
+    /// The depositor can sign a speed-up that changes the recipient: only the owner may be it.
+    function test_Across_RefundNotTheOwner_Reverts() external {
+        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, 99e6);
+        o.refund = makeAddr("Treasury");
+        Token memory usdt = _token(address(s_usdt));
+        bytes memory context = _acrossContext(99e6, uint32(block.timestamp + 2 hours));
+        vm.expectRevert(BridgeGuardian.RefundNotOwner.selector);
+        _accept(usdt, o, context);
+    }
+
+    // Subsidies
+
+    /// The payer's fee tops up the deposit, so the whole handed amount is delivered.
+    function test_Across_Subsidy_DeliversTheHandedAmount() external {
+        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, AMOUNT);
+        uint32 fillDeadline = uint32(block.timestamp + 2 hours);
+        BridgeGuardian.Subsidy memory subsidy = _subsidy(s_intent, o, AMOUNT, fillDeadline, FEE, 0);
+        bytes memory context = _acrossContext(AMOUNT, fillDeadline, subsidy);
+
+        vm.expectEmit(true, true, false, true, address(s_guardian));
+        emit BridgeGuardian.Subsidized(bytes32(uint256(1)), s_payer, FEE);
+        _accept(_token(address(s_usdt)), o, context);
+
+        MockAcrossSpokePool.Deposit memory d = s_spokePool.last();
+        assertEq(d.inputAmount, AMOUNT + FEE, "the handed amount plus the fee");
+        assertEq(d.outputAmount, AMOUNT, "1:1");
+        assertEq(s_usdt.balanceOf(s_payer), 9 * FEE, "the fee, from the payer");
+        assertEq(s_usdt.balanceOf(address(s_guardian)), 0, "nothing rests");
+    }
+
+    /// The signature names the caller: a copy spent through another caller fails.
+    function test_Across_Subsidy_OtherCaller_Reverts() external {
+        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, AMOUNT);
+        uint32 fillDeadline = uint32(block.timestamp + 2 hours);
+        BridgeGuardian.Subsidy memory subsidy = _subsidy(makeAddr("Attacker"), o, AMOUNT, fillDeadline, FEE, 0);
+        bytes memory context = _acrossContext(AMOUNT, fillDeadline, subsidy);
+        Token memory usdt = _token(address(s_usdt));
+        vm.expectRevert(SignatureVerification.InvalidSigner.selector);
+        _accept(usdt, o, context);
+    }
+
+    /// The signature names the deposit: the fee can't pay for another output or recipient.
+    function test_Across_Subsidy_OtherDeposit_Reverts() external {
+        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, 99e6);
+        uint32 fillDeadline = uint32(block.timestamp + 2 hours);
+        BridgeGuardian.Subsidy memory subsidy = _subsidy(s_intent, o, AMOUNT, fillDeadline, FEE, 0);
+        Token memory usdt = _token(address(s_usdt));
+
+        bytes memory lower = _acrossContext(99e6, fillDeadline, subsidy);
+        vm.expectRevert(SignatureVerification.InvalidSigner.selector);
+        _accept(usdt, o, lower);
+
+        o.recipient = makeAddr("Elsewhere");
+        bytes memory signed = _acrossContext(AMOUNT, fillDeadline, subsidy);
+        vm.expectRevert(SignatureVerification.InvalidSigner.selector);
+        _accept(usdt, o, signed);
+    }
+
+    /// Each signature pays once.
+    function test_Across_Subsidy_Replay_Reverts() external {
+        s_usdt.mint(s_intent, AMOUNT);
+        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, AMOUNT);
+        uint32 fillDeadline = uint32(block.timestamp + 2 hours);
+        bytes memory context = _acrossContext(AMOUNT, fillDeadline, _subsidy(s_intent, o, AMOUNT, fillDeadline, FEE, 7));
+        Token memory usdt = _token(address(s_usdt));
+        _accept(usdt, o, context);
+        vm.expectRevert(bytes4(keccak256("InvalidNonce()")));
+        _accept(usdt, o, context);
+    }
+
+    /// With a subsidy the deposit must still cover the output: handed amount plus fee.
+    function test_Across_Subsidy_OutputAboveTheDeposit_Reverts() external {
+        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, AMOUNT);
+        uint32 fillDeadline = uint32(block.timestamp + 2 hours);
+        uint256 output = AMOUNT + FEE + 1;
+        bytes memory context = _acrossContext(output, fillDeadline, _subsidy(s_intent, o, output, fillDeadline, FEE, 0));
+        Token memory usdt = _token(address(s_usdt));
+        vm.expectRevert(abi.encodeWithSelector(BridgeGuardian.AboveInput.selector, output, AMOUNT + FEE));
+        _accept(usdt, o, context);
+    }
+
+    /// The payer's fee tops up the burn, so the recipient receives the whole handed amount.
+    function test_Cctp_Subsidy_DeliversTheHandedAmount() external {
+        Obligation memory o = _obligation(s_guardian.CCTP(), s_usdcArbitrum, AMOUNT);
+        bytes memory context = _cctpContext(FEE, _burnSubsidy(s_intent, o, FEE, FEE));
+
+        vm.expectEmit(true, true, false, true, address(s_guardian));
+        emit BridgeGuardian.Subsidized(bytes32(uint256(1)), s_payer, FEE);
+        _accept(_token(address(s_usdc)), o, context);
+
+        (uint256 amount,,,,, uint256 maxFee,) = s_messenger.last();
+        assertEq(amount, AMOUNT + FEE, "the handed amount plus the fee");
+        assertEq(maxFee, FEE, "max fee");
+        assertEq(s_usdc.balanceOf(s_payer), 9 * FEE, "the fee, from the payer");
+        assertEq(s_usdc.balanceOf(address(s_guardian)), 0, "nothing rests");
+    }
+
+    /// The floor still binds what is burned: a subsidy short of the max fee falls below it.
+    function test_Cctp_Subsidy_BelowTheFee_Reverts() external {
+        Obligation memory o = _obligation(s_guardian.CCTP(), s_usdcArbitrum, AMOUNT);
+        bytes memory context = _cctpContext(FEE, _burnSubsidy(s_intent, o, FEE, FEE - 1));
+        Token memory usdc = _token(address(s_usdc));
+        vm.expectRevert(abi.encodeWithSelector(BridgeGuardian.BelowMinimum.selector, AMOUNT - 1, AMOUNT));
+        _accept(usdc, o, context);
+    }
+
+    /// The signature names the caller and the burn: the fee can't pay through another caller, for a
+    /// higher max fee or to another recipient.
+    function test_Cctp_Subsidy_OtherBurn_Reverts() external {
+        Obligation memory o = _obligation(s_guardian.CCTP(), s_usdcArbitrum, AMOUNT - FEE);
+        Token memory usdc = _token(address(s_usdc));
+
+        bytes memory caller = _cctpContext(FEE, _burnSubsidy(makeAddr("Attacker"), o, FEE, FEE));
+        vm.expectRevert(SignatureVerification.InvalidSigner.selector);
+        _accept(usdc, o, caller);
+
+        BridgeGuardian.Subsidy memory subsidy = _burnSubsidy(s_intent, o, FEE, FEE);
+        bytes memory higher = _cctpContext(2 * FEE, subsidy);
+        vm.expectRevert(SignatureVerification.InvalidSigner.selector);
+        _accept(usdc, o, higher);
+
+        o.recipient = makeAddr("Elsewhere");
+        bytes memory signed = _cctpContext(FEE, subsidy);
+        vm.expectRevert(SignatureVerification.InvalidSigner.selector);
+        _accept(usdc, o, signed);
     }
 
     // Records

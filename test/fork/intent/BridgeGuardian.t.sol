@@ -5,6 +5,7 @@ import { BridgeGuardianDeployer } from "../../../script/BridgeGuardianDeployer.s
 import { BridgeGuardian } from "../../../src/intent/BridgeGuardian.sol";
 import { Token, TokenType } from "../../../src/interfaces/IEnsoRouter.sol";
 import { Obligation, Status } from "../../../src/interfaces/IIntentGuardian.sol";
+import { Subsidies } from "../../utils/Subsidies.sol";
 import { Test } from "forge-std/Test.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
@@ -76,6 +77,12 @@ contract BridgeGuardian_Fork_Test is Test {
         _cctp(ARBITRUM, ARBITRUM_DOMAIN, USDC_ARBITRUM, 1e6, 1000);
     }
 
+    /// 1:1 with a subsidy through the live Permit2: the payer covers the fast-transfer fee.
+    function test_Base_Cctp_Fast_Subsidized() external {
+        _fork("BASE_RPC_URL", BASE_BLOCK);
+        _cctp(ARBITRUM, ARBITRUM_DOMAIN, USDC_ARBITRUM, 1e6, 1000, 1e6);
+    }
+
     function test_Ethereum_Cctp_BurnsToTheRecipientOnBase() external {
         _fork("ETHEREUM_RPC_URL", ETHEREUM_BLOCK);
         _cctp(BASE, BASE_DOMAIN, USDC_BASE, 0, 2000);
@@ -93,6 +100,12 @@ contract BridgeGuardian_Fork_Test is Test {
         _across(USDT_ETHEREUM, USDT_ARBITRUM);
     }
 
+    /// 1:1 with a subsidy through the live Permit2. USDT's transferFrom returns nothing.
+    function test_Ethereum_Across_Usdt_Subsidized() external {
+        _fork("ETHEREUM_RPC_URL", ETHEREUM_BLOCK);
+        _across(USDT_ETHEREUM, USDT_ARBITRUM, 2e6);
+    }
+
     /// Selects the fork and deploys the guardian with this chain's configuration, as the deployer
     /// script does on the real chain.
     function _fork(string memory rpc, uint256 blockNumber) internal {
@@ -101,16 +114,47 @@ contract BridgeGuardian_Fork_Test is Test {
     }
 
     function _cctp(uint256 chainId, uint32 domain, address delivered, uint256 maxFee, uint32 finality) internal {
+        _cctp(chainId, domain, delivered, maxFee, finality, 0);
+    }
+
+    /// With a `fee`, a payer's subsidy through the live Permit2 tops the burn up and the floor is the
+    /// whole handed amount.
+    function _cctp(
+        uint256 chainId,
+        uint32 domain,
+        address delivered,
+        uint256 maxFee,
+        uint32 finality,
+        uint256 fee
+    )
+        internal
+    {
         address usdc = s_guardian.usdc();
-        Obligation memory o = _obligation(chainId, s_guardian.CCTP(), delivered, AMOUNT - maxFee);
-        bytes memory context = abi.encode(uint256(0), s_guardian.CCTP(), abi.encode(maxFee, finality));
+        Obligation memory o = _obligation(chainId, s_guardian.CCTP(), delivered, fee > 0 ? AMOUNT : AMOUNT - maxFee);
+        BridgeGuardian.Subsidy memory subsidy;
+        if (fee > 0) {
+            (address payer, uint256 key) = makeAddrAndKey("Payer");
+            deal(usdc, payer, fee);
+            vm.prank(payer);
+            IERC20(usdc).approve(address(Subsidies.PERMIT2), fee);
+            Subsidies.Burn memory b = Subsidies.Burn({
+                caller: s_intent,
+                intentHash: keccak256("intent"),
+                obligation: o,
+                amount: AMOUNT,
+                maxFee: maxFee,
+                minFinalityThreshold: finality
+            });
+            subsidy = Subsidies.sign(s_guardian, key, usdc, fee, 0, b);
+        }
+        bytes memory context = abi.encode(uint256(0), s_guardian.CCTP(), abi.encode(maxFee, finality, subsidy));
         _fund(usdc);
         uint256 supply = IERC20(usdc).totalSupply();
 
         vm.expectEmit(true, true, true, true, TOKEN_MESSENGER);
         emit DepositForBurn(
             usdc,
-            AMOUNT,
+            AMOUNT + fee,
             address(s_guardian),
             _word(s_user),
             domain,
@@ -122,17 +166,40 @@ contract BridgeGuardian_Fork_Test is Test {
         );
         bytes32 receipt = _accept(usdc, o, context);
 
-        assertEq(IERC20(usdc).totalSupply(), supply - AMOUNT, "burned");
+        assertEq(IERC20(usdc).totalSupply(), supply - AMOUNT - fee, "burned");
         assertEq(IERC20(usdc).balanceOf(s_intent), 0, "taken from the caller");
         _assertNothingRests(usdc, TOKEN_MESSENGER, receipt);
     }
 
     function _across(address input, address delivered) internal {
+        _across(input, delivered, 0);
+    }
+
+    /// With a `fee`, a payer's subsidy through the live Permit2 tops the deposit up and the output is
+    /// the whole handed amount.
+    function _across(address input, address delivered, uint256 fee) internal {
         address spokePool = address(s_guardian.spokePool());
-        uint256 output = AMOUNT - 1e6;
+        uint256 output = fee > 0 ? AMOUNT : AMOUNT - 1e6;
         uint32 fillDeadline = uint32(block.timestamp + 2 hours);
         Obligation memory o = _obligation(ARBITRUM, s_guardian.ACROSS(), delivered, output);
-        bytes memory context = abi.encode(uint256(0), s_guardian.ACROSS(), abi.encode(output, fillDeadline));
+        BridgeGuardian.Subsidy memory subsidy;
+        if (fee > 0) {
+            (address payer, uint256 key) = makeAddrAndKey("Payer");
+            deal(input, payer, fee);
+            vm.prank(payer);
+            (bool approved,) = input.call(abi.encodeCall(IERC20.approve, (address(Subsidies.PERMIT2), fee)));
+            require(approved, "approve");
+            Subsidies.Deposit memory d = Subsidies.Deposit({
+                caller: s_intent,
+                intentHash: keccak256("intent"),
+                obligation: o,
+                amount: AMOUNT,
+                outputAmount: output,
+                fillDeadline: fillDeadline
+            });
+            subsidy = Subsidies.sign(s_guardian, key, input, fee, 0, d);
+        }
+        bytes memory context = abi.encode(uint256(0), s_guardian.ACROSS(), abi.encode(output, fillDeadline, subsidy));
         _fund(input);
         uint256 pooled = IERC20(input).balanceOf(spokePool);
         uint32 depositId = ISpokePoolDeposits(spokePool).numberOfDeposits();
@@ -141,7 +208,7 @@ contract BridgeGuardian_Fork_Test is Test {
         emit FundsDeposited(
             _word(input),
             _word(delivered),
-            AMOUNT,
+            AMOUNT + fee,
             output,
             ARBITRUM,
             depositId,
@@ -155,7 +222,7 @@ contract BridgeGuardian_Fork_Test is Test {
         );
         bytes32 receipt = _accept(input, o, context);
 
-        assertEq(IERC20(input).balanceOf(spokePool), pooled + AMOUNT, "escrowed in the spoke pool");
+        assertEq(IERC20(input).balanceOf(spokePool), pooled + AMOUNT + fee, "escrowed in the spoke pool");
         assertEq(IERC20(input).balanceOf(s_intent), 0, "taken from the caller");
         _assertNothingRests(input, spokePool, receipt);
     }

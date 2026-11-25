@@ -564,30 +564,64 @@ EnsoRouter for exactly those amounts.
 - **Zero amounts.** `amount == 0` reverts `ZeroAmount`, after the method's own
   checks.
 - **CCTP.**
+  - Params are `(uint256 maxFee, uint32 minFinalityThreshold, Subsidy subsidy)`.
   - The input must be the local USDC.
   - The destination must be in the table, and the delivered token must be that
     destination's native USDC.
-  - `amount − maxFee` must be at least `minAmount`.
+  - The burn is the handed amount plus any subsidy fee. The burn less `maxFee`
+    must be at least `minAmount`.
   - `destinationCaller` is 0, so anyone may relay the attestation.
+  - CCTP has no refund path and no depositor-signed amendment, so the CCTP leg
+    has no counterpart to Across's refund checks.
 - **Across routes.** Routes are a constructor table keyed by
   `keccak256(abi.encode(input, chainId, output))`. Each holds a `(mul, div)`
   scale for the decimals gap. An unknown key reverts `UnsupportedRoute`.
 - **Across.**
-  - Params are `(uint256 outputAmount, uint32 fillDeadline)`.
+  - Params are `(uint256 outputAmount, uint32 fillDeadline, Subsidy subsidy)`.
   - The depositor (who receives Across refunds) is `obligation.refund`. It must
     be non-zero and must not be the caller (`RefundToCaller`), because a refund
     to the intent address would trigger the rule again.
+  - The depositor must be the owner passed to `accept` (`RefundNotOwner`). The
+    SpokePool's `speedUpDeposit` lets the depositor sign a lower output and a
+    new recipient, which relayers may fill against, so whoever holds the
+    depositor role controls the delivery.
   - `minAmount` counts in input units, as for CCTP. The declared `outputAmount`
     is scaled into input units, then it must be at least `minAmount`
-    (`BelowMinimum`) and must not exceed the handed amount (`AboveInput`).
+    (`BelowMinimum`) and must not exceed the deposit, the handed amount plus any
+    subsidy fee (`AboveInput`).
   - `fillDeadline` must not be after the obligation's deadline
     (`DeadlineTooLate`), and must be at least 30 minutes ahead
     (`DeadlineTooEarly`).
   - Every deposit names no exclusive relayer and no exclusivity, so any relayer
     may fill it from the first block.
   - **The band.** The keeper chooses `outputAmount` between the floor and the
-    handed amount. The difference goes to whichever relayer fills it. A keeper
-    that also relays competes for it with every other relayer.
+    deposit. The difference goes to whichever relayer fills it. A keeper that
+    also relays competes for it with every other relayer.
+- **Subsidies.** A subsidy `(payer, fee, nonce, deadline, signature)` lets
+  someone other than the owner pay the bridge's fee (the Across relayer, or
+  Circle's fast-transfer fee), so a template can set the floor to the consumed
+  amount and still be delivered (1:1 delivery).
+  - A zero fee pays nothing and the other fields are ignored.
+  - Otherwise the guardian pulls `fee` of the input token from `payer` through
+    Permit2's `permitWitnessTransferFrom`, at the canonical Permit2 address, and
+    deposits or burns `amount + fee`.
+  - The witness is the bridge call, with `caller = msg.sender`:
+    - Across:
+      `Deposit(caller, intentHash, refund, recipient, chainId, output, amount, outputAmount, fillDeadline)`.
+    - CCTP:
+      `Burn(caller, intentHash, recipient, chainId, amount, maxFee, minFinalityThreshold)`.
+      The delivered token is fixed by `chainId`.
+  - `accept` is permissionless and its `intentHash` is the caller's claim, so
+    the binding to `msg.sender` is what stops a copied signature being spent
+    through another caller. The other fields tie the fee to this one call.
+    Permit2 supplies the nonce and expiry.
+  - The fee is pulled after the handed amount, and only after the method's
+    checks have passed.
+  - Whatever of the fee the bridge doesn't take goes to the user: Across refunds
+    an unfilled deposit, fee included, to the depositor (the owner); CCTP mints
+    the burn less the fee Circle actually charges to the recipient. The payer's
+    leftover is lost to the user, which is the fail-safe direction.
+  - `Subsidized(receipt, payer, fee)` follows `Accepted`.
 - **Settlement.** `settle` reverts and receipts stay `PENDING`. FORWARD means
   delivery is the bridge's responsibility alone.
 
@@ -741,9 +775,10 @@ anything is funded.
 13. **`IntentRecord` arithmetic.** Window anchoring, the terminal check order,
     and that `start ≤ now` is enforced before `block.timestamp - start`.
 14. **`BridgeGuardian` parameters the keeper controls.** CCTP `maxFee` and
-    finality; Across `outputAmount` and `fillDeadline`. None should let the
-    keeper deliver below `minAmount`, change the recipient, or redirect a
-    refund.
+    finality; Across `outputAmount` and `fillDeadline`; the subsidy on either.
+    None should let the keeper deliver below `minAmount`, change the recipient,
+    or redirect a refund. A subsidy should never let anyone spend a payer's fee
+    on a bridge call the payer didn't sign for.
 15. **Lint suppressions.** Each `forge-lint` disable states its reason. The
     evaluator disables `calls-loop` and `require-revert-in-loop` library-wide:
     every loop runs over committed lists, and any revert aborts the whole
@@ -785,13 +820,21 @@ Unit tests:
   address reverting `Locked`, cancel, and the golden-vector `hash`.
 - **`test/unit/concrete/intent/bridgeGuardian/`:** every CCTP and Across check
   against mocks, including the route table, an unlisted route, input-unit
-  scaling, `AboveInput`, `DeadlineTooEarly`, no exclusive relayer, `ZeroAmount`,
-  `UnexpectedValue`, the `Accepted` fields and receipts counting up. Also
-  `uda.t.sol`, a deposit-address template end to end (USDC via CCTP, USDT via
-  Across, both in one execution). On that template it also covers two rules
-  naming one handoff or comparing one balance change (`MALFORMED`), a handoff
-  minimum of zero, and the refund order against an owner the token blocks
-  (`MockBlockingERC20`, a token with a blocklist as USDC and USDT have).
+  scaling, `AboveInput`, `DeadlineTooEarly`, `RefundNotOwner`, no exclusive
+  relayer, `ZeroAmount`, `UnexpectedValue`, the `Accepted` fields and receipts
+  counting up. Subsidies run against Permit2 etched at its canonical address.
+  For Across: a 1:1 deposit topped up by the fee, a signature for another caller
+  or another deposit (`InvalidSigner`), a replayed nonce, and `AboveInput`
+  against the handed amount plus the fee. For CCTP: a burn topped up to cover
+  `maxFee`, a fee short of it (`BelowMinimum`), and a signature for another
+  caller, a higher `maxFee` or another recipient (`InvalidSigner`).
+  `test/utils/Subsidies.sol` signs them. Also `uda.t.sol`, a deposit-address
+  template end to end (USDC via CCTP, USDT via Across, both in one execution,
+  and a subsidized 1:1 Across leg whose payer signs for the intent address and
+  the intent's id). On that template it also covers two rules naming one handoff
+  or comparing one balance change (`MALFORMED`), a handoff minimum of zero, and
+  the refund order against an owner the token blocks (`MockBlockingERC20`, a
+  token with a blocklist as USDC and USDT have).
 
 Forge runs each top-level test call as its own transaction here, so transient
 storage doesn't persist between calls in a test. The lock test runs its sequence
@@ -803,11 +846,14 @@ Fork tests:
   deployer on Base and Ethereum forks. It runs `accept` against the live
   TokenMessengerV2 and SpokePools, and asserts the emitted `DepositForBurn` /
   `FundsDeposited`, the burn or escrow, and that nothing is left in the
-  guardian. This covers the source chain only.
+  guardian. A subsidized USDT deposit on Ethereum and a subsidized fast CCTP
+  burn on Base run through the live Permit2. This covers the source chain only.
 
 Off-chain, the intent SDK's suite runs the deployed `IntentEvaluator.check`
 against the SDK's port, and compares `IntentRouter.hash` and
-`EphemeralFactory.getAddress` with the SDK's own derivations.
+`EphemeralFactory.getAddress` with the SDK's own derivations. It also signs a
+subsidy for each method with the SDK's typed data and has `BridgeGuardian`
+accept it through Permit2.
 
 ---
 
@@ -817,8 +863,8 @@ against the SDK's port, and compares `IntentRouter.hash` and
   leaf, lint rules on what custody bounds measure, and a lint rejecting
   `DELTA`/`POST_VIEW` bounds on accounts an outside party can credit.
 - **SDK interface.** The SDK must follow the current `Accepted` ABI and topic,
-  the context's leading value word, the two-field Across params, Across minimums
-  in input units, and the router and factory addresses.
+  the context's leading value word, the CCTP and Across params with their
+  subsidy, Across minimums in input units, and the router and factory addresses.
 - **`IntentDeploymentsWriter`** doesn't yet write the Across route list to
   `deployments.json`.
 - **Arc.** The Arc USDC row's `decimals()` is not confirmed on-chain.

@@ -7,6 +7,7 @@ import {
     Asset,
     Codes,
     Constraints,
+    Fee,
     Handoff,
     Intent,
     Predicate,
@@ -15,16 +16,18 @@ import {
     Source,
     Term
 } from "../../../../../src/interfaces/IIntent.sol";
-import { Level } from "../../../../../src/interfaces/IIntentGuardian.sol";
+import { Level, Obligation } from "../../../../../src/interfaces/IIntentGuardian.sol";
 import { IAcrossSpokePool } from "../../../../../src/interfaces/bridges/IAcrossSpokePool.sol";
 import { ITokenMessengerV2 } from "../../../../../src/interfaces/bridges/ITokenMessengerV2.sol";
 import { IntentEvaluator } from "../../../../../src/libraries/IntentEvaluator.sol";
 import { MockBlockingERC20 } from "../../../../mocks/MockBlockingERC20.sol";
 import { MockAcrossSpokePool, MockTokenMessengerV2 } from "../../../../mocks/MockBridges.sol";
 import { MockERC20 } from "../../../../mocks/MockERC20.sol";
+import { Subsidies } from "../../../../utils/Subsidies.sol";
 import {
     EphemeralIntentExecutor_Unit_Concrete_Test
 } from "../../wallet/ephemeralIntentExecutor/EphemeralIntentExecutor.t.sol";
+import { DeployPermit2 } from "@uniswap/permit2/test/utils/DeployPermit2.sol";
 
 /// The first UDA ruleset end to end: one address, USDC bridged through CCTP and USDT through Across
 /// to Arbitrum, each within 0.1% of what arrived less a fixed 1-token fee.
@@ -134,9 +137,11 @@ contract BridgeGuardian_Uda_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
     function _execution(Intent memory intent, uint256 outputAmount) internal view returns (Execution memory e) {
         e = _execution(intent);
         e.contexts = new bytes[](2);
-        e.contexts[0] = abi.encode(uint256(0), keccak256("cctp"), abi.encode(uint256(0.05e6), uint32(1000)));
-        e.contexts[1] =
-            abi.encode(uint256(0), keccak256("across"), abi.encode(outputAmount, uint32(block.timestamp + 2 hours)));
+        BridgeGuardian.Subsidy memory none;
+        e.contexts[0] = abi.encode(uint256(0), keccak256("cctp"), abi.encode(uint256(0.05e6), uint32(1000), none));
+        e.contexts[1] = abi.encode(
+            uint256(0), keccak256("across"), abi.encode(outputAmount, uint32(block.timestamp + 2 hours), none)
+        );
     }
 
     function test_Usdc_BridgesThroughCctp() external {
@@ -171,6 +176,64 @@ contract BridgeGuardian_Uda_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
         assertEq(d.depositor, bytes32(uint256(uint160(address(s_user)))), "Across refunds go to the user");
         assertEq(d.outputToken, bytes32(uint256(uint160(s_usdtArbitrum))), "committed delivered asset");
         assertEq(s_messenger.burns(), 0, "USDC rule inactive");
+    }
+
+    /// 1:1 through Across: the floor is the whole deposit, the rule takes no fee, and a payer's
+    /// subsidy pays the relayer. The payer signs for the intent address and the intent's id.
+    function test_Usdt_Subsidized_DeliversTheWholeDeposit() external {
+        Intent memory intent = _uda();
+        intent.constraints.rules[1].fees = new Fee[](0);
+        intent.constraints.handoffs[1].minAmount = 4; // USDT consumed
+        bytes32 root = _root(intent);
+        address at = s_factory.getAddress(root);
+        s_usdt.mint(at, DEPOSIT);
+
+        new DeployPermit2().deployPermit2();
+        (address payer, uint256 key) = makeAddrAndKey("Payer");
+        s_usdt.mint(payer, FEE);
+        vm.prank(payer);
+        s_usdt.approve(address(Subsidies.PERMIT2), FEE);
+
+        Execution memory e = _execution(intent, DEPOSIT);
+        uint32 fillDeadline = uint32(block.timestamp + 2 hours);
+        Subsidies.Deposit memory d = Subsidies.Deposit({
+            caller: at,
+            intentHash: keccak256(abi.encodePacked(hex"1901", _factoryDomain(), root)), // a one-leaf tree
+            obligation: Obligation({
+                chainId: ARBITRUM,
+                method: keccak256("across"),
+                recipient: s_user,
+                refund: s_user,
+                token: s_usdtArbitrum,
+                minAmount: DEPOSIT,
+                deadline: uint64(block.timestamp + 6 hours)
+            }),
+            amount: DEPOSIT,
+            outputAmount: DEPOSIT,
+            fillDeadline: fillDeadline
+        });
+        BridgeGuardian.Subsidy memory subsidy = Subsidies.sign(s_guardian, key, address(s_usdt), FEE, 0, d);
+        e.contexts[1] = abi.encode(uint256(0), keccak256("across"), abi.encode(DEPOSIT, fillDeadline, subsidy));
+
+        _run(s_keeper, root, e);
+
+        MockAcrossSpokePool.Deposit memory deposited = s_spokePool.last();
+        assertEq(deposited.inputAmount, DEPOSIT + FEE, "the deposit plus the subsidy");
+        assertEq(deposited.outputAmount, DEPOSIT, "1:1");
+        assertEq(s_usdt.balanceOf(payer), 0, "the payer paid the fee");
+        assertEq(s_usdt.balanceOf(s_keeper), 0, "the rule took no fee");
+    }
+
+    function _factoryDomain() internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("EphemeralFactory"),
+                keccak256("2"),
+                block.chainid,
+                address(s_factory)
+            )
+        );
     }
 
     function test_Usdt_BelowTheFloor_Reverts() external {
@@ -242,7 +305,8 @@ contract BridgeGuardian_Uda_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
         s_usdc.mint(at, 5e6); // the next deposit tops it up
         // The floor scales with the deposit (10 × 99.9% − 1 = 8.99), so the keeper sizes its fee cap
         // to fit: 0.01 here, where 0.05 would be refused.
-        e.contexts[0] = abi.encode(uint256(0), keccak256("cctp"), abi.encode(uint256(0.01e6), uint32(1000)));
+        BridgeGuardian.Subsidy memory none;
+        e.contexts[0] = abi.encode(uint256(0), keccak256("cctp"), abi.encode(uint256(0.01e6), uint32(1000), none));
         _run(s_keeper, root, e);
         (uint256 amount,,,,,,) = s_messenger.last();
         assertEq(amount, 10e6 - FEE, "both deposits together");
