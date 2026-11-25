@@ -22,12 +22,5 @@ contract BridgeGuardianDeployer is BridgeConfig {
             (uint32 domain, address usdc) = guardian.cctpDestinations(d.chainId);
             require(domain == d.domain && usdc == d.usdc, "destination mismatch");
         }
-        for (uint256 i; i < config.routes.length; ++i) {
-            BridgeGuardian.AcrossRoute memory r = config.routes[i];
-            (uint128 mul, uint128 div) = guardian.acrossRoutes(keccak256(abi.encode(r.input, r.chainId, r.output)));
-            // forge-lint: disable-next-line(unsafe-typecast)
-            uint256 factor = 10 ** uint8(r.decimals < 0 ? -r.decimals : r.decimals);
-            require(r.decimals < 0 ? mul == factor && div == 1 : mul == 1 && div == factor, "route mismatch");
-        }
     }
 }

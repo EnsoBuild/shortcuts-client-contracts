@@ -54,16 +54,11 @@ contract BridgeGuardian_Uda_Test is EphemeralIntentExecutor_Unit_Concrete_Test {
         s_spokePool = new MockAcrossSpokePool();
         BridgeGuardian.CctpDestination[] memory destinations = new BridgeGuardian.CctpDestination[](1);
         destinations[0] = BridgeGuardian.CctpDestination({ chainId: ARBITRUM, domain: 3, usdc: s_usdcArbitrum });
-        BridgeGuardian.AcrossRoute[] memory routes = new BridgeGuardian.AcrossRoute[](1);
-        routes[0] = BridgeGuardian.AcrossRoute({
-            input: address(s_usdt), chainId: ARBITRUM, output: s_usdtArbitrum, decimals: 0
-        });
         s_guardian = new BridgeGuardian(
             ITokenMessengerV2(address(s_messenger)),
             address(s_usdc),
             destinations,
-            IAcrossSpokePool(address(s_spokePool)),
-            routes
+            IAcrossSpokePool(address(s_spokePool))
         );
     }
 

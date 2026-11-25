@@ -18,7 +18,6 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
     uint256 internal constant ARBITRUM = 42_161;
     uint32 internal constant ARBITRUM_DOMAIN = 3;
     uint256 internal constant BNB = 56;
-    uint256 internal constant ETHEREUM = 1;
 
     address internal s_intent = makeAddr("Intent"); // the caller: an intent address or a router
     address internal s_user = makeAddr("User");
@@ -26,7 +25,6 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
     address internal s_usdcArbitrum = makeAddr("USDC on Arbitrum");
     address internal s_usdtArbitrum = makeAddr("USDT on Arbitrum");
     address internal s_usdtBnb = makeAddr("USDT on BNB Chain");
-    address internal s_usdtEthereum = makeAddr("USDT on Ethereum");
 
     uint256 internal constant FEE = 0.5e6;
 
@@ -47,22 +45,11 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
         BridgeGuardian.CctpDestination[] memory destinations = new BridgeGuardian.CctpDestination[](1);
         destinations[0] =
             BridgeGuardian.CctpDestination({ chainId: ARBITRUM, domain: ARBITRUM_DOMAIN, usdc: s_usdcArbitrum });
-        BridgeGuardian.AcrossRoute[] memory routes = new BridgeGuardian.AcrossRoute[](3);
-        routes[0] = BridgeGuardian.AcrossRoute({
-            input: address(s_usdt), chainId: ARBITRUM, output: s_usdtArbitrum, decimals: 0
-        });
-        // USDT to BNB Chain, where it has 12 more decimals; and back.
-        routes[1] =
-            BridgeGuardian.AcrossRoute({ input: address(s_usdt), chainId: BNB, output: s_usdtBnb, decimals: 12 });
-        routes[2] = BridgeGuardian.AcrossRoute({
-            input: address(s_usdc), chainId: ETHEREUM, output: s_usdtEthereum, decimals: -12
-        });
         s_guardian = new BridgeGuardian(
             ITokenMessengerV2(address(s_messenger)),
             address(s_usdc),
             destinations,
-            IAcrossSpokePool(address(s_spokePool)),
-            routes
+            IAcrossSpokePool(address(s_spokePool))
         );
 
         s_usdc.mint(s_intent, AMOUNT);
@@ -310,57 +297,39 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
         assertEq(d.exclusivityParameter, 0, "no exclusivity");
     }
 
-    /// The declared output may not exceed the handed amount, so the floor binds what was handed.
-    function test_Across_OutputAboveTheHandedAmount_Reverts() external {
-        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, 99e6);
-        Token memory usdt = _token(address(s_usdt));
-        bytes memory context = _acrossContext(AMOUNT + 1, uint32(block.timestamp + 2 hours));
-        vm.expectRevert(abi.encodeWithSelector(BridgeGuardian.AboveInput.selector, AMOUNT + 1, AMOUNT));
-        _accept(usdt, o, context);
-    }
-
-    /// The floor counts in input units: an output in a token with more decimals is scaled down
-    /// before both bounds.
-    function test_Across_OutputIsComparedInInputUnits() external {
-        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtBnb, 98.9e6);
+    /// The floor and the output both count in the delivered token's units: USDT with 6 decimals here
+    /// is delivered as USDT with 18 on BNB Chain, and the template scaled its floor to match.
+    function test_Across_FloorInTheDeliveredUnits() external {
+        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtBnb, 98.9e18);
         o.chainId = BNB;
         Token memory usdt = _token(address(s_usdt));
         uint32 fillDeadline = uint32(block.timestamp + 2 hours);
 
-        bytes memory dust = _acrossContext(98.9e6, fillDeadline); // raw 18-decimal units: dust
-        vm.expectRevert(abi.encodeWithSelector(BridgeGuardian.BelowMinimum.selector, 0, 98.9e6));
+        bytes memory dust = _acrossContext(98.9e6, fillDeadline); // input units: dust on BNB Chain
+        vm.expectRevert(abi.encodeWithSelector(BridgeGuardian.BelowMinimum.selector, 98.9e6, 98.9e18));
         _accept(usdt, o, dust);
 
-        bytes memory over = _acrossContext((AMOUNT + 1) * 1e12, fillDeadline);
-        vm.expectRevert(abi.encodeWithSelector(BridgeGuardian.AboveInput.selector, AMOUNT + 1, AMOUNT));
-        _accept(usdt, o, over);
-
         _accept(usdt, o, _acrossContext(98.9e18, fillDeadline));
-        assertEq(s_spokePool.last().outputAmount, 98.9e18, "the floor, in the delivered token's units");
+        MockAcrossSpokePool.Deposit memory d = s_spokePool.last();
+        assertEq(d.outputAmount, 98.9e18, "the floor, in the delivered token's units");
+        assertEq(d.inputAmount, AMOUNT, "the handed amount, in its own");
     }
 
-    function test_Across_RouteTable() external view {
-        (uint128 mul, uint128 div) = s_guardian.acrossRoutes(keccak256(abi.encode(address(s_usdt), BNB, s_usdtBnb)));
-        assertEq(mul, 1, "more decimals: mul");
-        assertEq(div, 1e12, "more decimals: div");
-        (mul, div) = s_guardian.acrossRoutes(keccak256(abi.encode(address(s_usdc), ETHEREUM, s_usdtEthereum)));
-        assertEq(mul, 1e12, "fewer decimals: mul");
-        assertEq(div, 1, "fewer decimals: div");
-    }
-
-    /// Only the routes fixed at construction are served.
-    function test_Across_UnlistedRoute_Reverts() external {
+    /// No route table: any chain and delivered token the intent commits to is deposited. A route no
+    /// relayer serves expires and refunds the owner.
+    function test_Across_AnyRoute() external {
+        s_usdt.mint(s_intent, AMOUNT);
         Token memory usdt = _token(address(s_usdt));
         bytes memory context = _acrossContext(99e6, uint32(block.timestamp + 2 hours));
 
         Obligation memory chain = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, 99e6);
         chain.chainId = 10;
-        vm.expectRevert(BridgeGuardian.UnsupportedRoute.selector);
         _accept(usdt, chain, context);
+        assertEq(s_spokePool.last().destinationChainId, 10, "another chain");
 
         Obligation memory delivered = _obligation(s_guardian.ACROSS(), makeAddr("another token"), 99e6);
-        vm.expectRevert(BridgeGuardian.UnsupportedRoute.selector);
         _accept(usdt, delivered, context);
+        assertEq(s_spokePool.last().outputToken, bytes32(uint256(uint160(delivered.token))), "another token");
     }
 
     /// A deposit that expires at birth, or within the fill window, can't be filled.
@@ -445,17 +414,6 @@ contract BridgeGuardian_Unit_Concrete_Test is Test {
         Token memory usdt = _token(address(s_usdt));
         _accept(usdt, o, context);
         vm.expectRevert(bytes4(keccak256("InvalidNonce()")));
-        _accept(usdt, o, context);
-    }
-
-    /// With a subsidy the deposit must still cover the output: handed amount plus fee.
-    function test_Across_Subsidy_OutputAboveTheDeposit_Reverts() external {
-        Obligation memory o = _obligation(s_guardian.ACROSS(), s_usdtArbitrum, AMOUNT);
-        uint32 fillDeadline = uint32(block.timestamp + 2 hours);
-        uint256 output = AMOUNT + FEE + 1;
-        bytes memory context = _acrossContext(output, fillDeadline, _subsidy(s_intent, o, output, fillDeadline, FEE, 0));
-        Token memory usdt = _token(address(s_usdt));
-        vm.expectRevert(abi.encodeWithSelector(BridgeGuardian.AboveInput.selector, output, AMOUNT + FEE));
         _accept(usdt, o, context);
     }
 

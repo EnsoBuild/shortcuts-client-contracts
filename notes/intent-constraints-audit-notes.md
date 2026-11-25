@@ -569,14 +569,15 @@ EnsoRouter for exactly those amounts.
   - The destination must be in the table, and the delivered token must be that
     destination's native USDC.
   - The burn is the handed amount plus any subsidy fee. The burn less `maxFee`
-    must be at least `minAmount`.
+    must be at least `minAmount`. USDC has the same decimals on both sides, so
+    the burn and the floor share units.
   - `destinationCaller` is 0, so anyone may relay the attestation.
   - CCTP has no refund path and no depositor-signed amendment, so the CCTP leg
     has no counterpart to Across's refund checks.
-- **Across routes.** Routes are a constructor table keyed by
-  `keccak256(abi.encode(input, chainId, output))`. Each holds a `(mul, div)`
-  scale for the decimals gap. An unknown key reverts `UnsupportedRoute`.
 - **Across.**
+  - There is no route table. The obligation commits the delivered token and
+    chain, and any route is deposited. A route no relayer serves expires and
+    refunds the depositor, the owner.
   - Params are `(uint256 outputAmount, uint32 fillDeadline, Subsidy subsidy)`.
   - The depositor (who receives Across refunds) is `obligation.refund`. It must
     be non-zero and must not be the caller (`RefundToCaller`), because a refund
@@ -585,18 +586,20 @@ EnsoRouter for exactly those amounts.
     SpokePool's `speedUpDeposit` lets the depositor sign a lower output and a
     new recipient, which relayers may fill against, so whoever holds the
     depositor role controls the delivery.
-  - `minAmount` counts in input units, as for CCTP. The declared `outputAmount`
-    is scaled into input units, then it must be at least `minAmount`
-    (`BelowMinimum`) and must not exceed the deposit, the handed amount plus any
-    subsidy fee (`AboveInput`).
+  - `minAmount` and `outputAmount` both count in the delivered token's units,
+    and `outputAmount` must be at least `minAmount` (`BelowMinimum`). A template
+    bridging across a decimals gap scales its floor with a term. The guardian
+    holds no decimals, so it can't cap the output at the deposit: an output the
+    deposit can't cover goes unfilled and refunds the owner after
+    `fillDeadline`, a delay the keeper can cause but no loss.
   - `fillDeadline` must not be after the obligation's deadline
     (`DeadlineTooLate`), and must be at least 30 minutes ahead
     (`DeadlineTooEarly`).
   - Every deposit names no exclusive relayer and no exclusivity, so any relayer
     may fill it from the first block.
-  - **The band.** The keeper chooses `outputAmount` between the floor and the
-    deposit. The difference goes to whichever relayer fills it. A keeper that
-    also relays competes for it with every other relayer.
+  - **The band.** The keeper chooses `outputAmount` at or above the floor. The
+    deposit's value above the output goes to whichever relayer fills it. A
+    keeper that also relays competes for it with every other relayer.
 - **Subsidies.** A subsidy `(payer, fee, nonce, deadline, signature)` lets
   someone other than the owner pay the bridge's fee (the Across relayer, or
   Circle's fast-transfer fee), so a template can set the floor to the consumed
@@ -654,23 +657,23 @@ The router's init code includes the factory's predicted address, so the router's
 address depends on the factory's. `IntentRouterDeployer` requires the factory to
 be deployed first.
 
-`BridgeConfig` holds the CCTP table (domain and native USDC), the Across
-SpokePools, and the Across tokens by family: native USDC on the CCTP chains that
-have a spoke pool (except Plasma), and USDT or USDT0. Each chain's guardian gets
-a route from each local token to its family's token on every other listed chain.
-Other Across assets (WETH, ETH, WBTC) have no routes and are refused. Before
-deploying, `_checkLocal` checks on-chain:
+`BridgeConfig` holds the CCTP table (domain and native USDC) and the Across
+SpokePools; Across needs no token list. Before deploying, `_checkLocal` checks
+on-chain:
 
 - the messenger's local domain;
 - a non-zero burn limit for USDC;
-- the SpokePool's `chainId`;
-- each local Across token's `decimals()` against the table.
+- the SpokePool's `chainId`.
 
-After deploying, the deployer reads every route back from the guardian.
+After deploying, the deployer reads every CCTP destination back from the
+guardian.
 
 `IntentDeploymentsWriter` forks every `rpc_endpoints` entry. It lists each chain
 where the factory is deployed, and writes `deployments.json` into the intent
-SDK.
+SDK, including each guardian's CCTP destinations. The SDK's `verifyDeployment`
+reads them back from the guardian. The scripts read the chain id through the
+`getChainId` cheatcode, never `block.chainid`: with `via_ir` the optimizer may
+reuse a `chainid()` read from before a fork switch.
 
 Because CREATE2 commits to the init code, code at a predicted address is this
 build's code. The executor's creation code also fixes every intent address,
@@ -819,22 +822,21 @@ Unit tests:
   with fee value, unspent call value reverting, a route that executes an intent
   address reverting `Locked`, cancel, and the golden-vector `hash`.
 - **`test/unit/concrete/intent/bridgeGuardian/`:** every CCTP and Across check
-  against mocks, including the route table, an unlisted route, input-unit
-  scaling, `AboveInput`, `DeadlineTooEarly`, `RefundNotOwner`, no exclusive
-  relayer, `ZeroAmount`, `UnexpectedValue`, the `Accepted` fields and receipts
-  counting up. Subsidies run against Permit2 etched at its canonical address.
-  For Across: a 1:1 deposit topped up by the fee, a signature for another caller
-  or another deposit (`InvalidSigner`), a replayed nonce, and `AboveInput`
-  against the handed amount plus the fee. For CCTP: a burn topped up to cover
-  `maxFee`, a fee short of it (`BelowMinimum`), and a signature for another
-  caller, a higher `maxFee` or another recipient (`InvalidSigner`).
-  `test/utils/Subsidies.sol` signs them. Also `uda.t.sol`, a deposit-address
-  template end to end (USDC via CCTP, USDT via Across, both in one execution,
-  and a subsidized 1:1 Across leg whose payer signs for the intent address and
-  the intent's id). On that template it also covers two rules naming one handoff
-  or comparing one balance change (`MALFORMED`), a handoff minimum of zero, and
-  the refund order against an owner the token blocks (`MockBlockingERC20`, a
-  token with a blocklist as USDC and USDT have).
+  against mocks, including any route being deposited, a floor in the delivered
+  token's units across a decimals gap, `DeadlineTooEarly`, `RefundNotOwner`, no
+  exclusive relayer, `ZeroAmount`, `UnexpectedValue`, the `Accepted` fields and
+  receipts counting up. Subsidies run against Permit2 etched at its canonical
+  address. For Across: a 1:1 deposit topped up by the fee, a signature for
+  another caller or another deposit (`InvalidSigner`), and a replayed nonce. For
+  CCTP: a burn topped up to cover `maxFee`, a fee short of it (`BelowMinimum`),
+  and a signature for another caller, a higher `maxFee` or another recipient
+  (`InvalidSigner`). `test/utils/Subsidies.sol` signs them. Also `uda.t.sol`, a
+  deposit-address template end to end (USDC via CCTP, USDT via Across, both in
+  one execution, and a subsidized 1:1 Across leg whose payer signs for the
+  intent address and the intent's id). On that template it also covers two rules
+  naming one handoff or comparing one balance change (`MALFORMED`), a handoff
+  minimum of zero, and the refund order against an owner the token blocks
+  (`MockBlockingERC20`, a token with a blocklist as USDC and USDT have).
 
 Forge runs each top-level test call as its own transaction here, so transient
 storage doesn't persist between calls in a test. The lock test runs its sequence
@@ -864,9 +866,8 @@ accept it through Permit2.
   `DELTA`/`POST_VIEW` bounds on accounts an outside party can credit.
 - **SDK interface.** The SDK must follow the current `Accepted` ABI and topic,
   the context's leading value word, the CCTP and Across params with their
-  subsidy, Across minimums in input units, and the router and factory addresses.
-- **`IntentDeploymentsWriter`** doesn't yet write the Across route list to
-  `deployments.json`.
+  subsidy, handoff minimums in the delivered token's units, and the router and
+  factory addresses.
 - **Arc.** The Arc USDC row's `decimals()` is not confirmed on-chain.
 - **Tempo.** Deployment there is untested: anvil cannot estimate gas on a fork.
   Dry-run against the live RPC first.

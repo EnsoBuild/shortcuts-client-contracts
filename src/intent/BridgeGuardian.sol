@@ -63,21 +63,6 @@ contract BridgeGuardian is IIntentGuardian {
         address usdc;
     }
 
-    /// An Across route: `input` on this chain is delivered as `output` on `chainId`. `decimals` is
-    /// the output token's decimals less the input token's.
-    struct AcrossRoute {
-        address input;
-        uint256 chainId;
-        address output;
-        int8 decimals;
-    }
-
-    /// Turns an output amount into input units: amount * mul / div. A zero `div` means no route.
-    struct Scale {
-        uint128 mul;
-        uint128 div;
-    }
-
     /// CCTP on this chain; zero when CCTP isn't supported here.
     ITokenMessengerV2 public immutable tokenMessenger;
     address public immutable usdc;
@@ -85,8 +70,6 @@ contract BridgeGuardian is IIntentGuardian {
     IAcrossSpokePool public immutable spokePool;
 
     mapping(uint256 chainId => Domain destination) public cctpDestinations;
-    /// Keyed by keccak256(abi.encode(input, chainId, output)).
-    mapping(bytes32 route => Scale scale) public acrossRoutes;
     uint256 private s_accepted;
 
     /// `payer` topped up the bridge call of `receipt` with `fee` of its input token.
@@ -96,10 +79,8 @@ contract BridgeGuardian is IIntentGuardian {
     error UnsupportedMethod(bytes32 method);
     error MethodMismatch(bytes32 committed, bytes32 chosen);
     error UnsupportedDestination(uint256 chainId);
-    error UnsupportedRoute();
     error WrongDeliveredToken(address expected, address committed);
     error BelowMinimum(uint256 delivered, uint256 minAmount);
-    error AboveInput(uint256 delivered, uint256 amount);
     error DeadlineTooLate(uint32 fillDeadline, uint64 deadline);
     error DeadlineTooEarly(uint32 fillDeadline);
     error RefundToCaller();
@@ -114,8 +95,7 @@ contract BridgeGuardian is IIntentGuardian {
         ITokenMessengerV2 tokenMessenger_,
         address usdc_,
         CctpDestination[] memory destinations,
-        IAcrossSpokePool spokePool_,
-        AcrossRoute[] memory routes
+        IAcrossSpokePool spokePool_
     ) {
         tokenMessenger = tokenMessenger_;
         usdc = usdc_;
@@ -123,15 +103,6 @@ contract BridgeGuardian is IIntentGuardian {
         for (uint256 i; i < destinations.length; ++i) {
             CctpDestination memory d = destinations[i];
             cctpDestinations[d.chainId] = Domain({ domain: d.domain, usdc: d.usdc });
-        }
-        for (uint256 i; i < routes.length; ++i) {
-            AcrossRoute memory r = routes[i];
-            // casting to 'uint8' is safe because each branch casts a non-negative int8; a gap too
-            // wide for uint128 reverts in the checked power
-            // forge-lint: disable-next-item(unsafe-typecast)
-            acrossRoutes[keccak256(abi.encode(r.input, r.chainId, r.output))] = r.decimals < 0
-                ? Scale({ mul: uint128(10) ** uint8(-r.decimals), div: 1 })
-                : Scale({ mul: 1, div: uint128(10) ** uint8(r.decimals) });
         }
     }
 
@@ -208,7 +179,8 @@ contract BridgeGuardian is IIntentGuardian {
     /// CCTP burns the handed amount and mints it to the recipient on the destination, less at most
     /// `maxFee`. A subsidy adds its fee to the burn, paying Circle's fee on top of what was handed,
     /// so the recipient can receive the whole handed amount. Whatever of the fee Circle doesn't
-    /// charge is minted to the recipient too.
+    /// charge is minted to the recipient too. USDC has the same decimals on both sides, so the burn
+    /// and `minAmount` share units.
     /// params: abi.encode(uint256 maxFee, uint32 minFinalityThreshold, Subsidy subsidy)
     function _cctp(
         bytes32 intentHash,
@@ -268,8 +240,10 @@ contract BridgeGuardian is IIntentGuardian {
     }
 
     /// Across: a relayer delivers `outputAmount` of the committed asset on the destination; an
-    /// unfilled deposit is refunded to the depositor on this chain after `fillDeadline`. Only the
-    /// routes fixed at construction are served. `minAmount` counts in input units, as for CCTP.
+    /// unfilled deposit is refunded to the depositor on this chain after `fillDeadline`. Any route
+    /// Across serves is accepted: the committed asset fixes the output token, and a route no relayer
+    /// fills expires into that refund. `minAmount` and `outputAmount` both count in the delivered
+    /// token's units, so no decimals are needed here; the template scales its floor.
     /// The deposit names no exclusive relayer: any relayer may fill it from the first block.
     /// A subsidy adds its fee to the deposit's input, paying the relayer on top of what was handed,
     /// so the output can equal the handed amount.
@@ -298,23 +272,11 @@ contract BridgeGuardian is IIntentGuardian {
         if (obligation.refund != owner) {
             revert RefundNotOwner();
         }
-        Scale storage scale = acrossRoutes[keccak256(abi.encode(input, obligation.chainId, obligation.token))];
-        if (scale.div == 0) {
-            revert UnsupportedRoute();
-        }
         uint256 outputAmount;
         uint32 fillDeadline;
         (outputAmount, fillDeadline, subsidy) = abi.decode(params, (uint256, uint32, Subsidy));
-        uint256 deposited = amount + subsidy.fee;
-        // The declared output, in input units.
-        uint256 delivered = outputAmount * scale.mul / scale.div;
-        if (delivered < obligation.minAmount) {
-            revert BelowMinimum(delivered, obligation.minAmount);
-        }
-        // The deposit must cover the declared output, so the floor binds what was handed, plus any
-        // subsidy, too.
-        if (delivered > deposited) {
-            revert AboveInput(delivered, deposited);
+        if (outputAmount < obligation.minAmount) {
+            revert BelowMinimum(outputAmount, obligation.minAmount);
         }
         if (fillDeadline > obligation.deadline) {
             revert DeadlineTooLate(fillDeadline, obligation.deadline);
@@ -342,6 +304,7 @@ contract BridgeGuardian is IIntentGuardian {
             );
             _subsidize(input, subsidy, witness, DEPOSIT_WITNESS);
         }
+        uint256 deposited = amount + subsidy.fee;
         IERC20(input).forceApprove(address(spokePool), deposited);
         spokePool.deposit(
             _word(obligation.refund),

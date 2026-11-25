@@ -6,6 +6,11 @@ import { ChainId } from "../src/libraries/ChainOwner.sol";
 import { IntentRouter } from "../src/router/IntentRouter.sol";
 import { Script } from "forge-std/Script.sol";
 
+/// Foundry's chain id cheatcode, which this forge-std's Vm doesn't declare.
+interface IChainIdCheat {
+    function getChainId() external view returns (uint256);
+}
+
 /// Deterministic deployment for the intent contracts.
 ///
 /// IntentEvaluator and IntentHash are external libraries. `forge script` deploys them itself, through
@@ -25,8 +30,15 @@ abstract contract IntentDeployment is Script {
     bytes32 internal constant ROUTER_SALT = "IntentRouter";
     bytes32 internal constant COUNTER_SALT = "IntentCounter";
 
+    /// The selected fork's chain id. Scripts read it here, never as `block.chainid`: with via_ir the
+    /// optimizer treats `chainid()` as constant for the whole call and may reuse a value read before
+    /// a fork switch. A cheatcode call's result can't be reused that way.
+    function _chainId() internal view returns (uint256) {
+        return IChainIdCheat(VM_ADDRESS).getChainId();
+    }
+
     function _requireSupported() internal view {
-        if (block.chainid == ChainId.ZKSYNC) {
+        if (_chainId() == ChainId.ZKSYNC) {
             revert("unsupported chain"); // zkSync's CREATE2 derivation differs
         }
         require(CREATE2_FACTORY.code.length != 0, "no CREATE2 deployer");

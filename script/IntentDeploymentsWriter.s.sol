@@ -41,16 +41,15 @@ contract IntentDeploymentsWriter is BridgeConfig {
                 console2.log("skipped (no fork):", rpcs[i].key);
                 continue;
             }
-            // Reading the chain id after switching forks is the point.
-            // forge-lint: disable-next-line(environment-read-across-mutation)
-            if (block.chainid == ChainId.ZKSYNC || factory.code.length == 0) {
+            uint256 chainId = _chainId();
+            if (chainId == ChainId.ZKSYNC || factory.code.length == 0) {
                 console2.log("skipped (no factory):", rpcs[i].key);
                 continue;
             }
             require(evaluator.code.length != 0, string.concat("no evaluator on ", rpcs[i].key));
-            chains = vm.serializeString("chains", vm.toString(block.chainid), _chain(evaluator));
+            chains = vm.serializeString("chains", vm.toString(chainId), _chain(evaluator));
             ++listed;
-            console2.log("listed:", rpcs[i].key, block.chainid);
+            console2.log("listed:", rpcs[i].key, chainId);
         }
         require(listed != 0, "the factory is deployed on no chain");
 
@@ -65,11 +64,12 @@ contract IntentDeploymentsWriter is BridgeConfig {
 
     /// The selected fork's entry.
     function _chain(address evaluator) internal returns (string memory) {
-        string memory key = string.concat("chain-", vm.toString(block.chainid));
-        address ensoRouter = _ensoRouter(block.chainid);
+        uint256 chainId = _chainId();
+        string memory key = string.concat("chain-", vm.toString(chainId));
+        address ensoRouter = _ensoRouter(chainId);
         require(
             ensoRouter.code.length != 0 && IShortcutsRouter(ensoRouter).shortcuts() != address(0),
-            string.concat("no EnsoRouter at the listed address on chain ", vm.toString(block.chainid))
+            string.concat("no EnsoRouter at the listed address on chain ", vm.toString(chainId))
         );
         vm.serializeAddress(key, "ensoRouter", ensoRouter);
         vm.serializeAddress(key, "evaluator", evaluator);
@@ -101,7 +101,7 @@ contract IntentDeploymentsWriter is BridgeConfig {
         if (guardian.code.length == 0) {
             return "{}";
         }
-        string memory key = string.concat("guardian-", vm.toString(block.chainid));
+        string memory key = string.concat("guardian-", vm.toString(_chainId()));
         vm.serializeAddress(key, "address", guardian);
         vm.serializeString(key, "level", _level(IIntentGuardian(guardian).level()));
 
