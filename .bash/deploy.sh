@@ -89,14 +89,21 @@ fi
 
 { set +x; } 2>/dev/null
 
-# Signing config. --account makes forge unlock the keystore to resolve the
-# signer for vm.startBroadcast(), so it prompts for the password even without
-# --broadcast and dies with "os error 6" when there is no tty.
-# For dry runs, set DEPLOYER_ADDRESS to simulate with --sender: an address alone
-# needs no unlock. Broadcasting always uses the keystore.
+# Signing config. DEPLOYER_ADDRESS is the keystore account's address.
+# --account makes forge unlock the keystore, so it prompts for the password even
+# without --broadcast and dies with "os error 6" when there is no tty. A dry run
+# with DEPLOYER_ADDRESS set simulates with --sender alone: an address needs no unlock.
+# A broadcast also passes it as --sender when set. Without --sender forge may run
+# the script as its default sender, and transactions forge sends itself, such as
+# linked library deployments, then come from that default: forge refuses to
+# broadcast them ("You seem to be using Foundry's default sender").
 signer=(--account "$account")
-if [[ $broadcast != "broadcast" && -n "$DEPLOYER_ADDRESS" ]]; then
-    signer=(--sender "$DEPLOYER_ADDRESS")
+if [[ -n "$DEPLOYER_ADDRESS" ]]; then
+    if [[ $broadcast == "broadcast" ]]; then
+        signer+=(--sender "$DEPLOYER_ADDRESS")
+    else
+        signer=(--sender "$DEPLOYER_ADDRESS")
+    fi
 fi
 
 forge script "script/${script}" --rpc-url "${!rpc}" "${signer[@]}" "${params[@]}"

@@ -233,7 +233,9 @@ variable instead.
 ### Deploy
 
 Preferred — the wrapper picks the right per-network flags and uses the
-`enso-deployer` keystore (override with `DEPLOYER_ACCOUNT`):
+`enso-deployer` keystore (override with `DEPLOYER_ACCOUNT`). Set
+`DEPLOYER_ADDRESS` in `.env` to that account's address; the wrapper passes it as
+`--sender`, which scripts with linked libraries (the intent deployers) need:
 
 ```bash
 $ ./.bash/deploy.sh <Deployer.s.sol> <network> broadcast <verifier>
@@ -248,8 +250,12 @@ out to deploy without verifying.
 Or invoke `forge script` directly:
 
 ```bash
-$ forge script Deployer --account enso-deployer --broadcast --rpc-url <network>
+$ forge script Deployer --account enso-deployer --sender <address> --broadcast --rpc-url <network>
 ```
+
+Always pass `--sender`. Without it forge runs the script as its default sender,
+and transactions forge sends itself, such as linked library deployments, come
+from that address, so forge refuses to broadcast.
 
 ### Dry run
 
@@ -265,7 +271,9 @@ password prompt and no tty needed. CI can run it.
 Worth knowing:
 
 - Deploys go through the CREATE2 factory, so **the sender does not change the
-  resulting addresses**. A dry run predicts exactly what a broadcast produces.
+  resulting addresses**, except `KeeperWallet`, whose address commits to its
+  deployer. A dry run with the real `DEPLOYER_ADDRESS` predicts exactly what a
+  broadcast produces.
 - Check those addresses against the ones your integrations already expect. A
   mismatch means the bytecode moved.
 - It cannot prove the sender may transact on a permissioned chain. Gas

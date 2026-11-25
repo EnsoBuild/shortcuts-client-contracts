@@ -58,7 +58,7 @@ contract EnsoReceiver_ValidateUserOp_Unit_Concrete_Test is EnsoReceiver_Unit_Con
         ValidateUserOpParams memory validateUserOpParams = _getValidateUserOpParamsSignedBy(s_signerPk, true);
 
         // it should revert
-        vm.expectRevert(abi.encodeWithSelector(EnsoReceiver.UnorderedNonceNotSupported.selector, s_owner));
+        vm.expectRevert(abi.encodeWithSelector(EnsoReceiver.UnorderedNonceNotSupported.selector));
         s_ensoReceiver.validateUserOp(
             validateUserOpParams.userOp, validateUserOpParams.userOpHash, validateUserOpParams.missingAccountFunds
         );
@@ -87,7 +87,7 @@ contract EnsoReceiver_ValidateUserOp_Unit_Concrete_Test is EnsoReceiver_Unit_Con
         ValidateUserOpParams memory validateUserOpParams = _getValidateUserOpParamsSignedBy(s_signerPk, true);
 
         // it should revert
-        vm.expectRevert(abi.encodeWithSelector(EnsoReceiver.UnorderedNonceNotSupported.selector, s_owner));
+        vm.expectRevert(abi.encodeWithSelector(EnsoReceiver.UnorderedNonceNotSupported.selector));
         s_ensoReceiver.validateUserOp(
             validateUserOpParams.userOp, validateUserOpParams.userOpHash, validateUserOpParams.missingAccountFunds
         );
@@ -134,7 +134,7 @@ contract EnsoReceiver_ValidateUserOp_Unit_Concrete_Test is EnsoReceiver_Unit_Con
         ValidateUserOpParams memory validateUserOpParams = _getValidateUserOpParamsSignedBy(s_signerPk, true);
 
         // it should revert
-        vm.expectRevert(abi.encodeWithSelector(EnsoReceiver.UnorderedNonceNotSupported.selector, s_owner));
+        vm.expectRevert(abi.encodeWithSelector(EnsoReceiver.UnorderedNonceNotSupported.selector));
         s_ensoReceiver.validateUserOp(
             validateUserOpParams.userOp, validateUserOpParams.userOpHash, validateUserOpParams.missingAccountFunds
         );
